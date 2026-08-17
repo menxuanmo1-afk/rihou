@@ -92,7 +92,10 @@ function render() {
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
-      ${isToday ? "" : `<div class="top-actions"><button class="btn" data-act="today">今天</button></div>`}
+      <div class="top-actions">
+        ${canLogNow ? `<button class="btn log-now" data-act="log-now">记到现在</button>` : ""}
+        ${isToday ? "" : `<button class="btn" data-act="today">今天</button>`}
+      </div>
     </header>
     <div class="main">
       <section class="panel timeline-wrap ${showTime ? "" : "hidden"}">
@@ -103,7 +106,6 @@ function render() {
         ${achieveHtml(r)}
       </section>
     </div>
-    ${canLogNow ? `<button class="fab" data-act="log-now">记到现在</button>` : ""}
     <nav class="tabs">
       <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">时间</button>
       <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve">厉害</button>

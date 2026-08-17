@@ -7,11 +7,6 @@
   --surface: #1a2128;
   --instant: #e07a5f;
   --care: #e8c9a0;
-  --safe-top: env(safe-area-inset-top, 0px);
-  --safe-bottom: env(safe-area-inset-bottom, 0px);
-  --safe-left: env(safe-area-inset-left, 0px);
-  --safe-right: env(safe-area-inset-right, 0px);
-  --tabs-h: 48px;
 }
 
 html { color-scheme: dark; }
@@ -26,9 +21,6 @@ body {
   background: var(--ink);
   color: var(--paper);
   -webkit-font-smoothing: antialiased;
-  min-height: 100%;
-  min-height: 100dvh;
-  min-height: -webkit-fill-available;
 }
 
 button, input { font: inherit; color: inherit; }
@@ -36,15 +28,11 @@ button { cursor: pointer; }
 
 .app {
   height: 100%;
-  height: 100svh;
-  height: -webkit-fill-available;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  padding-top: calc(8px + var(--safe-top));
-  padding-right: max(12px, var(--safe-right));
-  padding-bottom: calc(var(--tabs-h) + var(--safe-bottom));
-  padding-left: max(12px, var(--safe-left));
+  /* env() must be used directly — iOS ignores it inside custom properties */
+  padding-top: env(safe-area-inset-top, 0px);
 }
 
 .top {
@@ -52,14 +40,15 @@ button { cursor: pointer; }
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 10px;
+  flex-shrink: 0;
+  padding: 8px 12px 10px;
 }
 
 .date-nav { display: flex; align-items: center; gap: 8px; }
 .date-nav h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .sub { color: var(--moss); font-size: 12px; margin-top: 2px; }
 
-.top-actions { display: flex; gap: 8px; }
+.top-actions { display: flex; gap: 8px; flex-shrink: 0; }
 
 .btn {
   background: var(--surface);
@@ -69,6 +58,12 @@ button { cursor: pointer; }
   padding: 6px 10px;
   font-size: 14px;
 }
+.btn.log-now {
+  background: var(--clay);
+  color: var(--ink);
+  font-weight: 650;
+  white-space: nowrap;
+}
 
 .main {
   flex: 1;
@@ -76,6 +71,7 @@ button { cursor: pointer; }
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding: 0 12px;
 }
 
 .panel {
@@ -282,21 +278,18 @@ button { cursor: pointer; }
 }
 
 .tabs {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  flex-shrink: 0;
   display: flex;
   background: #12181e;
-  padding-bottom: var(--safe-bottom);
   border-top: 1px solid rgba(184, 176, 166, 0.12);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .tabs button {
   flex: 1;
   background: none;
   border: 0;
   color: var(--mute);
-  height: var(--tabs-h);
+  height: 48px;
   padding: 0;
 }
 .tabs button.on { color: var(--clay); }
@@ -316,7 +309,7 @@ button { cursor: pointer; }
   max-height: 88%;
   overflow: auto;
   border-radius: 20px 20px 0 0;
-  padding: 20px 20px calc(24px + var(--safe-bottom));
+  padding: 20px 20px calc(24px + env(safe-area-inset-bottom, 0px));
 }
 .sheet h2 { margin: 0 0 12px; font-size: 20px; }
 
@@ -403,36 +396,15 @@ button { cursor: pointer; }
 }
 .habit-edit .points { text-align: center; }
 
-.fab {
-  position: fixed;
-  right: max(16px, var(--safe-right));
-  bottom: calc(var(--tabs-h) + var(--safe-bottom) + 12px);
-  z-index: 12;
-  border: 0;
-  border-radius: 22px;
-  padding: 14px 18px;
-  background: var(--clay);
-  color: var(--ink);
-  font-weight: 650;
-  font-size: 16px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-}
-
 .block.mix { border: 0; }
 
 .hidden { display: none !important; }
 
 @media (min-width: 900px) {
-  html, body { overflow: hidden; }
-  .app {
-    height: 100%;
-    padding: 16px 20px;
-    max-width: 1200px;
-    margin: 0 auto;
-  }
-  .main { flex-direction: row; }
+  .app { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
+  .top { padding: 0 0 10px; }
+  .main { padding: 0; flex-direction: row; }
   .timeline-wrap { flex: 1.15; }
   .achieve-wrap { flex: 0.85; }
   .tabs { display: none; }
-  .fab { bottom: 24px; right: 24px; }
 }
