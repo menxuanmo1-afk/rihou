@@ -1,0 +1,18 @@
+{
+  "name": "日后",
+  "short_name": "日后",
+  "description": "记下每个小时实际做的事，把延迟满足画出来。",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0F1419",
+  "theme_color": "#0F1419",
+  "lang": "zh-CN",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

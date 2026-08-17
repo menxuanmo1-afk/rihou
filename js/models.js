@@ -1,0 +1,143 @@
+export const Payoff = {
+  DELAY: "DELAY",
+  CARE: "CARE",
+  INSTANT: "INSTANT",
+  NEUTRAL: "NEUTRAL",
+};
+
+export const KINDS = [
+  { id: "STUDY", label: "学习", payoff: Payoff.DELAY, color: "#E8A87C" },
+  { id: "READ", label: "读书", payoff: Payoff.DELAY, color: "#7DCEA0" },
+  { id: "FITNESS", label: "健身", payoff: Payoff.DELAY, color: "#7EB6D9" },
+  { id: "CREATE", label: "创作", payoff: Payoff.DELAY, color: "#C9A7EB" },
+  { id: "WORK", label: "功课", payoff: Payoff.DELAY, color: "#E8C07D" },
+  { id: "MEAL", label: "吃饭", payoff: Payoff.CARE, color: "#E8C9A0" },
+  { id: "REST", label: "休息", payoff: Payoff.CARE, color: "#B8B0A6" },
+  { id: "CHORE", label: "整理", payoff: Payoff.CARE, color: "#A8C5B5" },
+  { id: "COMMUTE", label: "通勤", payoff: Payoff.NEUTRAL, color: "#8A9BA8" },
+  { id: "SCROLL", label: "刷短视频", payoff: Payoff.INSTANT, color: "#E07A5F" },
+  { id: "GAME", label: "游戏", payoff: Payoff.INSTANT, color: "#D67B7B" },
+  { id: "OTHER", label: "其他", payoff: Payoff.NEUTRAL, color: "#9AA8B5" },
+];
+
+export const DEFAULT_HABITS = [
+  { id: "BRUSH", label: "刷牙", points: 8, hint: "小事，但每天都做才算数" },
+  { id: "SLEEP_BEFORE_11", label: "十一点前睡觉", points: 15, hint: "把明天上午连本带利还给你" },
+  { id: "TIDY", label: "整理房间", points: 10, hint: "环境干净，注意力也干净" },
+];
+
+export function kindById(id) {
+  return KINDS.find((k) => k.id === id) || KINDS[KINDS.length - 1];
+}
+
+export function blockKinds(block) {
+  if (Array.isArray(block.kinds) && block.kinds.length > 0) return block.kinds;
+  return block.kind ? [block.kind] : ["OTHER"];
+}
+
+export function blockLabel(block) {
+  if (block.title) return block.title;
+  const labels = blockKinds(block).map((id) => kindById(id).label);
+  if (labels.length === 1) return labels[0];
+  return `${labels.join(" / ")}（记不清分界）`;
+}
+
+export function blockColors(block) {
+  return blockKinds(block).map((id) => kindById(id).color);
+}
+
+export function gradientCss(colors) {
+  if (colors.length === 0) return "#9AA8B5";
+  if (colors.length === 1) return colors[0];
+  return `linear-gradient(180deg, ${colors.join(", ")})`;
+}
+
+export function lastActualEnd(day) {
+  const actuals = (day.blocks || []).filter((b) => !b.isPlan);
+  if (actuals.length === 0) return null;
+  return Math.max(...actuals.map((b) => b.endMin));
+}
+
+export function nowMinutes(d = new Date()) {
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+/** 上次实际记录的结束点 → 现在。没有上次则从 6:00 起。 */
+export function gapFromLastToNow(day, now = new Date()) {
+  const endMin = nowMinutes(now);
+  const last = lastActualEnd(day);
+  const startMin = last == null ? 6 * 60 : last;
+  return { startMin, endMin };
+}
+
+export function uid() {
+  return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+}
+
+export function emptyHabits(habitList = DEFAULT_HABITS) {
+  return Object.fromEntries(habitList.map((h) => [h.id, false]));
+}
+
+export function emptyDay(date) {
+  return { date, blocks: [], habits: emptyHabits() };
+}
+
+export function durationMin(block) {
+  return Math.max(0, block.endMin - block.startMin);
+}
+
+export function overlaps(block, start, end) {
+  return block.startMin < end && block.endMin > start;
+}
+
+export function minutesToHm(minutes) {
+  const clamped = Math.max(0, Math.min(24 * 60, minutes));
+  if (clamped === 24 * 60) return "24:00";
+  const h = Math.floor(clamped / 60);
+  const m = clamped % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export function parseHm(value) {
+  const [h, m] = String(value).split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return 0;
+  return Math.max(0, Math.min(24 * 60, h * 60 + m));
+}
+
+export function hmInputValue(minutes) {
+  const clamped = Math.max(0, Math.min(23 * 60 + 59, minutes));
+  return minutesToHm(clamped);
+}
+
+export function formatDuration(minutes) {
+  if (minutes <= 0) return "0分钟";
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h === 0) return `${m}分钟`;
+  if (m === 0) return `${h}小时`;
+  return `${h}小时${m}分`;
+}
+
+export function todayISO(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function addDays(iso, delta) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const date = new Date(y, m - 1, d + delta);
+  return todayISO(date);
+}
+
+export function weekdayLabel(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+  return names[new Date(y, m - 1, d).getDay()];
+}
+
+export function dateTitle(iso) {
+  const [, m, d] = iso.split("-");
+  return `${Number(m)}月${Number(d)}日 ${weekdayLabel(iso)}`;
+}
