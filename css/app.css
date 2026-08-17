@@ -7,17 +7,28 @@
   --surface: #1a2128;
   --instant: #e07a5f;
   --care: #e8c9a0;
+  --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --tabs-h: 48px;
 }
 
 html { color-scheme: dark; }
 * { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; }
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+}
 body {
   font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
   background: var(--ink);
   color: var(--paper);
   -webkit-font-smoothing: antialiased;
+  min-height: 100%;
+  min-height: 100dvh;
+  min-height: -webkit-fill-available;
 }
 
 button, input { font: inherit; color: inherit; }
@@ -25,9 +36,15 @@ button { cursor: pointer; }
 
 .app {
   height: 100%;
+  height: 100svh;
+  height: -webkit-fill-available;
   display: flex;
   flex-direction: column;
-  padding: 12px 12px calc(64px + var(--safe-bottom));
+  overflow: hidden;
+  padding-top: calc(8px + var(--safe-top));
+  padding-right: max(12px, var(--safe-right));
+  padding-bottom: calc(var(--tabs-h) + var(--safe-bottom));
+  padding-left: max(12px, var(--safe-left));
 }
 
 .top {
@@ -80,8 +97,22 @@ button { cursor: pointer; }
   position: relative;
   flex: 1;
   overflow: auto;
-  padding-bottom: 24px;
+  padding-bottom: 8px;
+  overscroll-behavior: contain;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: pan-y;
 }
+.timeline.drawing {
+  overflow: hidden;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.timeline.drawing .hour-row,
+.timeline.drawing .block { pointer-events: none; }
+
+.track { position: relative; }
 
 .hour-row {
   height: 56px;
@@ -115,6 +146,66 @@ button { cursor: pointer; }
   right: 12px;
 }
 .block .when { opacity: 0.8; font-size: 11px; margin-top: 2px; }
+
+.plan-draft {
+  position: absolute;
+  left: 56px;
+  right: 10px;
+  z-index: 6;
+  border: 1.5px dashed rgba(232, 168, 124, 0.9);
+  background: rgba(232, 168, 124, 0.16);
+  border-radius: 10px;
+  color: var(--clay);
+  overflow: visible;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.plan-draft .draft-body {
+  padding: 10px 28px 10px 8px;
+  pointer-events: none;
+}
+.plan-draft .draft-title { font-size: 13px; font-weight: 600; }
+.plan-draft .draft-hint { font-size: 11px; opacity: 0.75; margin-top: 2px; }
+.plan-draft.tight .draft-hint,
+.plan-draft.tight .draft-title { display: none; }
+.plan-draft .handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.plan-draft .handle.top { top: -11px; }
+.plan-draft .handle.bottom { bottom: -11px; }
+.plan-draft .handle::after {
+  content: "";
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--clay);
+  box-shadow: 0 0 0 3px rgba(26, 33, 40, 0.55);
+}
+.plan-draft .draft-x {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: 3;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(15, 20, 25, 0.45);
+  color: var(--clay);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0;
+}
 
 .now-line {
   position: absolute;
@@ -205,7 +296,8 @@ button { cursor: pointer; }
   background: none;
   border: 0;
   color: var(--mute);
-  padding: 10px 0 12px;
+  height: var(--tabs-h);
+  padding: 0;
 }
 .tabs button.on { color: var(--clay); }
 
@@ -313,8 +405,8 @@ button { cursor: pointer; }
 
 .fab {
   position: fixed;
-  right: 16px;
-  bottom: calc(72px + var(--safe-bottom));
+  right: max(16px, var(--safe-right));
+  bottom: calc(var(--tabs-h) + var(--safe-bottom) + 12px);
   z-index: 12;
   border: 0;
   border-radius: 22px;
@@ -331,10 +423,16 @@ button { cursor: pointer; }
 .hidden { display: none !important; }
 
 @media (min-width: 900px) {
-  .app { padding: 16px 20px 16px; max-width: 1200px; margin: 0 auto; }
+  html, body { overflow: hidden; }
+  .app {
+    height: 100%;
+    padding: 16px 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
   .main { flex-direction: row; }
   .timeline-wrap { flex: 1.15; }
   .achieve-wrap { flex: 0.85; }
   .tabs { display: none; }
-  .fab { bottom: 24px; }
+  .fab { bottom: 24px; right: 24px; }
 }

@@ -41,7 +41,26 @@ const state = {
   date: todayISO(),
   day: loadDay(todayISO()),
   tab: "time",
+  planDraft: null,
 };
+
+const gesture = {
+  kind: null,
+  pointerId: null,
+  originMin: 0,
+  startX: 0,
+  startY: 0,
+  lastY: 0,
+  timer: 0,
+  suppressClick: false,
+  suppressTimer: 0,
+  windowBound: false,
+};
+
+const LONG_PRESS_MS = 420;
+const PRESS_MOVE_PX = 18;
+const PLAN_SNAP = 5;
+const PLAN_MIN = 15;
 
 function currentDay() {
   state.day = loadDay(state.date);
@@ -73,14 +92,11 @@ function render() {
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
-      <div class="top-actions">
-        ${isToday ? "" : `<button class="btn" data-act="today">今天</button>`}
-        <button class="btn" data-act="plan">＋计划</button>
-      </div>
+      ${isToday ? "" : `<div class="top-actions"><button class="btn" data-act="today">今天</button></div>`}
     </header>
     <div class="main">
       <section class="panel timeline-wrap ${showTime ? "" : "hidden"}">
-        <div class="hint">记录精确到 1 分钟。点「记到现在」补上上次到此刻；点色块可改。</div>
+        <div class="hint">长按空白处再向下拉，画出计划；拖上下边改时间，点框写内容。点色块改已有记录。</div>
         ${timelineHtml()}
       </section>
       <section class="panel achieve-wrap ${showAchieve ? "" : "hidden"}">
@@ -113,11 +129,11 @@ function timelineHtml() {
 
   const blocks = state.day.blocks
     .map((block) => {
+      if (block.endMin <= block.startMin) return "";
       const visStart = Math.max(block.startMin, START_HOUR * 60);
       const visEnd = Math.min(block.endMin, END_HOUR * 60);
       if (visEnd <= visStart) return "";
-      const top = ((visStart - START_HOUR * 60) / 60) * HOUR_H;
-      const h = Math.max(8, ((visEnd - visStart) / 60) * HOUR_H);
+      const { top, h } = blockGeom(block.startMin, block.endMin);
       const colors = blockColors(block);
       const mixed = colors.length > 1 && !block.isPlan;
       const label = block.isPlan ? `计划 · ${blockLabel(block)}` : blockLabel(block);
@@ -137,12 +153,148 @@ function timelineHtml() {
     .join("");
 
   return `<div class="timeline" id="timeline">
-    <div style="position:relative;height:${height}px">
+    <div class="track" id="track" style="height:${height}px">
       ${hourRows}
       ${blocks}
       ${showNow ? `<div class="now-line" style="top:${nowTop}px"></div>` : ""}
+      ${planDraftHtml()}
     </div>
   </div>`;
+}
+
+function blockGeom(startMin, endMin) {
+  const visStart = Math.max(startMin, START_HOUR * 60);
+  const visEnd = Math.min(endMin, END_HOUR * 60);
+  const top = ((visStart - START_HOUR * 60) / 60) * HOUR_H;
+  const h = Math.max(8, ((visEnd - visStart) / 60) * HOUR_H);
+  return { top, h };
+}
+
+function snapPlanMin(minutes) {
+  const clamped = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, minutes));
+  return Math.round(clamped / PLAN_SNAP) * PLAN_SNAP;
+}
+
+function minutesFromClientY(clientY) {
+  const track = document.getElementById("track");
+  if (!track) return START_HOUR * 60;
+  const y = clientY - track.getBoundingClientRect().top;
+  return snapPlanMin(START_HOUR * 60 + (y / HOUR_H) * 60);
+}
+
+function planDraftHtml() {
+  const d = state.planDraft;
+  if (!d) return "";
+  const { top, h } = blockGeom(d.startMin, d.endMin);
+  return `<div class="plan-draft${h < 44 ? " tight" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
+    <div class="handle top" data-handle="start"></div>
+    <div class="draft-body">
+      <div class="draft-title">计划</div>
+      <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
+      <div class="draft-hint">点一下写内容</div>
+    </div>
+    <button type="button" class="draft-x" data-draft-dismiss aria-label="取消">×</button>
+    <div class="handle bottom" data-handle="end"></div>
+  </div>`;
+}
+
+function setDraftRange(startMin, endMin) {
+  let a = snapPlanMin(startMin);
+  let b = snapPlanMin(endMin);
+  if (b < a) [a, b] = [b, a];
+  if (b - a < PLAN_MIN) b = Math.min(END_HOUR * 60, a + PLAN_MIN);
+  if (b - a < PLAN_MIN) a = Math.max(START_HOUR * 60, b - PLAN_MIN);
+  state.planDraft = {
+    id: state.planDraft?.id || uid(),
+    isPlan: true,
+    kinds: state.planDraft?.kinds || ["STUDY"],
+    title: state.planDraft?.title || "",
+    startMin: a,
+    endMin: b,
+  };
+}
+
+function setDraftEdge(which, minutes) {
+  const d = state.planDraft;
+  if (!d) return;
+  const t = snapPlanMin(minutes);
+  if (which === "start") {
+    d.startMin = Math.max(START_HOUR * 60, Math.min(t, d.endMin - PLAN_MIN));
+  } else {
+    d.endMin = Math.min(END_HOUR * 60, Math.max(t, d.startMin + PLAN_MIN));
+  }
+}
+
+function paintDraft() {
+  const d = state.planDraft;
+  const track = document.getElementById("track");
+  if (!d || !track) return;
+  let el = document.getElementById("plan-draft");
+  if (!el) {
+    track.insertAdjacentHTML("beforeend", planDraftHtml());
+    el = document.getElementById("plan-draft");
+  }
+  const { top, h } = blockGeom(d.startMin, d.endMin);
+  el.style.top = `${top}px`;
+  el.style.height = `${h}px`;
+  el.classList.toggle("tight", h < 44);
+  const when = el.querySelector(".when");
+  if (when) when.textContent = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
+}
+
+function clearPlanDraft() {
+  state.planDraft = null;
+  document.getElementById("plan-draft")?.remove();
+}
+
+function openPlanFromDraft() {
+  const d = state.planDraft;
+  if (!d) return;
+  openEditor({
+    id: d.id,
+    isPlan: true,
+    kinds: [...(d.kinds || ["STUDY"])],
+    kind: (d.kinds || ["STUDY"])[0],
+    title: d.title || "",
+    startMin: d.startMin,
+    endMin: d.endMin,
+  });
+}
+
+function armSuppressClick() {
+  gesture.suppressClick = true;
+  window.clearTimeout(gesture.suppressTimer);
+  gesture.suppressTimer = window.setTimeout(() => {
+    gesture.suppressClick = false;
+  }, 500);
+}
+
+function bindWindowGesture() {
+  if (gesture.windowBound) return;
+  gesture.windowBound = true;
+  window.addEventListener("pointermove", onTimelinePointerMove);
+  window.addEventListener("pointerup", onTimelinePointerUp);
+  window.addEventListener("pointercancel", onTimelinePointerUp);
+}
+
+function unbindWindowGesture() {
+  if (!gesture.windowBound) return;
+  gesture.windowBound = false;
+  window.removeEventListener("pointermove", onTimelinePointerMove);
+  window.removeEventListener("pointerup", onTimelinePointerUp);
+  window.removeEventListener("pointercancel", onTimelinePointerUp);
+}
+
+function resetGesture() {
+  if (gesture.timer) {
+    clearTimeout(gesture.timer);
+    gesture.timer = 0;
+  }
+  gesture.kind = null;
+  gesture.pointerId = null;
+  unbindWindowGesture();
+  const timeline = document.getElementById("timeline");
+  timeline?.classList.remove("drawing");
 }
 
 function luminance(hex) {
@@ -236,25 +388,134 @@ function bindApp() {
       if (toggle.checked) await requestNotify();
     });
   }
-  const timeline = document.getElementById("timeline");
-  if (timeline) {
-    timeline.addEventListener("click", (event) => {
-      const block = event.target.closest("[data-id]");
-      if (block) {
-        const found = state.day.blocks.find((b) => b.id === block.dataset.id);
-        if (found) openEditor(found);
-        return;
-      }
-      const hourRow = event.target.closest("[data-hour]");
-      if (hourRow) {
-        const hour = Number(hourRow.dataset.hour);
-        let start = hour * 60;
-        const last = lastActualEnd(state.day);
-        if (last != null && last > start && last < hour * 60 + 60) start = last;
-        const end = Math.max(start + 1, Math.min(hour * 60 + 60, start + 30));
-        openRecordSheet({ startMin: start, endMin: end });
-      }
-    });
+  bindTimeline(document.getElementById("timeline"));
+}
+
+function bindTimeline(timeline) {
+  if (!timeline) return;
+
+  timeline.addEventListener("click", (event) => {
+    if (gesture.suppressClick) {
+      gesture.suppressClick = false;
+      event.preventDefault();
+      return;
+    }
+    if (event.target.closest("[data-draft-dismiss]") || event.target.closest("[data-handle]")) return;
+    if (event.target.closest("#plan-draft")) {
+      openPlanFromDraft();
+      return;
+    }
+    const block = event.target.closest("[data-id]");
+    if (block) {
+      const found = state.day.blocks.find((b) => b.id === block.dataset.id);
+      if (found) openEditor(found);
+      return;
+    }
+    const hourRow = event.target.closest("[data-hour]");
+    if (hourRow) {
+      const hour = Number(hourRow.dataset.hour);
+      let start = hour * 60;
+      const last = lastActualEnd(state.day);
+      if (last != null && last > start && last < hour * 60 + 60) start = last;
+      const end = Math.max(start + 1, Math.min(hour * 60 + 60, start + 30));
+      openRecordSheet({ startMin: start, endMin: end });
+    }
+  });
+
+  timeline.addEventListener("pointerdown", onTimelinePointerDown);
+  timeline.addEventListener("pointermove", onTimelinePointerMove);
+  timeline.addEventListener("pointerup", onTimelinePointerUp);
+  timeline.addEventListener("pointercancel", onTimelinePointerUp);
+  timeline.addEventListener("contextmenu", (event) => event.preventDefault());
+  timeline.addEventListener("touchmove", (event) => {
+    if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+      event.preventDefault();
+    }
+  }, { passive: false });
+}
+
+function onTimelinePointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const timeline = event.currentTarget;
+  if (event.target.closest("[data-draft-dismiss]")) {
+    event.preventDefault();
+    armSuppressClick();
+    clearPlanDraft();
+    return;
+  }
+  const handle = event.target.closest("[data-handle]");
+  if (handle && state.planDraft) {
+    event.preventDefault();
+    gesture.kind = handle.dataset.handle === "start" ? "resize-start" : "resize-end";
+    gesture.pointerId = event.pointerId;
+    armSuppressClick();
+    timeline.classList.add("drawing");
+    bindWindowGesture();
+    timeline.setPointerCapture(event.pointerId);
+    return;
+  }
+  if (event.target.closest("#plan-draft") || event.target.closest("[data-id]")) return;
+
+  gesture.pointerId = event.pointerId;
+  gesture.originMin = minutesFromClientY(event.clientY);
+  gesture.startX = event.clientX;
+  gesture.startY = event.clientY;
+  gesture.lastY = event.clientY;
+  gesture.kind = "press";
+  gesture.timer = window.setTimeout(() => {
+    gesture.timer = 0;
+    if (gesture.kind !== "press" || gesture.pointerId !== event.pointerId) return;
+    gesture.kind = "stretch";
+    armSuppressClick();
+    timeline.classList.add("drawing");
+    bindWindowGesture();
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture before move */
+    }
+    const nowMin = minutesFromClientY(gesture.lastY);
+    setDraftRange(gesture.originMin, nowMin === gesture.originMin ? gesture.originMin + PLAN_MIN : nowMin);
+    paintDraft();
+    navigator.vibrate?.(12);
+  }, LONG_PRESS_MS);
+}
+
+function onTimelinePointerMove(event) {
+  if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
+  gesture.lastY = event.clientY;
+  if (gesture.kind === "press") {
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (Math.hypot(dx, dy) > PRESS_MOVE_PX) resetGesture();
+    return;
+  }
+  if (gesture.kind === "stretch") {
+    setDraftRange(gesture.originMin, minutesFromClientY(event.clientY));
+    paintDraft();
+    return;
+  }
+  if (gesture.kind === "resize-start" && state.planDraft) {
+    setDraftEdge("start", minutesFromClientY(event.clientY));
+    paintDraft();
+    return;
+  }
+  if (gesture.kind === "resize-end" && state.planDraft) {
+    setDraftEdge("end", minutesFromClientY(event.clientY));
+    paintDraft();
+  }
+}
+
+function onTimelinePointerUp(event) {
+  if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
+  if (gesture.kind === "press") {
+    resetGesture();
+    return;
+  }
+  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+    armSuppressClick();
+    paintDraft();
+    resetGesture();
   }
 }
 
@@ -262,24 +523,16 @@ function onAction(event) {
   const act = event.currentTarget.dataset.act;
   if (act === "prev") {
     state.date = addDays(state.date, -1);
+    clearPlanDraft();
     render();
   } else if (act === "next") {
     state.date = addDays(state.date, 1);
+    clearPlanDraft();
     render();
   } else if (act === "today") {
     state.date = todayISO();
+    clearPlanDraft();
     render();
-  } else if (act === "plan") {
-    const hour = state.date === todayISO() ? Math.min(22, Math.max(6, new Date().getHours())) : 9;
-    openEditor({
-      id: uid(),
-      isPlan: true,
-      kinds: ["STUDY"],
-      kind: "STUDY",
-      title: "",
-      startMin: hour * 60,
-      endMin: hour * 60 + 60,
-    });
   } else if (act === "log-now") {
     openRecordSheet(gapFromLastToNow(state.day));
   } else if (act === "tab-time") {
@@ -301,6 +554,7 @@ function onAction(event) {
 }
 
 function scrollToNow() {
+  if (state.planDraft) return;
   if (state.date !== todayISO()) return;
   const timeline = document.getElementById("timeline");
   if (!timeline) return;
@@ -472,7 +726,8 @@ function openEditor(block) {
     startMin: block.startMin,
     endMin: block.endMin,
   };
-  showSheet(editorHtml(draft, true), (root) => bindEditor(root, draft, true));
+  const isEdit = state.day.blocks.some((b) => b.id === block.id);
+  showSheet(editorHtml(draft, isEdit), (root) => bindEditor(root, draft, isEdit));
 }
 
 function editorHtml(draft, isEdit) {
@@ -547,6 +802,7 @@ function bindEditor(root, draft, isEdit) {
       kind: draft.kinds[0],
       isPlan: draft.isPlan,
     });
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
     render();
   });
@@ -554,6 +810,7 @@ function bindEditor(root, draft, isEdit) {
   if (del) {
     del.addEventListener("click", () => {
       state.day = removeBlock(state.day, draft.id);
+      if (state.planDraft?.id === draft.id) state.planDraft = null;
       closeSheet();
       render();
     });
