@@ -3,15 +3,24 @@
   "short_name": "日后",
   "description": "记下每个小时实际做的事，把延迟满足画出来。",
   "start_url": "./",
+  "scope": "./",
+  "id": "./",
   "display": "standalone",
+  "display_override": ["standalone"],
   "background_color": "#0F1419",
   "theme_color": "#0F1419",
   "lang": "zh-CN",
   "icons": [
     {
-      "src": "icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     }
   ]
