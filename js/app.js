@@ -109,6 +109,7 @@ function render() {
   `;
   bindApp();
   scrollToNow();
+  pinFrame();
 }
 
 function timelineHtml() {
@@ -967,17 +968,49 @@ function tickHour() {
   }
 }
 
-window.addEventListener("resize", () => render());
+function pinFrame() {
+  const app = document.getElementById("app");
+  if (!app) return;
+  if (window.matchMedia("(min-width: 900px)").matches) {
+    app.style.top = "";
+    app.style.height = "";
+    return;
+  }
+  const vv = window.visualViewport;
+  const height = Math.max(
+    window.innerHeight,
+    document.documentElement.clientHeight,
+    vv ? Math.round(vv.height + vv.offsetTop) : 0,
+  );
+  app.style.top = "0px";
+  app.style.height = `${height}px`;
+}
+
+window.addEventListener("resize", () => {
+  pinFrame();
+  render();
+});
+window.visualViewport?.addEventListener("resize", pinFrame);
+window.visualViewport?.addEventListener("scroll", pinFrame);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
+    pinFrame();
     render();
     maybeOfferHour();
   }
 });
-window.addEventListener("pageshow", () => render());
+window.addEventListener("pageshow", () => {
+  pinFrame();
+  render();
+});
 
 render();
-requestAnimationFrame(() => render());
+pinFrame();
+requestAnimationFrame(() => {
+  pinFrame();
+  render();
+  pinFrame();
+});
 maybeOfferHour();
 setInterval(tickHour, 15000);
 requestNotify();

@@ -13,7 +13,6 @@ html { color-scheme: dark; }
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
-  height: 100%;
   overflow: hidden;
   overscroll-behavior: none;
 }
@@ -24,25 +23,28 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+
+.app {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
 @media (max-width: 899px) {
   html, body {
     position: fixed;
     inset: 0;
     width: 100%;
-    height: 100%;
   }
-}
-
-button, input { font: inherit; color: inherit; }
-button { cursor: pointer; }
-
-.app {
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  /* env() must be used directly — iOS ignores it inside custom properties */
-  padding-top: env(safe-area-inset-top, 0px);
+  .app {
+    position: absolute;
+    left: 0;
+    right: 0;
+    width: 100%;
+  }
 }
 
 .top {
@@ -411,7 +413,17 @@ button { cursor: pointer; }
 .hidden { display: none !important; }
 
 @media (min-width: 900px) {
-  .app { padding: 16px 20px; max-width: 1200px; margin: 0 auto; }
+  html, body {
+    position: static;
+    height: 100%;
+  }
+  .app {
+    position: static;
+    height: 100%;
+    padding: 16px 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
   .top { padding: 0 0 10px; }
   .main { padding: 0; flex-direction: row; }
   .timeline-wrap { flex: 1.15; }
