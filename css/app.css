@@ -15,12 +15,22 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
+  overscroll-behavior: none;
 }
 body {
   font-family: "SF Pro Text", "PingFang SC", "Hiragino Sans GB", sans-serif;
   background: var(--ink);
   color: var(--paper);
   -webkit-font-smoothing: antialiased;
+}
+
+@media (max-width: 899px) {
+  html, body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
 }
 
 button, input { font: inherit; color: inherit; }
@@ -44,7 +54,7 @@ button { cursor: pointer; }
   padding: 8px 12px 10px;
 }
 
-.date-nav { display: flex; align-items: center; gap: 8px; }
+.date-nav { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .date-nav h1 { margin: 0; font-size: 18px; font-weight: 600; }
 .sub { color: var(--moss); font-size: 12px; margin-top: 2px; }
 

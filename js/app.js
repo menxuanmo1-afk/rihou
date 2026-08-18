@@ -79,9 +79,6 @@ function render() {
   const wide = window.matchMedia("(min-width: 900px)").matches;
   const showTime = wide || state.tab === "time";
   const showAchieve = wide || state.tab === "achieve";
-  const gap = isToday ? gapFromLastToNow(state.day) : null;
-  const canLogNow = Boolean(gap && gap.endMin > gap.startMin);
-
   app.innerHTML = `
     <header class="top">
       <div class="date-nav">
@@ -93,8 +90,7 @@ function render() {
         <button class="btn" data-act="next">›</button>
       </div>
       <div class="top-actions">
-        ${canLogNow ? `<button class="btn log-now" data-act="log-now">记到现在</button>` : ""}
-        ${isToday ? "" : `<button class="btn" data-act="today">今天</button>`}
+        ${isToday ? `<button class="btn log-now" data-act="log-now">记到现在</button>` : `<button class="btn" data-act="today">今天</button>`}
       </div>
     </header>
     <div class="main">
@@ -536,7 +532,15 @@ function onAction(event) {
     clearPlanDraft();
     render();
   } else if (act === "log-now") {
-    openRecordSheet(gapFromLastToNow(state.day));
+    currentDay();
+    let range = gapFromLastToNow(state.day);
+    if (range.endMin <= range.startMin) {
+      range = {
+        startMin: Math.max(START_HOUR * 60, range.endMin - 1),
+        endMin: Math.max(range.endMin, START_HOUR * 60 + 1),
+      };
+    }
+    openRecordSheet(range);
   } else if (act === "tab-time") {
     state.tab = "time";
     render();
@@ -965,10 +969,15 @@ function tickHour() {
 
 window.addEventListener("resize", () => render());
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible") maybeOfferHour();
+  if (document.visibilityState === "visible") {
+    render();
+    maybeOfferHour();
+  }
 });
+window.addEventListener("pageshow", () => render());
 
 render();
+requestAnimationFrame(() => render());
 maybeOfferHour();
 setInterval(tickHour, 15000);
 requestNotify();

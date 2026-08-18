@@ -62,10 +62,11 @@ export function nowMinutes(d = new Date()) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-/** 上次实际记录的结束点 → 现在。没有上次则从 6:00 起。 */
+/** 上次已经发生的实际记录结束点 → 现在。忽略还没到的色块。没有上次则从 6:00 起。 */
 export function gapFromLastToNow(day, now = new Date()) {
   const endMin = nowMinutes(now);
-  const last = lastActualEnd(day);
+  const actuals = (day.blocks || []).filter((b) => !b.isPlan && b.endMin <= endMin);
+  const last = actuals.length === 0 ? null : Math.max(...actuals.map((b) => b.endMin));
   const startMin = last == null ? 6 * 60 : last;
   return { startMin, endMin };
 }
