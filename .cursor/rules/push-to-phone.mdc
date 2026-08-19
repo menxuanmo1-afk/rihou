@@ -1,0 +1,15 @@
+---
+description: After finishing app changes, commit if needed and push so the iPhone GitHub Pages copy updates.
+alwaysApply: true
+---
+
+# Always publish to the phone
+
+XUANMO uses 日后 on iPhone via GitHub Pages: https://menxuanmo1-afk.github.io/rihou/
+
+After you finish implementing or fixing something:
+1. Commit the relevant files if there are uncommitted changes.
+2. `git push` to `origin` (this repo’s `main`).
+3. Tell them to wait about a minute, then refresh that URL (or reopen the home-screen icon).
+
+Do not skip the push. This overrides the usual “don’t push unless asked.”
