@@ -115,6 +115,30 @@ button { cursor: pointer; }
   font-variant-numeric: tabular-nums;
 }
 .asset-kicker { margin: 0; letter-spacing: 0.04em; }
+.gloss-hit,
+.gloss-inline {
+  background: none;
+  border: 0;
+  padding: 0;
+  color: inherit;
+  font: inherit;
+  text-align: inherit;
+  display: block;
+}
+.gloss-inline {
+  display: inline;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.asset-kicker.gloss-hit,
+.ticker .lab {
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 3px;
+}
+.asset-num.gloss-hit { width: 100%; }
+.ticker.gloss-hit { width: 100%; }
 .asset-num {
   font-size: 56px;
   font-weight: 500;
@@ -458,6 +482,26 @@ button { cursor: pointer; }
   z-index: 20;
 }
 .sheet-bg.show { display: flex; }
+.sheet-bg.gloss {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.gloss-card {
+  background: #1a2128;
+  width: min(100%, 340px);
+  max-height: 70%;
+  overflow: auto;
+  border-radius: 16px;
+  padding: 18px 18px 12px;
+}
+.gloss-card h2 { margin: 0 0 10px; font-size: 18px; }
+.gloss-card p {
+  margin: 0 0 12px;
+  color: var(--mute);
+  font-size: 14px;
+  line-height: 1.65;
+}
 .sheet {
   background: #1a2128;
   width: 100%;

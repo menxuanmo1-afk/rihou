@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=13";
-import { loadSettings } from "./store.js?v=13";
+import { formatDuration } from "./models.js?v=14";
+import { loadSettings } from "./store.js?v=14";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -41,12 +41,19 @@ const STR = {
     hoursThatDay: "这一天 24 小时",
     compound: "复利资产",
     principal: "今日本金",
-    principalHint: "今天还没花掉的时间。到 24:00 清零。",
+    principalHint: "点「今日本金」可以看它是什么。到 24:00 清零。",
     todayInvest: "今日投资",
     totalInvest: "总投资",
     hiddenAsset: "估值",
     valuation: "估值",
     totalValuation: "总估值",
+    price: "现价",
+    "gloss.principal": "今天还没花掉的时间。它像现金，但过不了夜：到 24:00 还没投出去，就清零，不能攒到明天。",
+    "gloss.todayInvest": "今天已经记下来的投入时间。学习、读书、健身、创作、功课、吃饭、休息都算。上面选了哪一栏，这里就只统计那一栏。",
+    "gloss.totalInvest": "从第一笔记入开始，这一栏一共投了多少小时。这是库存，行情再差也不会把小时抹掉。",
+    "gloss.valuation": "市场给这批时间的标价。估值 = 总投资小时 × 现价。投入会推高现价，工作日空仓会折价，所以这个数字会上下波动。",
+    "gloss.totalValuation": "学识、身体、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
+    "gloss.price": "现在一小时投入值多少钱。坚持投入会涨，工作日荒废会跌，周末几乎走平。长时间不投，已经记下的小时还在，但会变便宜。",
     "book.all": "总览",
     "book.mind": "学识",
     "book.body": "身体",
@@ -115,12 +122,19 @@ const STR = {
     hoursThatDay: "That day, 24 hours",
     compound: "Compound asset",
     principal: "Today's capital",
-    principalHint: "Hours still unspent today. It clears at midnight.",
+    principalHint: "Tap the label to see what it means. It clears at midnight.",
     todayInvest: "Today's invest",
     totalInvest: "Total invest",
     hiddenAsset: "Valuation",
     valuation: "Valuation",
     totalValuation: "Total value",
+    price: "Price",
+    "gloss.principal": "Hours still unspent today. Like cash that spoils: if you don't invest it by midnight, it clears and does not roll over.",
+    "gloss.todayInvest": "Hours already logged today as investment — study, reading, fitness, making, schoolwork, meals, rest. The chips above filter which book this counts.",
+    "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
+    "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Investing lifts the price; an empty weekday marks it down. So this number can move both ways.",
+    "gloss.totalValuation": "Mind, body, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
+    "gloss.price": "What one invested hour is worth right now. Showing up raises it; a wasted weekday cuts it; weekends stay almost flat. Hours already logged stay; they just get cheaper if you go idle.",
     "book.all": "All",
     "book.mind": "Mind",
     "book.body": "Body",

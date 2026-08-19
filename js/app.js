@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=13";
+} from "./models.js?v=14";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=13";
+} from "./store.js?v=14";
 import {
   ASSET_BOOKS,
   buildPortfolio,
@@ -37,8 +37,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=13";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=13";
+} from "./analysis.js?v=14";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=14";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -124,7 +124,7 @@ function renderApp() {
         <button class="btn" data-act="prev">‹</button>
         <div>
           <h1>${dateTitle(state.date, lang())}</h1>
-          <div class="sub">${t("principal")} ${formatRemain(r.remainingMin, lang())}</div>
+          <div class="sub"><button type="button" class="gloss-inline" data-act="gloss" data-gloss="principal">${t("principal")}</button> ${formatRemain(r.remainingMin, lang())}</div>
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
@@ -367,26 +367,26 @@ function achieveHtml(r) {
     slow: "evalSlow",
     flat: "evalFlat",
   }[bookEval(book, r)] || "evalFlat";
-  const valueLab = book.id === "all" ? t("totalValuation") : t("valuation");
+  const valueKey = book.id === "all" ? "totalValuation" : "valuation";
   const price = formatPrice(book.price);
   return `
-    <p class="muted asset-kicker">${t("principal")}</p>
-    <div class="asset-num">${formatRemain(r.remainingMin, L)}</div>
+    <button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
+    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>
     <p class="muted principal-hint">${t("principalHint")}</p>
     <div class="tickers">
-      <div class="ticker">
+      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="todayInvest">
         <div class="lab">${t("todayInvest")}</div>
         <div class="val">${formatHours(book.todayH, L)}</div>
-      </div>
-      <div class="ticker">
+      </button>
+      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="totalInvest">
         <div class="lab">${t("totalInvest")}</div>
         <div class="val">${formatHours(book.totalH, L)}</div>
-      </div>
-      <div class="ticker">
-        <div class="lab">${valueLab}</div>
+      </button>
+      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="${valueKey}">
+        <div class="lab">${t(valueKey)}</div>
         <div class="val">${formatMoney(book.value)}</div>
         <div class="ratio-tag">${price}</div>
-      </div>
+      </button>
     </div>
     <div class="book-row">${chips}</div>
     ${assetChartHtml(book, r, L)}
@@ -563,6 +563,8 @@ function onAction(event) {
   } else if (act === "book") {
     state.book = event.currentTarget.dataset.book || "all";
     render();
+  } else if (act === "gloss") {
+    openGloss(event.currentTarget.dataset.gloss || "principal");
   } else if (act === "settings") {
     openSettingsSheet();
   } else if (act === "export") {
@@ -883,6 +885,24 @@ function openSettingsSheet() {
   });
 }
 
+function openGloss(key) {
+  const allowed = ["principal", "todayInvest", "totalInvest", "valuation", "totalValuation", "price"];
+  const gloss = allowed.includes(key) ? key : "principal";
+  const bg = document.getElementById("sheet-bg");
+  bg.className = "sheet-bg show gloss";
+  bg.innerHTML = `
+    <div class="gloss-card">
+      <h2>${t(gloss === "price" ? "price" : gloss)}</h2>
+      <p>${t(`gloss.${gloss}`)}</p>
+      <button type="button" class="ghost" data-close>${t("close")}</button>
+    </div>
+  `;
+  bg.onclick = (event) => {
+    if (event.target === bg) closeSheet();
+  };
+  bg.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
 function showSheet(html, bind) {
   const bg = document.getElementById("sheet-bg");
   bg.className = "sheet-bg show";
@@ -1015,5 +1035,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=13").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=14").catch(() => {});
 }
