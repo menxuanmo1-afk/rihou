@@ -1,188 +1,192 @@
-import { emptyDay, kindById, Payoff, durationMin, formatDuration, blockKinds } from "./models.js";
-import { loadHabits } from "./store.js";
+import { kindById, durationMin, blockKinds, addDays, todayISO } from "./models.js";
+import { loadDay, earliestDate } from "./store.js";
+
+const DAY_MIN = 24 * 60;
+const PAST_DAYS = 42;
+const FUTURE_DAYS = 90;
 
 function expanded(blocks) {
   const rows = [];
-  for (const block of blocks.filter((b) => !b.isPlan)) {
+  for (const block of (blocks || []).filter((b) => !b.isPlan)) {
     const kinds = blockKinds(block);
     const dur = durationMin(block);
     const each = kinds.length ? dur / kinds.length : dur;
     for (const kind of kinds) {
-      rows.push({ ...block, kind, minutes: each });
+      rows.push({ kind, minutes: each });
     }
   }
   return rows;
 }
 
-export function minutesOf(blocks, payoff) {
-  return expanded(blocks)
-    .filter((row) => kindById(row.kind).payoff === payoff)
-    .reduce((sum, row) => sum + row.minutes, 0);
+export function minutesByBucket(blocks) {
+  let invest = 0;
+  let consume = 0;
+  let other = 0;
+  for (const row of expanded(blocks)) {
+    const bucket = kindById(row.kind).bucket || "other";
+    if (bucket === "invest") invest += row.minutes;
+    else if (bucket === "consume") consume += row.minutes;
+    else other += row.minutes;
+  }
+  return { invest, consume, other };
 }
 
-export function minutesOfKind(blocks, kindId) {
-  return expanded(blocks)
-    .filter((row) => row.kind === kindId)
-    .reduce((sum, row) => sum + row.minutes, 0);
+export function multiplierForStreak(streak) {
+  if (streak >= 100) return 2;
+  if (streak >= 30) return 1.5;
+  if (streak >= 7) return 1.2;
+  return 1;
 }
 
-export function alignmentPercent(day) {
-  const plans = day.blocks.filter((b) => b.isPlan);
-  if (plans.length === 0) return 0;
-  let overlap = 0;
-  for (const plan of plans) {
-    const planKinds = new Set(blockKinds(plan));
-    for (const actual of day.blocks.filter((b) => !b.isPlan)) {
-      const share = blockKinds(actual).some((k) => planKinds.has(k));
-      if (!share) continue;
-      const start = Math.max(plan.startMin, actual.startMin);
-      const end = Math.min(plan.endMin, actual.endMin);
-      overlap += Math.max(0, end - start);
+function eachIso(from, to) {
+  const out = [];
+  let cur = from;
+  while (cur <= to) {
+    out.push(cur);
+    cur = addDays(cur, 1);
+  }
+  return out;
+}
+
+export function buildPortfolio(endIso = todayISO()) {
+  const today = todayISO();
+  const start = earliestDate();
+  const from = start < endIso ? start : endIso;
+  const days = eachIso(from, today < endIso ? endIso : today);
+
+  let streak = 0;
+  let asset = 0;
+  let hadInvest = false;
+  const series = [];
+
+  for (const iso of days) {
+    const { invest } = minutesByBucket(loadDay(iso).blocks);
+    const hours = invest / 60;
+    const isToday = iso === today;
+
+    if (hours > 0) {
+      streak += 1;
+      hadInvest = true;
+    } else if (!isToday) {
+      streak = 0;
     }
-  }
-  const planned = plans.reduce((sum, b) => sum + durationMin(b), 0) || 1;
-  return Math.max(0, Math.min(100, Math.round((overlap * 100) / planned)));
-}
 
-export function unloggedMinutes(actuals, now, isToday) {
-  const until = isToday ? now.getHours() * 60 + now.getMinutes() : 24 * 60;
-  const windowStart = 7 * 60;
-  const windowEnd = Math.max(windowStart, Math.min(until, 23 * 60));
-  if (windowEnd <= windowStart) return 0;
-  let covered = 0;
-  for (const block of actuals) {
-    const start = Math.max(block.startMin, windowStart);
-    const end = Math.min(block.endMin, windowEnd);
-    covered += Math.max(0, end - start);
-  }
-  return Math.max(0, windowEnd - windowStart - covered);
-}
-
-function longestDelayStretch(actuals) {
-  const delay = actuals.filter((b) => blockKinds(b).some((k) => kindById(k).payoff === Payoff.DELAY));
-  if (delay.length === 0) return null;
-  const best = delay.reduce((a, b) => (durationMin(b) > durationMin(a) ? b : a));
-  if (durationMin(best) < 40) return null;
-  const label = best.title || blockKinds(best).map((id) => kindById(id).label).join(" / ");
-  return `最长的一段「${label}」有 ${formatDuration(durationMin(best))}`;
-}
-
-function titleFor(awesome, delay, instant, day, habits) {
-  const sleepId = habits.find((h) => h.label.includes("十一点") || h.id === "SLEEP_BEFORE_11")?.id;
-  const tidyId = habits.find((h) => h.label.includes("整理") || h.id === "TIDY")?.id;
-  const sleep = sleepId && day.habits[sleepId];
-  const tidy = tidyId && day.habits[tidyId];
-  if (delay >= 180 && instant < 40) return "延迟满足选手";
-  if (delay >= 120 && sleep) return "把难的做完，再把明天交给清醒的自己";
-  if (awesome >= 70 && tidy) return "今天的房间和大脑，都比昨天整齐";
-  if (awesome >= 70) return "今天的你，比昨天更像自己想成为的人";
-  if (delay > instant && delay >= 60) return "即时满足没有赢走这一天";
-  if (delay === 0 && instant > 60) return "多巴胺先到了，成就还在路上";
-  if (delay === 0) return "这一天还是空白信封";
-  return "还在攒，已经比刷着过完一天强";
-}
-
-export function analyze(day = emptyDay(""), bingeBreaks = 0, now = new Date(), isToday = true) {
-  const habits = loadHabits();
-  const actuals = day.blocks.filter((b) => !b.isPlan);
-  const delay = minutesOf(day.blocks, Payoff.DELAY);
-  const care = minutesOf(day.blocks, Payoff.CARE);
-  const instant = minutesOf(day.blocks, Payoff.INSTANT);
-  const habitPoints = habits.reduce((sum, h) => sum + (day.habits[h.id] ? h.points : 0), 0);
-  const alignment = alignmentPercent(day);
-  const unlogged = unloggedMinutes(actuals, now, isToday);
-  const longest = longestDelayStretch(actuals);
-  const seeds = Math.floor(delay / 30);
-
-  let index = 0;
-  index += delay * 0.12;
-  index += care * 0.05;
-  index += habitPoints;
-  index += Math.min(10, alignment / 10);
-  if (bingeBreaks === 0 && delay >= 60) index += 8;
-  index -= instant * 0.08;
-  const awesome = Math.max(0, Math.min(100, Math.round(index)));
-
-  const highlights = [];
-  if (longest) highlights.push(longest);
-  if (delay > instant && delay >= 30) {
-    highlights.push(
-      `延迟满足 ${formatDuration(delay)}，即时满足 ${formatDuration(instant)}。你把更多时间给了以后会感谢你的事。`,
-    );
-  } else if (instant > delay && instant >= 30) {
-    highlights.push("即时满足今天占了上风。不是失败，是数据。下一小时可以扳回来。");
-  }
-  if (alignment >= 70) highlights.push(`计划和实际对上了 ${alignment}%。说到做到，本身就是一种延迟满足。`);
-  else if (day.blocks.some((b) => b.isPlan)) {
-    highlights.push(`计划和实际重合 ${alignment}%。计划不是用来愧疚的，是用来对照的。`);
-  }
-  for (const habit of habits) {
-    if (day.habits[habit.id]) {
-      const hint = habit.hint ? `。${habit.hint}` : "";
-      highlights.push(`${habit.label}加了 ${habit.points} 分${hint}。`);
-    }
-  }
-  const study = minutesOfKind(day.blocks, "STUDY");
-  const read = minutesOfKind(day.blocks, "READ");
-  const fitness = minutesOfKind(day.blocks, "FITNESS");
-  if (study >= 60) highlights.push(`学习 ${formatDuration(study)}。不会立刻爽，但明天打开书的阻力会变小。`);
-  if (read >= 30) highlights.push(`读了 ${formatDuration(read)}。短视频是预消化的刺激，书要把注意力自己煮熟。`);
-  if (fitness >= 20) highlights.push(`身体也在记账：健身 ${formatDuration(fitness)}。`);
-  if (care >= 30) highlights.push(`吃饭和休息 ${formatDuration(care)}，不是偷懒，是让延迟满足可持续。`);
-  if (unlogged >= 120) highlights.push(`空白时段还有 ${formatDuration(unlogged)}。记下来，分析才不是空话。`);
-  if (habitPoints === 0 && delay === 0) {
-    highlights.push("日常加分可以自己改。做了就点一下，很小，但可见。");
+    const multiplier = multiplierForStreak(streak);
+    const value = hours * multiplier;
+    asset += value;
+    series.push({ iso, hours, value, asset, streak, multiplier });
   }
 
-  let futureYield;
-  if (delay < 20) {
-    futureYield = "延迟满足像种子：这一小时看起来什么都没发生，一周后才会发芽。先记下一笔。";
-  } else {
-    futureYield = `今天种下 ${seeds} 颗半小时的种子。如果这不是偶发，而是一周七天：大约 ${formatDuration(delay * 7)}。一个月，是 ${formatDuration(delay * 30)}——一本读完的书，或一套做完的题。即时满足当场兑现，延迟满足按复利记账。`;
-  }
+  const todayRow = series.find((d) => d.iso === today) || series[series.length - 1];
+  const view = minutesByBucket(loadDay(endIso).blocks);
+  const viewInvest = view.invest;
+  const viewConsume = view.consume;
+  const viewRest = Math.max(0, DAY_MIN - viewInvest - viewConsume);
 
-  const summaryParts = [`厉害指数 ${awesome}。`];
-  if (delay > 0) summaryParts.push(`你给未来的自己存了 ${formatDuration(delay)}。`);
-  if (instant > 0) summaryParts.push(`即时满足占了 ${formatDuration(instant)}。`);
-  if (care > 0) summaryParts.push("吃饭、休息、整理也算照顾自己。");
-  if (habitPoints > 0) summaryParts.push(`习惯加了 ${habitPoints} 分。`);
-  if (unlogged >= 90) summaryParts.push(`还有 ${formatDuration(unlogged)} 没记，整点提醒就是为这个来的。`);
-  if (delay === 0 && instant === 0) {
-    summaryParts.push("点「记到现在」，把上次记录到此刻填上。");
-  }
+  const broken = hadInvest && streak === 0;
 
   return {
-    awesomeIndex: awesome,
-    title: titleFor(awesome, delay, instant, day, habits),
-    summary: summaryParts.join(" ").trim(),
-    highlights: highlights.slice(0, 6),
-    delayMinutes: delay,
-    careMinutes: care,
-    instantMinutes: instant,
-    unloggedMinutes: unlogged,
-    habitPoints,
-    alignmentPercent: alignment,
-    seeds,
-    futureYield,
+    asset,
+    streak: todayRow?.streak || 0,
+    multiplier: todayRow?.multiplier || 1,
+    series,
+    broken,
+    hadInvest,
+    view: {
+      investMin: viewInvest,
+      consumeMin: viewConsume,
+      restMin: viewRest,
+    },
+    todayHours: todayRow?.hours || 0,
   };
 }
 
-export function weekStats(loadDay, endIso) {
-  const days = [];
-  for (let i = 6; i >= 0; i -= 1) {
-    const [y, m, d] = endIso.split("-").map(Number);
-    const date = new Date(y, m - 1, d - i);
-    const iso = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-    const day = loadDay(iso);
-    days.push({
-      iso,
-      delay: minutesOf(day.blocks, Payoff.DELAY),
-      instant: minutesOf(day.blocks, Payoff.INSTANT),
-    });
-  }
-  return {
-    days,
-    delayTotal: days.reduce((s, d) => s + d.delay, 0),
-    activeDays: days.filter((d) => d.delay >= 30).length,
+function fmt(n) {
+  const v = Math.max(0, n);
+  if (v >= 100) return v.toFixed(0);
+  return v.toFixed(1);
+}
+
+export function formatAsset(n) {
+  return fmt(n);
+}
+
+function xAt(i, n, left, width) {
+  if (n <= 1) return left;
+  return left + (i / (n - 1)) * width;
+}
+
+function yAt(value, max, top, height) {
+  const m = max <= 0 ? 1 : max;
+  return top + height - (value / m) * height;
+}
+
+export function assetChartSvg(portfolio, dailyHours, labels) {
+  const pastAll = portfolio.series;
+  const past = pastAll.slice(-PAST_DAYS);
+  const nPast = Math.max(1, past.length);
+  const n = nPast + FUTURE_DAYS;
+  const w = 320;
+  const h = 168;
+  const left = 8;
+  const right = 8;
+  const top = 10;
+  const bottom = 26;
+  const innerW = w - left - right;
+  const innerH = h - top - bottom;
+  const todayIndex = nPast - 1;
+  const startAsset = past[0]?.asset || 0;
+  const nowAsset = portfolio.asset;
+  const m = portfolio.multiplier;
+  const lowH = dailyHours * 0.5;
+  const midH = dailyHours;
+  const highH = dailyHours * 2;
+
+  const future = (hoursPerDay) => {
+    const pts = [];
+    for (let d = 0; d <= FUTURE_DAYS; d += 1) {
+      pts.push(nowAsset + d * hoursPerDay * m);
+    }
+    return pts;
   };
+
+  const fLow = future(lowH);
+  const fMid = future(midH);
+  const fHigh = future(highH);
+  const yMax = Math.max(nowAsset, fHigh[fHigh.length - 1], 1);
+
+  const pastPts = past.map((row, i) => {
+    const x = xAt(i, n, left, innerW);
+    const y = yAt(row.asset, yMax, top, innerH);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+
+  const toLine = (values) => values
+    .map((value, d) => {
+      const x = xAt(todayIndex + d, n, left, innerW);
+      const y = yAt(value, yMax, top, innerH);
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    })
+    .join(" ");
+
+  const todayX = xAt(todayIndex, n, left, innerW);
+  const y0 = yAt(0, yMax, top, innerH);
+  const startY = yAt(startAsset, yMax, top, innerH);
+
+  return `<svg class="asset-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+    <line class="chart-axis" x1="${left}" y1="${y0}" x2="${w - right}" y2="${y0}" />
+    <line class="chart-today" x1="${todayX}" y1="${top}" x2="${todayX}" y2="${y0}" />
+    <polyline class="chart-past" fill="none" points="${pastPts.join(" ")}" />
+    ${past.length === 1 ? `<circle class="chart-dot" cx="${todayX}" cy="${startY}" r="2.5" />` : ""}
+    <polyline class="chart-future low" fill="none" points="${toLine(fLow)}" />
+    <polyline class="chart-future mid" fill="none" points="${toLine(fMid)}" />
+    <polyline class="chart-future high" fill="none" points="${toLine(fHigh)}" />
+    <text class="chart-lab" x="${left}" y="${h - 8}">${escapeSvg(past[0]?.iso?.slice(5) || "")}</text>
+    <text class="chart-lab mid" x="${todayX}" y="${h - 8}">${escapeSvg(labels.today)}</text>
+    <text class="chart-lab end" x="${w - right}" y="${h - 8}">+${FUTURE_DAYS}d</text>
+  </svg>`;
+}
+
+function escapeSvg(value) {
+  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");
 }

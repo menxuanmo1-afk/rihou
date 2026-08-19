@@ -77,11 +77,21 @@ export function toggleHabit(day, habitId) {
 }
 
 export function loadSettings() {
+  const saved = readJson(SETTINGS, {});
+  const daily = Number(saved.dailyHours);
   return {
     promptEnabled: true,
     lastOffer: "",
-    ...readJson(SETTINGS, {}),
+    lang: "zh",
+    ...saved,
+    dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
   };
+}
+
+export function earliestDate() {
+  const keys = Object.keys(readJson(DAYS, {}));
+  if (keys.length === 0) return todayISO();
+  return keys.sort()[0];
 }
 
 export function saveSettings(settings) {

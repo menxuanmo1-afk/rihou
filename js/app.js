@@ -5,12 +5,10 @@ import {
   minutesToHm,
   parseHm,
   hmInputValue,
-  formatDuration,
   todayISO,
   addDays,
   dateTitle,
   blockKinds,
-  blockLabel,
   blockColors,
   gradientCss,
   gapFromLastToNow,
@@ -21,17 +19,15 @@ import {
   loadDay,
   upsertBlock,
   removeBlock,
-  toggleHabit,
   loadSettings,
   saveSettings,
-  loadHabits,
-  saveHabits,
   exportAll,
   importAll,
   alreadyOffered,
   markOffered,
 } from "./store.js";
-import { analyze, weekStats } from "./analysis.js";
+import { buildPortfolio, assetChartSvg, formatAsset, minutesByBucket } from "./analysis.js";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -68,7 +64,7 @@ function currentDay() {
 }
 
 function report() {
-  return analyze(state.day, 0, new Date(), state.date === todayISO());
+  return buildPortfolio(todayISO());
 }
 
 function render() {
@@ -79,23 +75,24 @@ function render() {
   const wide = window.matchMedia("(min-width: 900px)").matches;
   const showTime = wide || state.tab === "time";
   const showAchieve = wide || state.tab === "achieve";
+  document.documentElement.lang = lang() === "en" ? "en" : "zh-CN";
   app.innerHTML = `
     <header class="top">
       <div class="date-nav">
         <button class="btn" data-act="prev">‹</button>
         <div>
-          <h1>${dateTitle(state.date)}</h1>
-          <div class="sub">${isToday ? "厉害" : "这一天"} ${r.awesomeIndex}</div>
+          <h1>${dateTitle(state.date, lang())}</h1>
+          <div class="sub">${t("compound")} ${formatAsset(r.asset)}</div>
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
       <div class="top-actions">
-        ${isToday ? `<button class="btn log-now" data-act="log-now">记到现在</button>` : `<button class="btn" data-act="today">今天</button>`}
+        ${isToday ? `<button class="btn log-now" data-act="log-now">${t("logNow")}</button>` : `<button class="btn" data-act="today">${t("today")}</button>`}
       </div>
     </header>
     <div class="main">
       <section class="panel timeline-wrap ${showTime ? "" : "hidden"}">
-        <div class="hint">长按空白处再向下拉，画出计划；拖上下边改时间，点框写内容。点色块改已有记录。</div>
+        <div class="hint">${t("hint")}</div>
         ${timelineHtml()}
       </section>
       <section class="panel achieve-wrap ${showAchieve ? "" : "hidden"}">
@@ -103,8 +100,8 @@ function render() {
       </section>
     </div>
     <nav class="tabs">
-      <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">时间</button>
-      <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve">厉害</button>
+      <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">${t("time")}</button>
+      <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve">${t("assetTab")}</button>
     </nav>
   `;
   bindApp();
@@ -135,7 +132,8 @@ function timelineHtml() {
       const { top, h } = blockGeom(block.startMin, block.endMin);
       const colors = blockColors(block);
       const mixed = colors.length > 1 && !block.isPlan;
-      const label = block.isPlan ? `计划 · ${blockLabel(block)}` : blockLabel(block);
+      const name = liveBlockLabel(block);
+      const label = block.isPlan ? `${t("plan")} · ${name}` : name;
       const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
       const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
       const style = [
@@ -296,6 +294,13 @@ function resetGesture() {
   timeline?.classList.remove("drawing");
 }
 
+function liveBlockLabel(block) {
+  if (block.title) return block.title;
+  const labels = blockKinds(block).map((id) => kindLabel(id));
+  if (labels.length === 1) return labels[0];
+  return `${labels.join(" / ")}${t("unclear")}`;
+}
+
 function luminance(hex) {
   const n = (hex || "#888888").replace("#", "");
   const r = parseInt(n.slice(0, 2), 16) / 255;
@@ -306,67 +311,44 @@ function luminance(hex) {
 
 function achieveHtml(r) {
   const settings = loadSettings();
-  const habits = loadHabits();
-  const week = weekStats(loadDay, state.date);
-  const total = r.delayMinutes + r.careMinutes + r.instantMinutes;
-  const bar = total === 0
-    ? ""
-    : `<div class="bar">
-        ${r.delayMinutes ? `<span style="flex:${r.delayMinutes};background:#7DCEA0"></span>` : ""}
-        ${r.careMinutes ? `<span style="flex:${r.careMinutes};background:#E8C9A0"></span>` : ""}
-        ${r.instantMinutes ? `<span style="flex:${r.instantMinutes};background:#E07A5F"></span>` : ""}
-      </div>`;
-
-  const habitChips = habits.map(
-    (h) =>
-      `<button class="chip ${state.day.habits[h.id] ? "on" : ""}" data-habit="${h.id}">${escapeAttr(h.label)}  +${h.points}</button>`,
-  ).join("");
-
-  const highlights = r.highlights.map((line) => `<div class="card">${line}</div>`).join("");
-  const seeds = r.seeds
-    ? `<div class="seeds">${Array.from({ length: Math.min(18, r.seeds) }, () => `<i class="seed"></i>`).join("")}${r.seeds > 18 ? `<span class="muted">+${r.seeds - 18}</span>` : ""}</div>`
-    : `<p class="muted">学习、读书、健身、创作、功课，每半小时长一颗种子。</p>`;
-
-  const weekDots = week.days
-    .map((d) => {
-      const lab = d.iso.slice(8);
-      const cls = d.delay >= 30 ? "on" : d.instant >= 30 ? "mix" : "";
-      return `<div class="week-day"><div class="week-dot ${cls}"></div><div class="week-lab">${Number(lab)}</div></div>`;
-    })
-    .join("");
-
+  const daily = settings.dailyHours;
+  const isToday = state.date === todayISO();
+  const view = minutesByBucket(state.day.blocks);
+  const rest = Math.max(0, 24 * 60 - view.invest - view.consume);
+  const toH = (min) => (min / 60).toFixed(1);
+  const chart = assetChartSvg(r, daily, { today: t("todayMark") });
   return `
-    <p class="muted" style="margin:0">今天变得多厉害</p>
-    <h2 class="title">${r.title}</h2>
-    <div class="score">${r.awesomeIndex}</div>
-    <p class="muted">${r.summary}</p>
-    <div class="section">延迟满足可视化</div>
-    ${bar || `<div class="bar"></div>`}
-    <p class="legend">延迟 ${formatDuration(r.delayMinutes)}  ·  照料 ${formatDuration(r.careMinutes)}  ·  即时 ${formatDuration(r.instantMinutes)}</p>
-    ${total === 0 ? `<p class="muted">还没有实际记录。点「记到现在」。</p>` : ""}
-    <div class="section">这一周种下的</div>
-    <div class="week">${weekDots}</div>
-    <p class="muted">近 7 天深度投入 ${formatDuration(week.delayTotal)}，有投入的日子 ${week.activeDays}/7。</p>
-    <div class="section">种下的半小时</div>
-    ${seeds}
-    <div class="section-row">
-      <div class="section" style="margin:0">日常加分</div>
-      <button class="btn" data-act="habits">修改项目</button>
+    <p class="muted split-kicker">${isToday ? t("hours24") : t("hoursThatDay")}</p>
+    <div class="split-bar" aria-hidden="true">
+      <span class="invest" style="flex:${view.invest}"></span>
+      <span class="consume" style="flex:${view.consume}"></span>
+      <span class="rest" style="flex:${rest}"></span>
     </div>
-    <div class="chip-col">${habitChips || `<p class="muted">还没有加分项，点右上角修改。</p>`}</div>
-    ${highlights}
-    <div class="card"><strong style="color:var(--clay)">延迟满足 · 复利</strong><p class="muted" style="margin:8px 0 0">${r.futureYield}</p></div>
-    <div class="switch-row">
-      <div>
-        <div>整点提醒我记一笔</div>
-        <p class="muted" style="margin:4px 0 0">提醒你补上「上次到现在」。不必记满一小时，精确到分钟。添加到主屏幕后，打开 App 才会弹出。</p>
+    <p class="legend split-legend">
+      <span>${t("invest")} ${toH(view.invest)}h</span>
+      <span>${t("consume")} ${toH(view.consume)}h</span>
+      <span>${t("rest")} ${toH(rest)}h</span>
+    </p>
+    <p class="muted asset-kicker">${t("compound")}</p>
+    <div class="asset-num">${formatAsset(r.asset)}</div>
+    <p class="legend">×${r.multiplier.toFixed(1)} · ${t("streak")} ${t("streakDays", { n: r.streak })}</p>
+    ${r.broken ? `<p class="break-note">${t("broken")}</p>` : ""}
+    <div class="chart-wrap" id="asset-chart">${chart}</div>
+    ${r.hadInvest ? "" : `<p class="muted">${t("emptyChart")}</p>`}
+    <div class="fork-legend">
+      <span>${t("forkLow")}</span>
+      <span>${t("forkMid")}</span>
+      <span>${t("forkHigh")}</span>
+    </div>
+    <div class="slider-block">
+      <div class="slider-row">
+        <span>${t("dailyPut")}</span>
+        <strong id="daily-hours-lab">${daily}h</strong>
       </div>
-      <input type="checkbox" id="prompt-toggle" ${settings.promptEnabled ? "checked" : ""} />
+      <input type="range" id="daily-hours" min="0.5" max="4" step="0.5" value="${daily}" />
+      <p class="muted">${t("dailyPutHint")}</p>
     </div>
-    <div class="row" style="margin-top:16px">
-      <button class="btn" data-act="export">导出备份</button>
-      <button class="btn" data-act="import">从备份导入</button>
-    </div>
+    <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
 }
 
@@ -374,18 +356,18 @@ function bindApp() {
   document.querySelectorAll("[data-act]").forEach((el) => {
     el.addEventListener("click", onAction);
   });
-  document.querySelectorAll("[data-habit]").forEach((el) => {
-    el.addEventListener("click", () => {
-      state.day = toggleHabit(state.day, el.dataset.habit);
-      render();
-    });
-  });
-  const toggle = document.getElementById("prompt-toggle");
-  if (toggle) {
-    toggle.addEventListener("change", async () => {
-      saveSettings({ ...loadSettings(), promptEnabled: toggle.checked });
-      if (toggle.checked) await requestNotify();
-    });
+  const slider = document.getElementById("daily-hours");
+  if (slider) {
+    const paint = () => {
+      const hours = Number(slider.value);
+      saveSettings({ ...loadSettings(), dailyHours: hours });
+      const lab = document.getElementById("daily-hours-lab");
+      if (lab) lab.textContent = `${hours}h`;
+      const chart = document.getElementById("asset-chart");
+      if (chart) chart.innerHTML = assetChartSvg(report(), hours, { today: t("todayMark") });
+    };
+    slider.addEventListener("input", paint);
+    slider.addEventListener("change", paint);
   }
   bindTimeline(document.getElementById("timeline"));
 }
@@ -548,8 +530,8 @@ function onAction(event) {
   } else if (act === "tab-achieve") {
     state.tab = "achieve";
     render();
-  } else if (act === "habits") {
-    openHabitsSheet();
+  } else if (act === "settings") {
+    openSettingsSheet();
   } else if (act === "export") {
     download("rihou-backup.json", exportAll());
   } else if (act === "import") {
@@ -587,24 +569,23 @@ function openRecordSheet(range, extra = {}) {
 function recordHtml(draft) {
   const kinds = KINDS.map((k) => {
     const on = draft.kinds.includes(k.id);
-    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${k.label}</button>`;
+    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
   }).join("");
   const preview = draft.kinds.length
     ? `<div class="mix-preview" id="mix-box" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
-       <p class="muted" id="mix-hint">${draft.kinds.length === 1 ? "整段都是这件事。结束时间可以改成只记其中几分钟。" : "记不清哪分钟换的事：这段会显示成渐变色块，打分时时间均分。"}</p>`
-    : `<div class="mix-preview" id="mix-box" style="display:none"></div><p class="muted" id="mix-hint">点一件或多件。学了半小时就去通勤：只改结束时间，或两件都点上做成渐变。</p>`;
+       <p class="muted" id="mix-hint">${draft.kinds.length === 1 ? t("mixOne") : t("mixMany")}</p>`
+    : `<div class="mix-preview" id="mix-box" style="display:none"></div><p class="muted" id="mix-hint">${t("mixEmpty")}</p>`;
 
   return `
     <div class="sheet">
-      <h2>${lastActualEnd(state.day) == null ? "记到现在" : "上次到现在"}</h2>
-      <p class="muted">默认从上次记录结束，记到此刻，精确到 1 分钟。整点只是提醒，不必记满一小时。</p>
+      <h2>${lastActualEnd(state.day) == null ? t("logTitle") : t("sinceLast")}</h2>
+      <p class="muted">${t("logHint")}</p>
       ${timeFields(draft)}
-      <div class="section">这段里有什么</div>
       <div class="row">${kinds}</div>
       ${preview}
-      <input class="field" id="title" placeholder="备注（可空）" value="${escapeAttr(draft.title)}" />
-      <button class="primary" data-save>保存</button>
-      <button class="ghost" data-close>取消</button>
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
+      <button class="primary" data-save>${t("save")}</button>
+      <button class="ghost" data-close>${t("cancel")}</button>
     </div>
   `;
 }
@@ -612,7 +593,7 @@ function recordHtml(draft) {
 function timeFields(draft) {
   return `
     <div class="time-field">
-      <span>开始</span>
+      <span>${t("start")}</span>
       <div class="time-controls">
         <button class="btn" data-nudge="start,-5">−5</button>
         <button class="btn" data-nudge="start,-1">−1</button>
@@ -622,17 +603,17 @@ function timeFields(draft) {
       </div>
     </div>
     <div class="time-field">
-      <span>结束</span>
+      <span>${t("end")}</span>
       <div class="time-controls">
         <button class="btn" data-nudge="end,-5">−5</button>
         <button class="btn" data-nudge="end,-1">−1</button>
         <input type="time" id="end-time" value="${hmInputValue(draft.endMin)}" />
         <button class="btn" data-nudge="end,1">+1</button>
         <button class="btn" data-nudge="end,5">+5</button>
-        <button class="btn" data-now>此刻</button>
+        <button class="btn" data-now>${t("now")}</button>
       </div>
     </div>
-    <p class="muted" id="span-lab">${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDuration(draft.endMin - draft.startMin)}</p>
+    <p class="muted" id="span-lab">${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(draft.endMin - draft.startMin)}</p>
   `;
 }
 
@@ -642,7 +623,7 @@ function bindTimeFields(root, draft, onChange) {
     root.querySelector("#end-time").value = hmInputValue(draft.endMin);
     const lab = root.querySelector("#span-lab");
     if (lab) {
-      lab.textContent = `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDuration(Math.max(0, draft.endMin - draft.startMin))}`;
+      lab.textContent = `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
     }
     onChange?.();
   };
@@ -681,14 +662,12 @@ function bindRecord(root, draft) {
     if (!box || !hint) return;
     if (draft.kinds.length === 0) {
       box.style.display = "none";
-      hint.textContent = "点一件或多件。学了半小时就去通勤：只改结束时间，或两件都点上做成渐变。";
+      hint.textContent = t("mixEmpty");
       return;
     }
     box.style.display = "block";
     box.style.background = gradientCss(draft.kinds.map((id) => kindById(id).color));
-    hint.textContent = draft.kinds.length === 1
-      ? "整段都是这件事。结束时间可以改成只记其中几分钟。"
-      : "记不清哪分钟换的事：这段会显示成渐变色块，打分时时间均分。";
+    hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
   };
 
   root.querySelectorAll("[data-kind]").forEach((el) => {
@@ -703,7 +682,7 @@ function bindRecord(root, draft) {
 
   root.querySelector("[data-save]").addEventListener("click", () => {
     if (draft.kinds.length === 0) {
-      root.querySelector("[data-save]").textContent = "先选至少一件事";
+      root.querySelector("[data-save]").textContent = t("pickOne");
       return;
     }
     draft.title = root.querySelector("#title").value.trim();
@@ -740,26 +719,26 @@ function openEditor(block) {
 function editorHtml(draft, isEdit) {
   const kinds = KINDS.map((k) => {
     const on = draft.kinds.includes(k.id);
-    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${k.label}</button>`;
+    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
   }).join("");
   const mixHint = !draft.isPlan && draft.kinds.length > 1
     ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
-       <p class="muted">多选表示这段里都做过，但记不清分界，时间轴上是渐变。</p>`
+       <p class="muted">${t("mixEdit")}</p>`
     : "";
   return `
     <div class="sheet">
-      <h2>${isEdit ? "改这一段" : draft.isPlan ? "添加计划" : "记一笔"}</h2>
+      <h2>${isEdit ? t("editBlock") : draft.isPlan ? t("addPlan") : t("logTitle")}</h2>
       <div class="row">
-        <button class="chip-h ${draft.isPlan ? "" : "on"}" data-mode="actual">实际</button>
-        <button class="chip-h ${draft.isPlan ? "on" : ""}" data-mode="plan">计划</button>
+        <button class="chip-h ${draft.isPlan ? "" : "on"}" data-mode="actual">${t("actual")}</button>
+        <button class="chip-h ${draft.isPlan ? "on" : ""}" data-mode="plan">${t("plan")}</button>
       </div>
       <div class="row">${kinds}</div>
       ${mixHint}
-      <input class="field" id="title" placeholder="备注（可空）" value="${escapeAttr(draft.title)}" />
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
       ${timeFields(draft)}
-      <button class="primary" data-save>保存</button>
-      ${isEdit ? `<button class="danger" data-delete>删除这段</button>` : ""}
-      <button class="ghost" data-close>取消</button>
+      <button class="primary" data-save>${t("save")}</button>
+      ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
+      <button class="ghost" data-close>${t("cancel")}</button>
     </div>
   `;
 }
@@ -825,62 +804,49 @@ function bindEditor(root, draft, isEdit) {
   root.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
 
-function openHabitsSheet() {
-  const habits = loadHabits().map((h) => ({ ...h }));
-  const html = () => `
+function openSettingsSheet() {
+  const settings = loadSettings();
+  const current = lang();
+  showSheet(`
     <div class="sheet">
-      <h2>日常加分项目</h2>
-      <p class="muted">自己增删。分值是做了当天加多少。刷牙、十一点前睡觉只是默认，可以改掉。</p>
-      <div id="habit-list">
-        ${habits.map((h, i) => `
-          <div class="habit-edit">
-            <input class="field" data-h="label" data-i="${i}" value="${escapeAttr(h.label)}" placeholder="名称" />
-            <input class="field points" data-h="points" data-i="${i}" type="number" min="1" max="50" value="${h.points}" />
-            <button class="btn" data-del="${i}">删</button>
-          </div>
-        `).join("")}
+      <h2>${t("settings")}</h2>
+      <div class="section">${t("language")}</div>
+      <div class="row">
+        <button type="button" class="chip-h ${current === "zh" ? "on" : ""}" data-lang="zh">${t("langZh")}</button>
+        <button type="button" class="chip-h ${current === "en" ? "on" : ""}" data-lang="en">${t("langEn")}</button>
       </div>
-      <button class="ghost" data-add>＋新项目</button>
-      <button class="primary" data-save>保存</button>
-      <button class="ghost" data-close>取消</button>
+      <div class="switch-row">
+        <div>
+          <div>${t("prompt")}</div>
+          <p class="muted" style="margin:4px 0 0">${t("promptHint")}</p>
+        </div>
+        <input type="checkbox" id="prompt-toggle" ${settings.promptEnabled ? "checked" : ""} />
+      </div>
+      <div class="row" style="margin-top:16px">
+        <button class="btn" data-act="export">${t("export")}</button>
+        <button class="btn" data-act="import">${t("import")}</button>
+      </div>
+      <button class="ghost" data-close>${t("close")}</button>
     </div>
-  `;
-  showSheet(html(), (root) => {
-    const redraw = () => {
-      const next = document.createElement("div");
-      next.innerHTML = html();
-      root.querySelector(".sheet").replaceWith(next.firstElementChild);
-      bind();
-    };
-    const bind = () => {
-      root.querySelectorAll("[data-h]").forEach((el) => {
-        el.addEventListener("input", () => {
-          const i = Number(el.dataset.i);
-          if (el.dataset.h === "points") habits[i].points = Math.max(1, Math.min(50, Number(el.value) || 1));
-          else habits[i].label = el.value;
-        });
-      });
-      root.querySelectorAll("[data-del]").forEach((el) => {
-        el.addEventListener("click", () => {
-          habits.splice(Number(el.dataset.del), 1);
-          redraw();
-        });
-      });
-      root.querySelector("[data-add]").addEventListener("click", () => {
-        habits.push({ id: uid(), label: "新习惯", points: 8, hint: "" });
-        redraw();
-      });
-      root.querySelector("[data-save]").addEventListener("click", () => {
-        const cleaned = habits
-          .map((h) => ({ ...h, label: h.label.trim(), points: Math.max(1, Number(h.points) || 1) }))
-          .filter((h) => h.label);
-        saveHabits(cleaned);
+  `, (root) => {
+    root.querySelectorAll("[data-lang]").forEach((el) => {
+      el.addEventListener("click", () => {
+        saveSettings({ ...loadSettings(), lang: el.dataset.lang });
         closeSheet();
         render();
       });
-      root.querySelector("[data-close]").addEventListener("click", closeSheet);
-    };
-    bind();
+    });
+    const toggle = root.querySelector("#prompt-toggle");
+    if (toggle) {
+      toggle.addEventListener("change", async () => {
+        saveSettings({ ...loadSettings(), promptEnabled: toggle.checked });
+        if (toggle.checked) await requestNotify();
+      });
+    }
+    root.querySelectorAll("[data-act]").forEach((el) => {
+      el.addEventListener("click", onAction);
+    });
+    root.querySelector("[data-close]").addEventListener("click", closeSheet);
   });
 }
 
@@ -951,8 +917,8 @@ function maybeOfferHour(fromTick = false) {
   if (!fromTick && (offeredThisSession || alreadyOffered(stamp))) return;
   offeredThisSession = true;
   if (Notification.permission === "granted") {
-    new Notification("记一笔：上次到现在", {
-      body: `${minutesToHm(gap.startMin)}–${minutesToHm(gap.endMin)}，精确到分钟，不必记满一小时。`,
+    new Notification(t("notifyTitle"), {
+      body: t("notifyBody", { start: minutesToHm(gap.startMin), end: minutesToHm(gap.endMin) }),
     });
   }
   openRecordSheet(gap);

@@ -6,18 +6,18 @@ export const Payoff = {
 };
 
 export const KINDS = [
-  { id: "STUDY", label: "学习", payoff: Payoff.DELAY, color: "#E8A87C" },
-  { id: "READ", label: "读书", payoff: Payoff.DELAY, color: "#7DCEA0" },
-  { id: "FITNESS", label: "健身", payoff: Payoff.DELAY, color: "#7EB6D9" },
-  { id: "CREATE", label: "创作", payoff: Payoff.DELAY, color: "#C9A7EB" },
-  { id: "WORK", label: "功课", payoff: Payoff.DELAY, color: "#E8C07D" },
-  { id: "MEAL", label: "吃饭", payoff: Payoff.CARE, color: "#E8C9A0" },
-  { id: "REST", label: "休息", payoff: Payoff.CARE, color: "#B8B0A6" },
-  { id: "CHORE", label: "整理", payoff: Payoff.CARE, color: "#A8C5B5" },
-  { id: "COMMUTE", label: "通勤", payoff: Payoff.NEUTRAL, color: "#8A9BA8" },
-  { id: "SCROLL", label: "刷短视频", payoff: Payoff.INSTANT, color: "#E07A5F" },
-  { id: "GAME", label: "游戏", payoff: Payoff.INSTANT, color: "#D67B7B" },
-  { id: "OTHER", label: "其他", payoff: Payoff.NEUTRAL, color: "#9AA8B5" },
+  { id: "STUDY", label: "学习", payoff: Payoff.DELAY, bucket: "invest", color: "#E8A87C" },
+  { id: "READ", label: "读书", payoff: Payoff.DELAY, bucket: "invest", color: "#7DCEA0" },
+  { id: "FITNESS", label: "健身", payoff: Payoff.DELAY, bucket: "invest", color: "#7EB6D9" },
+  { id: "CREATE", label: "创作", payoff: Payoff.DELAY, bucket: "invest", color: "#C9A7EB" },
+  { id: "WORK", label: "功课", payoff: Payoff.DELAY, bucket: "invest", color: "#E8C07D" },
+  { id: "MEAL", label: "吃饭", payoff: Payoff.CARE, bucket: "invest", color: "#E8C9A0" },
+  { id: "REST", label: "休息", payoff: Payoff.CARE, bucket: "invest", color: "#B8B0A6" },
+  { id: "CHORE", label: "整理", payoff: Payoff.CARE, bucket: "other", color: "#A8C5B5" },
+  { id: "COMMUTE", label: "通勤", payoff: Payoff.NEUTRAL, bucket: "other", color: "#8A9BA8" },
+  { id: "SCROLL", label: "刷短视频", payoff: Payoff.INSTANT, bucket: "consume", color: "#E07A5F" },
+  { id: "GAME", label: "游戏", payoff: Payoff.INSTANT, bucket: "consume", color: "#D67B7B" },
+  { id: "OTHER", label: "其他", payoff: Payoff.NEUTRAL, bucket: "other", color: "#9AA8B5" },
 ];
 
 export const DEFAULT_HABITS = [
@@ -39,7 +39,7 @@ export function blockLabel(block) {
   if (block.title) return block.title;
   const labels = blockKinds(block).map((id) => kindById(id).label);
   if (labels.length === 1) return labels[0];
-  return `${labels.join(" / ")}（记不清分界）`;
+  return `${labels.join(" / ")}`;
 }
 
 export function blockColors(block) {
@@ -132,13 +132,19 @@ export function addDays(iso, delta) {
   return todayISO(date);
 }
 
-export function weekdayLabel(iso) {
+export function weekdayLabel(iso, language = "zh") {
   const [y, m, d] = iso.split("-").map(Number);
-  const names = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
+  const names = language === "en"
+    ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    : ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
   return names[new Date(y, m - 1, d).getDay()];
 }
 
-export function dateTitle(iso) {
+export function dateTitle(iso, language = "zh") {
   const [, m, d] = iso.split("-");
+  if (language === "en") {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${months[Number(m) - 1]} ${Number(d)} ${weekdayLabel(iso, "en")}`;
+  }
   return `${Number(m)}月${Number(d)}日 ${weekdayLabel(iso)}`;
 }
