@@ -25,8 +25,17 @@ import {
   importAll,
   alreadyOffered,
   markOffered,
+  loadAllDays,
 } from "./store.js";
-import { buildPortfolio, assetChartSvg, formatAsset, minutesByBucket } from "./analysis.js";
+import {
+  ASSET_BOOKS,
+  buildPortfolio,
+  assetChartSvg,
+  formatAsset,
+  formatHours,
+  formatRemain,
+  bookEval,
+} from "./analysis.js";
 import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js";
 
 const START_HOUR = 6;
@@ -37,6 +46,7 @@ const state = {
   date: todayISO(),
   day: loadDay(todayISO()),
   tab: "time",
+  book: "all",
   planDraft: null,
 };
 
@@ -64,7 +74,10 @@ function currentDay() {
 }
 
 function report() {
-  return buildPortfolio(todayISO());
+  return buildPortfolio({
+    days: loadAllDays(),
+    settings: { lang: lang() },
+  });
 }
 
 function render() {
@@ -82,7 +95,7 @@ function render() {
         <button class="btn" data-act="prev">‹</button>
         <div>
           <h1>${dateTitle(state.date, lang())}</h1>
-          <div class="sub">${t("compound")} ${formatAsset(r.asset)}</div>
+          <div class="sub">${t("principal")} ${formatRemain(r.remainingMin, lang())}</div>
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
@@ -310,44 +323,42 @@ function luminance(hex) {
 }
 
 function achieveHtml(r) {
-  const settings = loadSettings();
-  const daily = settings.dailyHours;
-  const isToday = state.date === todayISO();
-  const view = minutesByBucket(state.day.blocks);
-  const rest = Math.max(0, 24 * 60 - view.invest - view.consume);
-  const toH = (min) => (min / 60).toFixed(1);
-  const chart = assetChartSvg(r, daily, { today: t("todayMark") });
+  const L = lang();
+  const book = r.books[state.book] || r.books.all;
+  const chips = ASSET_BOOKS.map((item) => {
+    const on = item.id === book.id ? "on" : "";
+    return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${t(`book.${item.id}`)}</button>`;
+  }).join("");
+  const evalKey = {
+    empty: "evalEmpty",
+    waste: "evalWaste",
+    weekend: "evalWeekend",
+    rising: "evalRising",
+    slow: "evalSlow",
+    flat: "evalFlat",
+  }[bookEval(book, r)] || "evalFlat";
   return `
-    <p class="muted split-kicker">${isToday ? t("hours24") : t("hoursThatDay")}</p>
-    <div class="split-bar" aria-hidden="true">
-      <span class="invest" style="flex:${view.invest}"></span>
-      <span class="consume" style="flex:${view.consume}"></span>
-      <span class="rest" style="flex:${rest}"></span>
-    </div>
-    <p class="legend split-legend">
-      <span>${t("invest")} ${toH(view.invest)}h</span>
-      <span>${t("consume")} ${toH(view.consume)}h</span>
-      <span>${t("rest")} ${toH(rest)}h</span>
-    </p>
-    <p class="muted asset-kicker">${t("compound")}</p>
-    <div class="asset-num">${formatAsset(r.asset)}</div>
-    <p class="legend">×${r.multiplier.toFixed(1)} · ${t("streak")} ${t("streakDays", { n: r.streak })}</p>
-    ${r.broken ? `<p class="break-note">${t("broken")}</p>` : ""}
-    <div class="chart-wrap" id="asset-chart">${chart}</div>
-    ${r.hadInvest ? "" : `<p class="muted">${t("emptyChart")}</p>`}
-    <div class="fork-legend">
-      <span>${t("forkLow")}</span>
-      <span>${t("forkMid")}</span>
-      <span>${t("forkHigh")}</span>
-    </div>
-    <div class="slider-block">
-      <div class="slider-row">
-        <span>${t("dailyPut")}</span>
-        <strong id="daily-hours-lab">${daily}h</strong>
+    <p class="muted asset-kicker">${t("principal")}</p>
+    <div class="asset-num">${formatRemain(r.remainingMin, L)}</div>
+    <p class="muted principal-hint">${t("principalHint")}</p>
+    <div class="tickers">
+      <div class="ticker">
+        <div class="lab">${t("todayInvest")}</div>
+        <div class="val">${formatHours(book.todayH, L)}</div>
       </div>
-      <input type="range" id="daily-hours" min="0.5" max="4" step="0.5" value="${daily}" />
-      <p class="muted">${t("dailyPutHint")}</p>
+      <div class="ticker">
+        <div class="lab">${t("totalInvest")}</div>
+        <div class="val">${formatHours(book.totalH, L)}</div>
+      </div>
+      <div class="ticker">
+        <div class="lab">${t("hiddenAsset")}</div>
+        <div class="val">${formatAsset(book.asset)}</div>
+        <div class="ratio-tag">×${r.ratio.toFixed(2)}</div>
+      </div>
     </div>
+    <div class="book-row">${chips}</div>
+    <div class="chart-wrap" id="asset-chart">${assetChartSvg(book, r, L)}</div>
+    <p class="eval-line">${t(evalKey, { ratio: r.ratio.toFixed(2) })}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
 }
@@ -356,19 +367,6 @@ function bindApp() {
   document.querySelectorAll("[data-act]").forEach((el) => {
     el.addEventListener("click", onAction);
   });
-  const slider = document.getElementById("daily-hours");
-  if (slider) {
-    const paint = () => {
-      const hours = Number(slider.value);
-      saveSettings({ ...loadSettings(), dailyHours: hours });
-      const lab = document.getElementById("daily-hours-lab");
-      if (lab) lab.textContent = `${hours}h`;
-      const chart = document.getElementById("asset-chart");
-      if (chart) chart.innerHTML = assetChartSvg(report(), hours, { today: t("todayMark") });
-    };
-    slider.addEventListener("input", paint);
-    slider.addEventListener("change", paint);
-  }
   bindTimeline(document.getElementById("timeline"));
 }
 
@@ -529,6 +527,9 @@ function onAction(event) {
     render();
   } else if (act === "tab-achieve") {
     state.tab = "achieve";
+    render();
+  } else if (act === "book") {
+    state.book = event.currentTarget.dataset.book || "all";
     render();
   } else if (act === "settings") {
     openSettingsSheet();

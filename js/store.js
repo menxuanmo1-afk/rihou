@@ -88,6 +88,10 @@ export function loadSettings() {
   };
 }
 
+export function loadAllDays() {
+  return readJson(DAYS, {});
+}
+
 export function earliestDate() {
   const keys = Object.keys(readJson(DAYS, {}));
   if (keys.length === 0) return todayISO();

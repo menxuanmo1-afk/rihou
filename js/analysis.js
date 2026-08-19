@@ -1,192 +1,263 @@
-import { kindById, durationMin, blockKinds, addDays, todayISO } from "./models.js";
-import { loadDay, earliestDate } from "./store.js";
+import { kindById, todayISO, addDays } from "./models.js";
 
-const DAY_MIN = 24 * 60;
-const PAST_DAYS = 42;
-const FUTURE_DAYS = 90;
+export const PAST_DAYS = 45;
+export const FUTURE_DAYS = 45;
+
+export const ASSET_BOOKS = [
+  { id: "all", kinds: null },
+  { id: "mind", kinds: ["STUDY", "READ", "WORK"] },
+  { id: "body", kinds: ["FITNESS"] },
+  { id: "craft", kinds: ["CREATE"] },
+  { id: "restore", kinds: ["MEAL", "REST"] },
+];
+
+function isoWeekday(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+function isWeekend(iso) {
+  const w = isoWeekday(iso);
+  return w === 0 || w === 6;
+}
 
 function expanded(blocks) {
   const rows = [];
-  for (const block of (blocks || []).filter((b) => !b.isPlan)) {
-    const kinds = blockKinds(block);
-    const dur = durationMin(block);
-    const each = kinds.length ? dur / kinds.length : dur;
-    for (const kind of kinds) {
-      rows.push({ kind, minutes: each });
-    }
+  for (const b of blocks || []) {
+    if (b.isPlan) continue;
+    const ids = b.kinds?.length ? b.kinds : [b.kind];
+    const share = (b.endMin - b.startMin) / ids.length;
+    for (const id of ids) rows.push({ kind: id, minutes: share });
   }
   return rows;
 }
 
-export function minutesByBucket(blocks) {
-  let invest = 0;
-  let consume = 0;
-  let other = 0;
-  for (const row of expanded(blocks)) {
-    const bucket = kindById(row.kind).bucket || "other";
-    if (bucket === "invest") invest += row.minutes;
-    else if (bucket === "consume") consume += row.minutes;
-    else other += row.minutes;
+function hoursForKinds(blocks, kinds) {
+  const rows = expanded(blocks);
+  let min = 0;
+  for (const row of rows) {
+    const k = kindById(row.kind);
+    if (k.bucket !== "invest") continue;
+    if (!kinds || kinds.includes(row.kind)) min += row.minutes;
   }
-  return { invest, consume, other };
+  return min / 60;
 }
 
-export function multiplierForStreak(streak) {
-  if (streak >= 100) return 2;
-  if (streak >= 30) return 1.5;
-  if (streak >= 7) return 1.2;
-  return 1;
+function allInvestHours(blocks) {
+  return hoursForKinds(blocks, null);
 }
 
-function eachIso(from, to) {
+function weekday(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  return ["日", "一", "二", "三", "四", "五", "六"][new Date(y, m - 1, d).getDay()];
+}
+
+function walkDays(startISO, endISO, days) {
   const out = [];
-  let cur = from;
-  while (cur <= to) {
-    out.push(cur);
-    cur = addDays(cur, 1);
+  for (let iso = startISO; iso <= endISO; iso = addDays(iso, 1)) {
+    out.push({ iso, blocks: days[iso]?.blocks || [] });
   }
   return out;
 }
 
-export function buildPortfolio(endIso = todayISO()) {
-  const today = todayISO();
-  const start = earliestDate();
-  const from = start < endIso ? start : endIso;
-  const days = eachIso(from, today < endIso ? endIso : today);
+/** 坚持越久比例越高；工作日荒废则降；周末轻降、不断条。 */
+function nextRatio(ratio, streak, invested, weekend) {
+  if (invested) {
+    return { ratio: Math.min(2, ratio + 0.018), streak: streak + 1 };
+  }
+  if (weekend) {
+    return { ratio: Math.max(1, ratio - 0.03), streak };
+  }
+  return { ratio: Math.max(1, ratio - 0.12), streak: 0 };
+}
 
+function chartLabels(iso, lang) {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (lang === "en") {
+    return `${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(y, m - 1, d).getDay()]} ${m}/${d}`;
+  }
+  return `${m}/${d} 周${weekday(iso)}`;
+}
+
+function evalCode(recentH, prevH, totalH, lastWaste) {
+  if (totalH <= 0.01) return "empty";
+  if (lastWaste === "weekday") return "waste";
+  if (lastWaste === "weekend") return "weekend";
+  if (prevH < 0.05 && recentH > 0.05) return "rising";
+  if (recentH > prevH * 1.12) return "rising";
+  if (prevH > 0.05 && recentH < prevH * 0.88) return "slow";
+  return "flat";
+}
+
+export function remainingMinutes(iso, now = new Date()) {
+  if (iso !== todayISO(now)) return 0;
+  return Math.max(0, 24 * 60 - (now.getHours() * 60 + now.getMinutes()));
+}
+
+function firstInvestISO(days, today) {
+  const keys = Object.keys(days || {}).sort();
+  for (const iso of keys) {
+    if (iso > today) continue;
+    if (allInvestHours(days[iso]?.blocks) > 0) return iso;
+  }
+  return today;
+}
+
+export function buildPortfolio(state, now = new Date()) {
+  const today = todayISO(now);
+  const earliest = firstInvestISO(state.days, today);
+  const days = walkDays(earliest, today, state.days);
+  const books = ASSET_BOOKS.map((book) => ({
+    ...book,
+    series: [],
+    asset: 0,
+    todayH: 0,
+    totalH: 0,
+  }));
+
+  let ratio = 1;
   let streak = 0;
-  let asset = 0;
-  let hadInvest = false;
-  const series = [];
+  let lastWaste = null;
 
-  for (const iso of days) {
-    const { invest } = minutesByBucket(loadDay(iso).blocks);
-    const hours = invest / 60;
-    const isToday = iso === today;
-
-    if (hours > 0) {
-      streak += 1;
-      hadInvest = true;
-    } else if (!isToday) {
-      streak = 0;
+  for (const day of days) {
+    const investH = allInvestHours(day.blocks);
+    const weekend = isWeekend(day.iso);
+    const isToday = day.iso === today;
+    if (isToday) {
+      if (investH > 0) {
+        const next = nextRatio(ratio, streak, true, weekend);
+        ratio = next.ratio;
+        streak = next.streak;
+        lastWaste = null;
+      }
+    } else {
+      const next = nextRatio(ratio, streak, investH > 0, weekend);
+      ratio = next.ratio;
+      streak = next.streak;
+      lastWaste = investH <= 0 ? (weekend ? "weekend" : "weekday") : null;
     }
-
-    const multiplier = multiplierForStreak(streak);
-    const value = hours * multiplier;
-    asset += value;
-    series.push({ iso, hours, value, asset, streak, multiplier });
+    for (const book of books) {
+      const h = hoursForKinds(day.blocks, book.kinds);
+      book.totalH += h;
+      if (isToday) book.todayH = h;
+      book.asset += h * ratio;
+      book.series.push({
+        iso: day.iso,
+        hours: h,
+        ratio,
+        asset: book.asset,
+        label: chartLabels(day.iso, state.settings.lang),
+      });
+    }
   }
 
-  const todayRow = series.find((d) => d.iso === today) || series[series.length - 1];
-  const view = minutesByBucket(loadDay(endIso).blocks);
-  const viewInvest = view.invest;
-  const viewConsume = view.consume;
-  const viewRest = Math.max(0, DAY_MIN - viewInvest - viewConsume);
-
-  const broken = hadInvest && streak === 0;
-
+  const byId = Object.fromEntries(books.map((b) => [b.id, b]));
   return {
-    asset,
-    streak: todayRow?.streak || 0,
-    multiplier: todayRow?.multiplier || 1,
-    series,
-    broken,
-    hadInvest,
-    view: {
-      investMin: viewInvest,
-      consumeMin: viewConsume,
-      restMin: viewRest,
-    },
-    todayHours: todayRow?.hours || 0,
+    ratio,
+    streak,
+    lastWaste,
+    remainingMin: remainingMinutes(today, now),
+    books: byId,
   };
 }
 
-function fmt(n) {
-  const v = Math.max(0, n);
-  if (v >= 100) return v.toFixed(0);
-  return v.toFixed(1);
+function avgHours(slice) {
+  if (!slice.length) return 0;
+  return slice.reduce((s, p) => s + p.hours, 0) / slice.length;
 }
 
-export function formatAsset(n) {
-  return fmt(n);
-}
-
-function xAt(i, n, left, width) {
-  if (n <= 1) return left;
-  return left + (i / (n - 1)) * width;
-}
-
-function yAt(value, max, top, height) {
-  const m = max <= 0 ? 1 : max;
-  return top + height - (value / m) * height;
-}
-
-export function assetChartSvg(portfolio, dailyHours, labels) {
-  const pastAll = portfolio.series;
-  const past = pastAll.slice(-PAST_DAYS);
-  const nPast = Math.max(1, past.length);
-  const n = nPast + FUTURE_DAYS;
-  const w = 320;
-  const h = 168;
-  const left = 8;
-  const right = 8;
-  const top = 10;
-  const bottom = 26;
-  const innerW = w - left - right;
-  const innerH = h - top - bottom;
-  const todayIndex = nPast - 1;
-  const startAsset = past[0]?.asset || 0;
-  const nowAsset = portfolio.asset;
-  const m = portfolio.multiplier;
-  const lowH = dailyHours * 0.5;
-  const midH = dailyHours;
-  const highH = dailyHours * 2;
-
-  const future = (hoursPerDay) => {
-    const pts = [];
-    for (let d = 0; d <= FUTURE_DAYS; d += 1) {
-      pts.push(nowAsset + d * hoursPerDay * m);
-    }
-    return pts;
+export function forecastSeries(book, ratio) {
+  const past = book.series.slice(-PAST_DAYS);
+  const recent = book.series.slice(-7);
+  const prev = book.series.slice(-14, -7);
+  const daily = avgHours(recent) * ratio;
+  const last = past[past.length - 1];
+  const lastISO = last?.iso || todayISO();
+  const lastAsset = last?.asset || 0;
+  const future = [];
+  for (let i = 1; i <= FUTURE_DAYS; i++) {
+    const iso = addDays(lastISO, i);
+    future.push({
+      iso,
+      hours: daily,
+      ratio,
+      asset: lastAsset + daily * i,
+      forecast: true,
+      label: chartLabels(iso, "zh"),
+    });
+  }
+  return {
+    past,
+    future,
+    daily,
+    recentH: avgHours(recent),
+    prevH: avgHours(prev),
   };
+}
 
-  const fLow = future(lowH);
-  const fMid = future(midH);
-  const fHigh = future(highH);
-  const yMax = Math.max(nowAsset, fHigh[fHigh.length - 1], 1);
+export function bookEval(book, port) {
+  const { recentH, prevH } = forecastSeries(book, port.ratio);
+  const waste = book.id === "all" ? port.lastWaste : null;
+  return evalCode(recentH, prevH, book.totalH, waste);
+}
 
-  const pastPts = past.map((row, i) => {
-    const x = xAt(i, n, left, innerW);
-    const y = yAt(row.asset, yMax, top, innerH);
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
-  });
-
-  const toLine = (values) => values
-    .map((value, d) => {
-      const x = xAt(todayIndex + d, n, left, innerW);
-      const y = yAt(value, yMax, top, innerH);
-      return `${x.toFixed(1)},${y.toFixed(1)}`;
-    })
+function pathFrom(points, x, y) {
+  return points
+    .map((p, i) => `${i ? "L" : "M"}${x(p.i).toFixed(1)},${y(p.asset).toFixed(1)}`)
     .join(" ");
+}
 
-  const todayX = xAt(todayIndex, n, left, innerW);
-  const y0 = yAt(0, yMax, top, innerH);
-  const startY = yAt(startAsset, yMax, top, innerH);
-
-  return `<svg class="asset-svg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
-    <line class="chart-axis" x1="${left}" y1="${y0}" x2="${w - right}" y2="${y0}" />
-    <line class="chart-today" x1="${todayX}" y1="${top}" x2="${todayX}" y2="${y0}" />
-    <polyline class="chart-past" fill="none" points="${pastPts.join(" ")}" />
-    ${past.length === 1 ? `<circle class="chart-dot" cx="${todayX}" cy="${startY}" r="2.5" />` : ""}
-    <polyline class="chart-future low" fill="none" points="${toLine(fLow)}" />
-    <polyline class="chart-future mid" fill="none" points="${toLine(fMid)}" />
-    <polyline class="chart-future high" fill="none" points="${toLine(fHigh)}" />
-    <text class="chart-lab" x="${left}" y="${h - 8}">${escapeSvg(past[0]?.iso?.slice(5) || "")}</text>
-    <text class="chart-lab mid" x="${todayX}" y="${h - 8}">${escapeSvg(labels.today)}</text>
-    <text class="chart-lab end" x="${w - right}" y="${h - 8}">+${FUTURE_DAYS}d</text>
+export function assetChartSvg(book, port, lang) {
+  const { past, future } = forecastSeries(book, port.ratio);
+  const leftPad = Math.max(0, PAST_DAYS - past.length);
+  const pastPts = past.map((p, i) => ({ ...p, i: leftPad + i }));
+  const futurePts = future.map((p, i) => ({ ...p, i: leftPad + past.length - 1 + i + 1 }));
+  const n = PAST_DAYS + FUTURE_DAYS;
+  const todayI = leftPad + past.length - 1;
+  const allY = [...pastPts, ...futurePts].map((p) => p.asset);
+  const maxY = Math.max(1, ...allY) * 1.08;
+  const W = 720;
+  const H = 168;
+  const padL = 8;
+  const padR = 8;
+  const padT = 10;
+  const padB = 22;
+  const x = (i) => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
+  const y = (v) => padT + (1 - v / maxY) * (H - padT - padB);
+  const pastPath = pathFrom(pastPts, x, y);
+  const join = pastPts[pastPts.length - 1];
+  const futurePath = join
+    ? `M${x(join.i).toFixed(1)},${y(join.asset).toFixed(1)} ${futurePts
+        .map((p) => `L${x(p.i).toFixed(1)},${y(p.asset).toFixed(1)}`)
+        .join(" ")}`
+    : "";
+  const todayX = x(Math.max(0, todayI));
+  const todayLabel = lang === "en" ? "now" : "今天";
+  const pastLabel = lang === "en" ? "past" : "已过";
+  const nextLabel = lang === "en" ? "ahead" : "预测";
+  return `<svg class="asset-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" aria-hidden="true">
+    <line class="chart-axis" x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}"/>
+    <line class="chart-today" x1="${todayX.toFixed(1)}" y1="${padT}" x2="${todayX.toFixed(1)}" y2="${H - padB}"/>
+    <path class="chart-past" d="${pastPath}"/>
+    <path class="chart-future mid" d="${futurePath}"/>
+    <text class="chart-lab" x="${padL + 4}" y="${H - 6}">${pastLabel}</text>
+    <text class="chart-lab mid" x="${todayX.toFixed(1)}" y="${H - 6}">${todayLabel}</text>
+    <text class="chart-lab end" x="${W - padR - 4}" y="${H - 6}">${nextLabel}</text>
   </svg>`;
 }
 
-function escapeSvg(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;");
+export function formatHours(h, lang) {
+  const n = Math.max(0, h);
+  const text = n >= 10 ? n.toFixed(0) : n.toFixed(1);
+  return lang === "en" ? `${text}h` : `${text} 小时`;
+}
+
+export function formatRemain(min, lang) {
+  const text = (Math.max(0, min) / 60).toFixed(1);
+  return lang === "en" ? `${text}h` : `${text} 小时`;
+}
+
+export function formatAsset(n) {
+  const v = Math.max(0, n);
+  return v >= 100 ? v.toFixed(0) : v.toFixed(1);
 }
