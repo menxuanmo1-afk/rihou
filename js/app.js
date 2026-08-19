@@ -30,8 +30,9 @@ import {
 import {
   ASSET_BOOKS,
   buildPortfolio,
-  assetChartSvg,
-  formatAsset,
+  assetChartHtml,
+  formatMoney,
+  formatPrice,
   formatHours,
   formatRemain,
   bookEval,
@@ -337,6 +338,8 @@ function achieveHtml(r) {
     slow: "evalSlow",
     flat: "evalFlat",
   }[bookEval(book, r)] || "evalFlat";
+  const valueLab = book.id === "all" ? t("totalValuation") : t("valuation");
+  const price = formatPrice(book.price);
   return `
     <p class="muted asset-kicker">${t("principal")}</p>
     <div class="asset-num">${formatRemain(r.remainingMin, L)}</div>
@@ -351,14 +354,14 @@ function achieveHtml(r) {
         <div class="val">${formatHours(book.totalH, L)}</div>
       </div>
       <div class="ticker">
-        <div class="lab">${t("hiddenAsset")}</div>
-        <div class="val">${formatAsset(book.asset)}</div>
-        <div class="ratio-tag">×${r.ratio.toFixed(2)}</div>
+        <div class="lab">${valueLab}</div>
+        <div class="val">${formatMoney(book.value)}</div>
+        <div class="ratio-tag">${price}</div>
       </div>
     </div>
     <div class="book-row">${chips}</div>
-    <div class="chart-wrap" id="asset-chart">${assetChartSvg(book, r, L)}</div>
-    <p class="eval-line">${t(evalKey, { ratio: r.ratio.toFixed(2) })}</p>
+    ${assetChartHtml(book, r, L)}
+    <p class="eval-line">${t(evalKey, { price })}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
 }

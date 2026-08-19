@@ -177,8 +177,44 @@ button { cursor: pointer; }
   padding: 10px 12px;
   margin: 14px 0 0;
 }
-.chart-wrap { margin: 10px -4px 2px; }
-.asset-svg { width: 100%; height: 168px; display: block; }
+.chart-frame {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 10px -4px 2px;
+}
+.y-axis {
+  width: 36px;
+  flex: 0 0 36px;
+  height: 176px;
+  position: relative;
+  color: var(--mute);
+  font-variant-numeric: tabular-nums;
+}
+.y-unit {
+  position: absolute;
+  top: -12px;
+  right: 0;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  line-height: 1;
+}
+.y-ticks {
+  position: absolute;
+  top: 8px;
+  right: 0;
+  left: 0;
+  height: 146px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10px;
+  text-align: right;
+  line-height: 1;
+}
+.chart-wrap { flex: 1; min-width: 0; margin: 0; }
+.asset-svg { width: 100%; height: 176px; display: block; }
+.chart-grid { stroke: rgba(184, 176, 166, 0.12); stroke-width: 1; }
 .chart-axis { stroke: rgba(184, 176, 166, 0.22); stroke-width: 1; }
 .chart-today { stroke: rgba(184, 176, 166, 0.5); stroke-width: 1; stroke-dasharray: 2 3; }
 .chart-past { fill: none; stroke: #f4ede4; stroke-width: 1.7; }
