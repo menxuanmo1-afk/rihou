@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js";
+} from "./models.js?v=13";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js";
+} from "./store.js?v=13";
 import {
   ASSET_BOOKS,
   buildPortfolio,
@@ -35,9 +35,10 @@ import {
   formatPrice,
   formatHours,
   formatRemain,
+  remainingMinutes,
   bookEval,
-} from "./analysis.js";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js";
+} from "./analysis.js?v=13";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=13";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -82,14 +83,41 @@ function report() {
 }
 
 function render() {
+  try {
+    renderApp();
+  } catch (err) {
+    const app = document.getElementById("app");
+    if (app) {
+      app.innerHTML = `<section class="panel achieve-wrap" style="padding:24px">
+        <p>页面刚才卡住了，再打开一次就好。</p>
+        <p class="muted">${String(err && err.message ? err.message : err)}</p>
+      </section>`;
+    }
+  }
+}
+
+function renderApp() {
   currentDay();
   const app = document.getElementById("app");
   const isToday = state.date === todayISO();
-  const r = report();
+  let r;
+  try {
+    r = report();
+  } catch {
+    r = { remainingMin: remainingMinutes(todayISO()), books: { all: { todayH: 0, totalH: 0, value: 0, price: 100, series: [] } } };
+  }
   const wide = window.matchMedia("(min-width: 900px)").matches;
   const showTime = wide || state.tab === "time";
   const showAchieve = wide || state.tab === "achieve";
   document.documentElement.lang = lang() === "en" ? "en" : "zh-CN";
+  let achieve = "";
+  if (showAchieve) {
+    try {
+      achieve = achieveHtml(r);
+    } catch {
+      achieve = `<p class="muted">估值页暂时画不出来。</p>`;
+    }
+  }
   app.innerHTML = `
     <header class="top">
       <div class="date-nav">
@@ -110,7 +138,7 @@ function render() {
         ${timelineHtml()}
       </section>
       <section class="panel achieve-wrap ${showAchieve ? "" : "hidden"}">
-        ${achieveHtml(r)}
+        ${achieve}
       </section>
     </div>
     <nav class="tabs">
@@ -325,7 +353,8 @@ function luminance(hex) {
 
 function achieveHtml(r) {
   const L = lang();
-  const book = r.books[state.book] || r.books.all;
+  const book = r.books?.[state.book] || r.books?.all;
+  if (!book) return `<p class="muted">${t("evalEmpty")}</p>`;
   const chips = ASSET_BOOKS.map((item) => {
     const on = item.id === book.id ? "on" : "";
     return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${t(`book.${item.id}`)}</button>`;
@@ -986,5 +1015,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=13").catch(() => {});
 }

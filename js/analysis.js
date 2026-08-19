@@ -1,4 +1,5 @@
-import { kindById, todayISO, addDays } from "./models.js";
+import { kindById, todayISO, addDays } from "./models.js?v=13";
+import { loadAllDays } from "./store.js?v=13";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -30,8 +31,8 @@ function expanded(blocks) {
   const rows = [];
   for (const b of blocks || []) {
     if (b.isPlan) continue;
-    const ids = b.kinds?.length ? b.kinds : [b.kind];
-    const share = (b.endMin - b.startMin) / ids.length;
+    const ids = Array.isArray(b.kinds) && b.kinds.length ? b.kinds : [b.kind || "OTHER"];
+    const share = (Number(b.endMin) - Number(b.startMin)) / Math.max(1, ids.length);
     for (const id of ids) rows.push({ kind: id, minutes: share });
   }
   return rows;
@@ -58,9 +59,13 @@ function weekday(iso) {
 }
 
 function walkDays(startISO, endISO, days) {
+  const table = days || {};
   const out = [];
-  for (let iso = startISO; iso <= endISO; iso = addDays(iso, 1)) {
-    out.push({ iso, blocks: days[iso]?.blocks || [] });
+  let iso = /^\d{4}-\d{2}-\d{2}$/.test(startISO) ? startISO : endISO;
+  let guard = 0;
+  for (; iso <= endISO && guard < 400; iso = addDays(iso, 1), guard += 1) {
+    const blocks = table[iso]?.blocks;
+    out.push({ iso, blocks: Array.isArray(blocks) ? blocks : [] });
   }
   return out;
 }
@@ -128,11 +133,28 @@ function markDay(book, iso, hours, price, lang) {
   });
 }
 
+export function minutesByBucket(blocks) {
+  let invest = 0;
+  let consume = 0;
+  let other = 0;
+  for (const row of expanded(blocks)) {
+    const bucket = kindById(row.kind).bucket || "other";
+    if (bucket === "invest") invest += row.minutes;
+    else if (bucket === "consume") consume += row.minutes;
+    else other += row.minutes;
+  }
+  return { invest, consume, other };
+}
+
 export function buildPortfolio(state, now = new Date()) {
   const today = todayISO(now);
-  const lang = state.settings?.lang || "zh";
-  const earliest = firstInvestISO(state.days, today);
-  const days = walkDays(earliest, today, state.days);
+  const payload = state && typeof state === "object" && !Array.isArray(state)
+    ? state
+    : { days: loadAllDays(), settings: {} };
+  const dayTable = payload.days || loadAllDays();
+  const lang = payload.settings?.lang || "zh";
+  const earliest = firstInvestISO(dayTable, today);
+  const days = walkDays(earliest, today, dayTable);
   const subs = SUB_IDS.map((id) => emptyBook(ASSET_BOOKS.find((b) => b.id === id)));
   const all = emptyBook(ASSET_BOOKS[0]);
   let lastWaste = null;
@@ -180,6 +202,12 @@ export function buildPortfolio(state, now = new Date()) {
     lastWaste,
     remainingMin: remainingMinutes(today, now),
     books,
+    asset: all.value,
+    multiplier: all.price / BASE_PRICE,
+    streak: 0,
+    broken: false,
+    hadInvest: all.totalH > 0,
+    series: all.series,
   };
 }
 
@@ -201,12 +229,12 @@ function pace(series) {
 }
 
 export function forecastSeries(book) {
-  const past = book.series.slice(-PAST_DAYS);
-  const { wd, we, recentH, prevH } = pace(book.series);
+  const past = (book?.series || []).slice(-PAST_DAYS);
+  const { wd, we, recentH, prevH } = pace(book?.series || []);
   const last = past[past.length - 1];
   let iso = last?.iso || todayISO();
-  let price = book.price;
-  let hours = book.totalH;
+  let price = book?.price || BASE_PRICE;
+  let hours = book?.totalH || 0;
   const future = [];
   for (let i = 1; i <= FUTURE_DAYS; i++) {
     iso = addDays(iso, 1);
@@ -229,7 +257,7 @@ export function forecastSeries(book) {
 }
 
 function forecastAll(port) {
-  const packs = SUB_IDS.map((id) => forecastSeries(port.books[id]));
+  const packs = SUB_IDS.map((id) => forecastSeries(port.books?.[id]));
   const past = port.books.all.series.slice(-PAST_DAYS);
   const future = packs[0].future.map((row, i) => ({
     iso: row.iso,
@@ -279,21 +307,26 @@ function formatAxisTick(n, maxY) {
   return `${Math.round(v)}`;
 }
 
+function yRange(vals) {
+  const nums = vals.filter((n) => Number.isFinite(n));
+  const hi = Math.max(1, ...(nums.length ? nums : [0]));
+  const lo = nums.length ? Math.min(...nums) : 0;
+  const pad = Math.max(40, (hi - lo) * 0.12);
+  return {
+    minY: Math.max(0, lo - pad),
+    maxY: hi + Math.max(40, (hi - lo) * 0.1),
+  };
+}
+
 function scaleFor(book, port) {
   const mine = packFor(book, port);
   const myVals = [...mine.past, ...mine.future].map((p) => p.value);
-  if (book.id === "all") {
-    const hi = Math.max(1, ...myVals);
-    const lo = Math.min(...myVals, hi);
-    return { ...mine, minY: Math.max(0, lo - Math.max(40, (hi - lo) * 0.12)), maxY: hi + Math.max(40, (hi - lo) * 0.1) };
-  }
+  if (book.id === "all") return { ...mine, ...yRange(myVals) };
   const pool = SUB_IDS.flatMap((id) => {
     const pack = packFor(port.books[id], port);
     return [...pack.past, ...pack.future].map((p) => p.value);
   });
-  const hi = Math.max(1, ...pool);
-  const lo = Math.min(...pool, hi);
-  return { ...mine, minY: Math.max(0, lo - Math.max(40, (hi - lo) * 0.12)), maxY: hi + Math.max(40, (hi - lo) * 0.1) };
+  return { ...mine, ...yRange(pool) };
 }
 
 function pathFrom(points, x, y) {
@@ -362,4 +395,13 @@ export function formatHours(h, lang) {
 export function formatRemain(min, lang) {
   const text = (Math.max(0, min) / 60).toFixed(1);
   return lang === "en" ? `${text}h` : `${text} 小时`;
+}
+
+export function formatAsset(n) {
+  return formatMoney(n);
+}
+
+export function assetChartSvg(port, _daily, _labels) {
+  if (!port?.books?.all) return "";
+  return assetChartHtml(port.books.all, port, "zh");
 }

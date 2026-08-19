@@ -1,3 +1,5 @@
+const VERSION = "v13";
+
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {
   event.waitUntil(
@@ -5,5 +7,7 @@ self.addEventListener("activate", (event) => {
   );
 });
 self.addEventListener("fetch", (event) => {
-  event.respondWith(fetch(event.request).catch(() => caches.match(event.request)));
+  event.respondWith(
+    fetch(event.request, { cache: "reload" }).catch(() => caches.match(event.request)),
+  );
 });
