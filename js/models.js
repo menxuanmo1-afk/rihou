@@ -64,7 +64,16 @@ export function blockColors(block) {
 export function gradientCss(colors) {
   if (colors.length === 0) return "#9AA8B5";
   if (colors.length === 1) return colors[0];
-  return `linear-gradient(180deg, ${colors.join(", ")})`;
+  const n = colors.length;
+  const stops = [];
+  for (let i = 0; i < n; i++) {
+    const a = (i / n) * 100;
+    const b = ((i + 1) / n) * 100;
+    const hold = (b - a) * 0.14;
+    stops.push(`${colors[i]} ${(a + hold).toFixed(1)}%`);
+    stops.push(`${colors[i]} ${(b - hold).toFixed(1)}%`);
+  }
+  return `linear-gradient(180deg, ${stops.join(", ")})`;
 }
 
 export function lastActualEnd(day) {

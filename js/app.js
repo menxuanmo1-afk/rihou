@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=16";
+} from "./models.js?v=17";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=16";
+} from "./store.js?v=17";
 import {
   ASSET_BOOKS,
   buildPortfolio,
@@ -37,8 +37,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=16";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=16";
+} from "./analysis.js?v=17";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=17";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -227,7 +227,6 @@ function planDraftHtml() {
   return `<div class="plan-draft${h < 44 ? " tight" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
     <div class="handle top" data-handle="start"></div>
     <div class="draft-body">
-      <div class="draft-title">${t("actual")}</div>
       <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
       <div class="draft-hint">${t("draftHint")}</div>
     </div>
@@ -1011,5 +1010,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=16").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=17").catch(() => {});
 }

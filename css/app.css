@@ -327,10 +327,10 @@ button { cursor: pointer; }
   left: 70px;
   right: 12px;
   z-index: 6;
-  border: 0;
-  background: rgba(244, 237, 228, 0.9);
+  border: 1.5px dashed rgba(232, 168, 124, 0.9);
+  background: rgba(232, 168, 124, 0.16);
   border-radius: 10px;
-  color: #0f1419;
+  color: var(--clay);
   overflow: visible;
   touch-action: none;
   -webkit-user-select: none;
@@ -342,8 +342,7 @@ button { cursor: pointer; }
 }
 .plan-draft .draft-title { font-size: 13px; font-weight: 600; }
 .plan-draft .draft-hint { font-size: 11px; opacity: 0.75; margin-top: 2px; }
-.plan-draft.tight .draft-hint,
-.plan-draft.tight .draft-title { display: none; }
+.plan-draft.tight .draft-hint { display: none; }
 .plan-draft .handle {
   position: absolute;
   left: 0;
