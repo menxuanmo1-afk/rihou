@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO } from "./models.js?v=19";
+import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO } from "./models.js?v=20";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";

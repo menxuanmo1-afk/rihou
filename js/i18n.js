@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=19";
-import { loadSettings } from "./store.js?v=19";
+import { formatDuration } from "./models.js?v=20";
+import { loadSettings } from "./store.js?v=20";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
