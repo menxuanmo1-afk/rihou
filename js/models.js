@@ -69,7 +69,7 @@ export function gradientCss(colors) {
   for (let i = 0; i < n; i++) {
     const a = (i / n) * 100;
     const b = ((i + 1) / n) * 100;
-    const hold = (b - a) * 0.07;
+    const hold = (b - a) * 0.035;
     stops.push(`${colors[i]} ${(a + hold).toFixed(1)}%`);
     stops.push(`${colors[i]} ${(b - hold).toFixed(1)}%`);
   }
