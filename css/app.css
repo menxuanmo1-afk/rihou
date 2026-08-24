@@ -315,22 +315,6 @@ button { cursor: pointer; }
   font-size: 13px;
   line-height: 1.2;
 }
-.block.plan {
-  left: 56px;
-  right: 10px;
-  border: 1px solid;
-  background: transparent;
-  z-index: 2;
-}
-.block.plan.covered {
-  left: 8px;
-  width: 62px;
-  right: auto;
-  padding: 0;
-  opacity: 0.38;
-  background: transparent;
-  z-index: 1;
-}
 .block.actual {
   left: 70px;
   right: 12px;
@@ -340,13 +324,13 @@ button { cursor: pointer; }
 
 .plan-draft {
   position: absolute;
-  left: 56px;
-  right: 10px;
+  left: 70px;
+  right: 12px;
   z-index: 6;
-  border: 1.5px dashed rgba(232, 168, 124, 0.9);
-  background: rgba(232, 168, 124, 0.16);
+  border: 0;
+  background: rgba(244, 237, 228, 0.9);
   border-radius: 10px;
-  color: var(--clay);
+  color: #0f1419;
   overflow: visible;
   touch-action: none;
   -webkit-user-select: none;

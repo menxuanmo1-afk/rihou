@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=15";
-import { loadSettings } from "./store.js?v=15";
+import { formatDuration } from "./models.js?v=16";
+import { loadSettings } from "./store.js?v=16";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -38,7 +38,7 @@ const STR = {
     logNow: "记到现在",
     today: "今天",
     thatDay: "这一天",
-    hint: "长按空白处再向下拉，画出计划；拖上下边改时间，点框写内容。点色块改已有记录。",
+    hint: "长按空白处再向下拉，画出一段实际记录；拖上下边改时间，点框写内容。点色块可以改。",
     invest: "投资",
     consume: "消费",
     rest: "其余",
@@ -96,6 +96,8 @@ const STR = {
     addPlan: "添加计划",
     editBlock: "改这一段",
     logTitle: "记到现在",
+    logRange: "记下这段",
+    draftHint: "点一下写内容",
     sinceLast: "上次到现在",
     actual: "实际",
     plan: "计划",
@@ -119,7 +121,7 @@ const STR = {
     logNow: "Log to now",
     today: "Today",
     thatDay: "That day",
-    hint: "Long-press empty space and drag down to sketch a plan. Drag the edges to change time. Tap the box to add details. Tap a block to edit.",
+    hint: "Long-press empty space and drag to log what you did. Drag the edges to change time. Tap the box to add details. Tap a block to edit.",
     invest: "Invest",
     consume: "Spend",
     rest: "Rest",
@@ -177,6 +179,8 @@ const STR = {
     addPlan: "Add plan",
     editBlock: "Edit block",
     logTitle: "Log to now",
+    logRange: "Log this stretch",
+    draftHint: "Tap to add details",
     sinceLast: "Since last log",
     actual: "Actual",
     plan: "Plan",

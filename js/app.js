@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=15";
+} from "./models.js?v=16";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=15";
+} from "./store.js?v=16";
 import {
   ASSET_BOOKS,
   buildPortfolio,
@@ -37,8 +37,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=15";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=15";
+} from "./analysis.js?v=16";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=16";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -165,15 +165,10 @@ function timelineHtml() {
     return `<div class="hour-row" data-hour="${hour}"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span></div>`;
   }).join("");
 
-  const actuals = (state.day.blocks || []).filter((b) => !b.isPlan);
-  const blocks = state.day.blocks.flatMap((block) => {
-    if (block.endMin <= block.startMin) return [];
-    if (!block.isPlan) return [blockHtml(block, false)];
-    return splitPlanAgainstActuals(block, actuals).map((seg) => {
-      const slice = { ...block, startMin: seg.start, endMin: seg.end };
-      return blockHtml(slice, seg.covered, block);
-    });
-  }).join("");
+  const blocks = (state.day.blocks || [])
+    .filter((block) => !block.isPlan && block.endMin > block.startMin)
+    .map((block) => blockHtml(block))
+    .join("");
 
   return `<div class="timeline" id="timeline">
     <div class="track" id="track" style="height:${height}px">
@@ -185,49 +180,23 @@ function timelineHtml() {
   </div>`;
 }
 
-function splitPlanAgainstActuals(plan, actuals) {
-  let segs = [{ start: plan.startMin, end: plan.endMin, covered: false }];
-  for (const actual of actuals) {
-    const next = [];
-    for (const seg of segs) {
-      const lo = Math.max(seg.start, actual.startMin);
-      const hi = Math.min(seg.end, actual.endMin);
-      if (lo >= hi) {
-        next.push(seg);
-        continue;
-      }
-      if (seg.start < lo) next.push({ start: seg.start, end: lo, covered: seg.covered });
-      next.push({ start: lo, end: hi, covered: true });
-      if (seg.end > hi) next.push({ start: hi, end: seg.end, covered: seg.covered });
-    }
-    segs = next.filter((seg) => seg.end > seg.start);
-  }
-  return segs;
-}
-
-function blockHtml(block, covered, source = block) {
+function blockHtml(block) {
   const visStart = Math.max(block.startMin, START_HOUR * 60);
   const visEnd = Math.min(block.endMin, END_HOUR * 60);
   if (visEnd <= visStart) return "";
   const { top, h } = blockGeom(block.startMin, block.endMin);
-  const colors = blockColors(source);
-  const mixed = colors.length > 1 && !block.isPlan;
-  const name = liveBlockLabel(source);
-  const label = block.isPlan ? `${t("plan")} · ${name}` : name;
+  const colors = blockColors(block);
+  const mixed = colors.length > 1;
+  const name = liveBlockLabel(block);
   const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
-  const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
   const style = [
     `top:${top}px`,
     `height:${h}px`,
-    covered ? "" : `background:${bg}`,
-    `color:${block.isPlan ? colors[0] : ink}`,
-    block.isPlan ? `border-color:${colors[0]}` : "",
-  ].filter(Boolean).join(";");
-  const inner = covered
-    ? ""
-    : `${label}${h > 28 ? `<div class="when">${minutesToHm(source.startMin)}–${minutesToHm(source.endMin)}</div>` : ""}`;
-  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${covered ? " covered" : ""}" data-id="${source.id}" style="${style}">
-        ${inner}
+    `background:${gradientCss(colors)}`,
+    `color:${ink}`,
+  ].join(";");
+  return `<div class="block actual${mixed ? " mix" : ""}" data-id="${block.id}" style="${style}">
+        ${name}${h > 28 ? `<div class="when">${minutesToHm(block.startMin)}–${minutesToHm(block.endMin)}</div>` : ""}
       </div>`;
 }
 
@@ -258,9 +227,9 @@ function planDraftHtml() {
   return `<div class="plan-draft${h < 44 ? " tight" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
     <div class="handle top" data-handle="start"></div>
     <div class="draft-body">
-      <div class="draft-title">计划</div>
+      <div class="draft-title">${t("actual")}</div>
       <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
-      <div class="draft-hint">点一下写内容</div>
+      <div class="draft-hint">${t("draftHint")}</div>
     </div>
     <button type="button" class="draft-x" data-draft-dismiss aria-label="取消">×</button>
     <div class="handle bottom" data-handle="end"></div>
@@ -275,7 +244,7 @@ function setDraftRange(startMin, endMin) {
   if (b - a < PLAN_MIN) a = Math.max(START_HOUR * 60, b - PLAN_MIN);
   state.planDraft = {
     id: state.planDraft?.id || uid(),
-    isPlan: true,
+    isPlan: false,
     kinds: state.planDraft?.kinds || ["STUDY"],
     title: state.planDraft?.title || "",
     startMin: a,
@@ -321,7 +290,7 @@ function openPlanFromDraft() {
   if (!d) return;
   openEditor({
     id: d.id,
-    isPlan: true,
+    isPlan: false,
     kinds: [...(d.kinds || ["STUDY"])],
     kind: (d.kinds || ["STUDY"])[0],
     title: d.title || "",
@@ -449,17 +418,7 @@ function bindTimeline(timeline) {
     const block = event.target.closest("[data-id]");
     if (block) {
       const found = state.day.blocks.find((b) => b.id === block.dataset.id);
-      if (found) openEditor(found);
-      return;
-    }
-    const hourRow = event.target.closest("[data-hour]");
-    if (hourRow) {
-      const hour = Number(hourRow.dataset.hour);
-      let start = hour * 60;
-      const last = lastActualEnd(state.day);
-      if (last != null && last > start && last < hour * 60 + 60) start = last;
-      const end = Math.max(start + 1, Math.min(hour * 60 + 60, start + 30));
-      openRecordSheet({ startMin: start, endMin: end });
+      if (found && !found.isPlan) openEditor(found);
     }
   });
 
@@ -786,17 +745,13 @@ function editorHtml(draft, isEdit) {
     const on = draft.kinds.includes(k.id);
     return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
   }).join("");
-  const mixHint = !draft.isPlan && draft.kinds.length > 1
+  const mixHint = draft.kinds.length > 1
     ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
        <p class="muted">${t("mixEdit")}</p>`
     : "";
   return `
     <div class="sheet">
-      <h2>${isEdit ? t("editBlock") : draft.isPlan ? t("addPlan") : t("logTitle")}</h2>
-      <div class="row">
-        <button class="chip-h ${draft.isPlan ? "" : "on"}" data-mode="actual">${t("actual")}</button>
-        <button class="chip-h ${draft.isPlan ? "on" : ""}" data-mode="plan">${t("plan")}</button>
-      </div>
+      <h2>${isEdit ? t("editBlock") : t("logRange")}</h2>
       <div class="row">${kinds}</div>
       ${mixHint}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
@@ -822,21 +777,12 @@ function bindEditor(root, draft, isEdit) {
   root.querySelectorAll("[data-kind]").forEach((el) => {
     el.addEventListener("click", () => {
       const id = el.dataset.kind;
-      if (draft.isPlan) {
-        draft.kinds = [id];
-      } else if (draft.kinds.includes(id)) {
+      if (draft.kinds.includes(id)) {
         draft.kinds = draft.kinds.filter((k) => k !== id);
         if (draft.kinds.length === 0) draft.kinds = [id];
       } else {
         draft.kinds = [...draft.kinds, id];
       }
-      redraw();
-    });
-  });
-  root.querySelectorAll("[data-mode]").forEach((el) => {
-    el.addEventListener("click", () => {
-      draft.isPlan = el.dataset.mode === "plan";
-      if (draft.isPlan) draft.kinds = draft.kinds.slice(0, 1);
       redraw();
     });
   });
@@ -851,7 +797,7 @@ function bindEditor(root, draft, isEdit) {
       title: draft.title,
       kinds: draft.kinds,
       kind: draft.kinds[0],
-      isPlan: draft.isPlan,
+      isPlan: false,
     });
     if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
@@ -1065,5 +1011,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=15").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=16").catch(() => {});
 }
