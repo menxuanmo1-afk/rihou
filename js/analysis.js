@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays } from "./models.js?v=23";
-import { loadAllDays } from "./store.js?v=23";
+import { kindById, todayISO, addDays } from "./models.js?v=24";
+import { loadAllDays } from "./store.js?v=24";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
