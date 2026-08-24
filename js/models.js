@@ -8,17 +8,32 @@ export const Payoff = {
 export const KINDS = [
   { id: "STUDY", label: "学习", payoff: Payoff.DELAY, bucket: "invest", color: "#E8A87C" },
   { id: "READ", label: "读书", payoff: Payoff.DELAY, bucket: "invest", color: "#7DCEA0" },
+  { id: "CLASS", label: "上课", payoff: Payoff.DELAY, bucket: "invest", color: "#E8C07D" },
   { id: "FITNESS", label: "健身", payoff: Payoff.DELAY, bucket: "invest", color: "#7EB6D9" },
+  { id: "SPORT", label: "运动", payoff: Payoff.DELAY, bucket: "invest", color: "#5BB798" },
   { id: "CREATE", label: "创作", payoff: Payoff.DELAY, bucket: "invest", color: "#C9A7EB" },
-  { id: "WORK", label: "功课", payoff: Payoff.DELAY, bucket: "invest", color: "#E8C07D" },
+  { id: "WORK", label: "功课", payoff: Payoff.DELAY, bucket: "invest", color: "#E8C07D", hidden: true },
   { id: "MEAL", label: "吃饭", payoff: Payoff.CARE, bucket: "invest", color: "#E8C9A0" },
   { id: "REST", label: "休息", payoff: Payoff.CARE, bucket: "invest", color: "#B8B0A6" },
-  { id: "CHORE", label: "整理", payoff: Payoff.CARE, bucket: "other", color: "#A8C5B5" },
+  { id: "SLEEP", label: "睡觉", payoff: Payoff.CARE, bucket: "invest", color: "#7B88A8" },
+  { id: "SHOWER", label: "洗澡", payoff: Payoff.CARE, bucket: "invest", color: "#8EC5D6" },
+  { id: "CHORE", label: "家务", payoff: Payoff.CARE, bucket: "other", color: "#A8C5B5" },
   { id: "COMMUTE", label: "通勤", payoff: Payoff.NEUTRAL, bucket: "other", color: "#8A9BA8" },
+  { id: "DAZE", label: "发呆", payoff: Payoff.NEUTRAL, bucket: "other", color: "#7A7670" },
   { id: "SCROLL", label: "刷短视频", payoff: Payoff.INSTANT, bucket: "consume", color: "#E07A5F" },
   { id: "GAME", label: "游戏", payoff: Payoff.INSTANT, bucket: "consume", color: "#D67B7B" },
   { id: "OTHER", label: "其他", payoff: Payoff.NEUTRAL, bucket: "other", color: "#9AA8B5" },
 ];
+
+export function pickerKinds(selected = []) {
+  const base = KINDS.filter((k) => !k.hidden);
+  for (const id of selected) {
+    if (base.some((k) => k.id === id)) continue;
+    const extra = KINDS.find((k) => k.id === id);
+    if (extra) base.push(extra);
+  }
+  return base;
+}
 
 export const DEFAULT_HABITS = [
   { id: "BRUSH", label: "刷牙", points: 8, hint: "小事，但每天都做才算数" },

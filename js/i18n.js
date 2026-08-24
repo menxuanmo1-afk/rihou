@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=14";
-import { loadSettings } from "./store.js?v=14";
+import { formatDuration } from "./models.js?v=15";
+import { loadSettings } from "./store.js?v=15";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -14,13 +14,18 @@ export function formatDurationI18n(minutes) {
 const KIND = {
   STUDY: { zh: "学习", en: "Study" },
   READ: { zh: "读书", en: "Read" },
+  CLASS: { zh: "上课", en: "Class" },
   FITNESS: { zh: "健身", en: "Fitness" },
+  SPORT: { zh: "运动", en: "Sport" },
   CREATE: { zh: "创作", en: "Create" },
   WORK: { zh: "功课", en: "Work" },
   MEAL: { zh: "吃饭", en: "Meal" },
   REST: { zh: "休息", en: "Rest" },
-  CHORE: { zh: "整理", en: "Tidy" },
+  SLEEP: { zh: "睡觉", en: "Sleep" },
+  SHOWER: { zh: "洗澡", en: "Shower" },
+  CHORE: { zh: "家务", en: "Chores" },
   COMMUTE: { zh: "通勤", en: "Commute" },
+  DAZE: { zh: "发呆", en: "Spacing out" },
   SCROLL: { zh: "刷短视频", en: "Short video" },
   GAME: { zh: "游戏", en: "Games" },
   OTHER: { zh: "其他", en: "Other" },
@@ -49,7 +54,7 @@ const STR = {
     totalValuation: "总估值",
     price: "现价",
     "gloss.principal": "今天还没花掉的时间。它像现金，但过不了夜：到 24:00 还没投出去，就清零，不能攒到明天。",
-    "gloss.todayInvest": "今天已经记下来的投入时间。学习、读书、健身、创作、功课、吃饭、休息都算。上面选了哪一栏，这里就只统计那一栏。",
+    "gloss.todayInvest": "今天已经记下来的投入时间。学习、读书、上课、健身、运动、创作、吃饭、休息、睡觉、洗澡都算。上面选了哪一栏，这里就只统计那一栏。",
     "gloss.totalInvest": "从第一笔记入开始，这一栏一共投了多少小时。这是库存，行情再差也不会把小时抹掉。",
     "gloss.valuation": "市场给这批时间的标价。估值 = 总投资小时 × 现价。投入会推高现价，工作日空仓会折价，所以这个数字会上下波动。",
     "gloss.totalValuation": "学识、身体、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
@@ -130,7 +135,7 @@ const STR = {
     totalValuation: "Total value",
     price: "Price",
     "gloss.principal": "Hours still unspent today. Like cash that spoils: if you don't invest it by midnight, it clears and does not roll over.",
-    "gloss.todayInvest": "Hours already logged today as investment — study, reading, fitness, making, schoolwork, meals, rest. The chips above filter which book this counts.",
+    "gloss.todayInvest": "Hours already logged today as investment — study, reading, class, fitness, sport, making, meals, rest, sleep, shower. The chips above filter which book this counts.",
     "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
     "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Investing lifts the price; an empty weekday marks it down. So this number can move both ways.",
     "gloss.totalValuation": "Mind, body, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",

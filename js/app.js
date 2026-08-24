@@ -1,5 +1,5 @@
 import {
-  KINDS,
+  pickerKinds,
   uid,
   kindById,
   minutesToHm,
@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=14";
+} from "./models.js?v=15";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=14";
+} from "./store.js?v=15";
 import {
   ASSET_BOOKS,
   buildPortfolio,
@@ -37,8 +37,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=14";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=14";
+} from "./analysis.js?v=15";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=15";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -165,31 +165,15 @@ function timelineHtml() {
     return `<div class="hour-row" data-hour="${hour}"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span></div>`;
   }).join("");
 
-  const blocks = state.day.blocks
-    .map((block) => {
-      if (block.endMin <= block.startMin) return "";
-      const visStart = Math.max(block.startMin, START_HOUR * 60);
-      const visEnd = Math.min(block.endMin, END_HOUR * 60);
-      if (visEnd <= visStart) return "";
-      const { top, h } = blockGeom(block.startMin, block.endMin);
-      const colors = blockColors(block);
-      const mixed = colors.length > 1 && !block.isPlan;
-      const name = liveBlockLabel(block);
-      const label = block.isPlan ? `${t("plan")} · ${name}` : name;
-      const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
-      const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
-      const style = [
-        `top:${top}px`,
-        `height:${h}px`,
-        `background:${bg}`,
-        `color:${block.isPlan ? colors[0] : ink}`,
-        block.isPlan ? `border-color:${colors[0]}` : "",
-      ].filter(Boolean).join(";");
-      return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}" data-id="${block.id}" style="${style}">
-        ${label}${h > 28 ? `<div class="when">${minutesToHm(block.startMin)}–${minutesToHm(block.endMin)}</div>` : ""}
-      </div>`;
-    })
-    .join("");
+  const actuals = (state.day.blocks || []).filter((b) => !b.isPlan);
+  const blocks = state.day.blocks.flatMap((block) => {
+    if (block.endMin <= block.startMin) return [];
+    if (!block.isPlan) return [blockHtml(block, false)];
+    return splitPlanAgainstActuals(block, actuals).map((seg) => {
+      const slice = { ...block, startMin: seg.start, endMin: seg.end };
+      return blockHtml(slice, seg.covered, block);
+    });
+  }).join("");
 
   return `<div class="timeline" id="timeline">
     <div class="track" id="track" style="height:${height}px">
@@ -199,6 +183,52 @@ function timelineHtml() {
       ${planDraftHtml()}
     </div>
   </div>`;
+}
+
+function splitPlanAgainstActuals(plan, actuals) {
+  let segs = [{ start: plan.startMin, end: plan.endMin, covered: false }];
+  for (const actual of actuals) {
+    const next = [];
+    for (const seg of segs) {
+      const lo = Math.max(seg.start, actual.startMin);
+      const hi = Math.min(seg.end, actual.endMin);
+      if (lo >= hi) {
+        next.push(seg);
+        continue;
+      }
+      if (seg.start < lo) next.push({ start: seg.start, end: lo, covered: seg.covered });
+      next.push({ start: lo, end: hi, covered: true });
+      if (seg.end > hi) next.push({ start: hi, end: seg.end, covered: seg.covered });
+    }
+    segs = next.filter((seg) => seg.end > seg.start);
+  }
+  return segs;
+}
+
+function blockHtml(block, covered, source = block) {
+  const visStart = Math.max(block.startMin, START_HOUR * 60);
+  const visEnd = Math.min(block.endMin, END_HOUR * 60);
+  if (visEnd <= visStart) return "";
+  const { top, h } = blockGeom(block.startMin, block.endMin);
+  const colors = blockColors(source);
+  const mixed = colors.length > 1 && !block.isPlan;
+  const name = liveBlockLabel(source);
+  const label = block.isPlan ? `${t("plan")} · ${name}` : name;
+  const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
+  const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
+  const style = [
+    `top:${top}px`,
+    `height:${h}px`,
+    covered ? "" : `background:${bg}`,
+    `color:${block.isPlan ? colors[0] : ink}`,
+    block.isPlan ? `border-color:${colors[0]}` : "",
+  ].filter(Boolean).join(";");
+  const inner = covered
+    ? ""
+    : `${label}${h > 28 ? `<div class="when">${minutesToHm(source.startMin)}–${minutesToHm(source.endMin)}</div>` : ""}`;
+  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${covered ? " covered" : ""}" data-id="${source.id}" style="${style}">
+        ${inner}
+      </div>`;
 }
 
 function blockGeom(startMin, endMin) {
@@ -602,7 +632,7 @@ function openRecordSheet(range, extra = {}) {
 }
 
 function recordHtml(draft) {
-  const kinds = KINDS.map((k) => {
+  const kinds = pickerKinds(draft.kinds).map((k) => {
     const on = draft.kinds.includes(k.id);
     return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
   }).join("");
@@ -752,7 +782,7 @@ function openEditor(block) {
 }
 
 function editorHtml(draft, isEdit) {
-  const kinds = KINDS.map((k) => {
+  const kinds = pickerKinds(draft.kinds).map((k) => {
     const on = draft.kinds.includes(k.id);
     return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
   }).join("");
@@ -1035,5 +1065,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=14").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=15").catch(() => {});
 }
