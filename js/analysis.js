@@ -1,9 +1,9 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=27";
-import { loadAllDays } from "./store.js?v=27";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=28";
+import { loadAllDays } from "./store.js?v=28";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
-export const BASE_PRICE = 100;
+export const BASE_PRICE = 50;
 
 export const ASSET_BOOKS = [
   { id: "all", kinds: null },
@@ -14,8 +14,8 @@ export const ASSET_BOOKS = [
 ];
 
 const SUB_IDS = ["mind", "body", "craft", "restore"];
-const P_MIN = 28;
-const P_MAX = 520;
+const P_MIN = 14;
+const P_MAX = 260;
 const FLAT_H = 1;
 const PLAY_LONG_H = 2.5;
 
@@ -80,7 +80,7 @@ function dayFrac(now) {
 
 function heatDamp(r, price) {
   if (r <= 0) return r;
-  const heat = Math.max(0, price - 140) / 140;
+  const heat = Math.max(0, price - 70) / 70;
   return r / (1 + 1.15 * heat);
 }
 
@@ -362,10 +362,10 @@ function yRange(vals) {
   const nums = vals.filter((n) => Number.isFinite(n));
   const hi = Math.max(1, ...(nums.length ? nums : [0]));
   const lo = nums.length ? Math.min(...nums) : 0;
-  const pad = Math.max(40, (hi - lo) * 0.12);
+  const pad = Math.max(20, (hi - lo) * 0.12);
   return {
     minY: Math.max(0, lo - pad),
-    maxY: hi + Math.max(40, (hi - lo) * 0.1),
+    maxY: hi + Math.max(20, (hi - lo) * 0.1),
   };
 }
 

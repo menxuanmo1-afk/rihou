@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=27";
+} from "./models.js?v=28";
 import {
   loadDay,
   upsertBlock,
@@ -26,9 +26,10 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=27";
+} from "./store.js?v=28";
 import {
   ASSET_BOOKS,
+  BASE_PRICE,
   buildPortfolio,
   assetChartHtml,
   formatMoney,
@@ -37,8 +38,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=27";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=27";
+} from "./analysis.js?v=28";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=28";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -104,7 +105,7 @@ function renderApp() {
   try {
     r = report();
   } catch {
-    r = { remainingMin: remainingMinutes(todayISO()), books: { all: { todayH: 0, totalH: 0, value: 0, price: 100, series: [] } } };
+    r = { remainingMin: remainingMinutes(todayISO()), books: { all: { todayH: 0, totalH: 0, value: 0, price: BASE_PRICE, series: [] } } };
   }
   const wide = window.matchMedia("(min-width: 900px)").matches;
   const showTime = wide || state.tab === "time";
@@ -1010,5 +1011,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=27").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=28").catch(() => {});
 }
