@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays } from "./models.js?v=26";
-import { loadAllDays } from "./store.js?v=26";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=27";
+import { loadAllDays } from "./store.js?v=27";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -16,6 +16,8 @@ export const ASSET_BOOKS = [
 const SUB_IDS = ["mind", "body", "craft", "restore"];
 const P_MIN = 28;
 const P_MAX = 520;
+const FLAT_H = 1;
+const PLAY_LONG_H = 2.5;
 
 function isoWeekday(iso) {
   const [y, m, d] = iso.split("-").map(Number);
@@ -53,6 +55,42 @@ function allInvestHours(blocks) {
   return hoursForKinds(blocks, null);
 }
 
+function consumeHours(blocks) {
+  let min = 0;
+  for (const row of expanded(blocks)) {
+    if (kindById(row.kind).bucket === "consume") min += row.minutes;
+  }
+  return min / 60;
+}
+
+function lookbackN(bookId) {
+  return bookId === "body" ? 7 : 2;
+}
+
+function avgHoursSlice(series, n) {
+  const slice = (series || []).slice(-n);
+  if (!slice.length) return 0;
+  return slice.reduce((s, p) => s + Number(p.hours || 0), 0) / slice.length;
+}
+
+function dayFrac(now) {
+  const elapsed = nowMinutes(now) - 6 * 60;
+  return Math.max(0.2, Math.min(1, elapsed / (18 * 60)));
+}
+
+function heatDamp(r, price) {
+  if (r <= 0) return r;
+  const heat = Math.max(0, price - 140) / 140;
+  return r / (1 + 1.15 * heat);
+}
+
+/** 维持近几天节奏时的原增长速度。几乎没投入则走平。 */
+function steadyRate(hours, price) {
+  const h = Math.max(0, hours);
+  if (h < 0.08) return 0;
+  return heatDamp(0.026 + Math.min(h, 4) * 0.01, price);
+}
+
 function weekday(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   return ["日", "一", "二", "三", "四", "五", "六"][new Date(y, m - 1, d).getDay()];
@@ -70,19 +108,21 @@ function walkDays(startISO, endISO, days) {
   return out;
 }
 
-/** 市价：投入上涨，荒废下跌，周末几乎走平。贵了以后涨得慢。 */
-export function nextPrice(price, bookH, weekend, globalH) {
+/** 现价：和近两天（健康近一周）均值比。高过 1 小时加速，差不多按原速，低了或玩太久下跌。 */
+export function nextPrice(price, todayH, prevAvg, playH = 0) {
   let r;
-  if (weekend) {
-    r = bookH > 0 ? 0.005 : -0.003;
-  } else if (bookH > 0) {
-    r = 0.03 + Math.min(bookH, 4) * 0.015;
-    const heat = Math.max(0, price - 140) / 140;
-    r *= 1 / (1 + 1.15 * heat);
-  } else if (globalH > 0) {
-    r = -0.018;
+  if (playH >= PLAY_LONG_H) {
+    r = -0.04 - Math.min(playH - PLAY_LONG_H, 5) * 0.012;
   } else {
-    r = -0.06;
+    const delta = todayH - prevAvg;
+    if (delta > FLAT_H) {
+      const boost = Math.min(delta - FLAT_H, 4) * 0.012;
+      r = heatDamp(0.04 + Math.min(todayH, 5) * 0.012 + boost, price);
+    } else if (delta < -FLAT_H) {
+      r = -0.03 - Math.min(-delta - FLAT_H, 6) * 0.01;
+    } else {
+      r = steadyRate(Math.max(todayH, prevAvg), price);
+    }
   }
   return Math.min(P_MAX, Math.max(P_MIN, price * (1 + r)));
 }
@@ -158,9 +198,11 @@ export function buildPortfolio(state, now = new Date()) {
   const subs = SUB_IDS.map((id) => emptyBook(ASSET_BOOKS.find((b) => b.id === id)));
   const all = emptyBook(ASSET_BOOKS[0]);
   let lastWaste = null;
+  const frac = dayFrac(now);
 
   for (const day of days) {
     const globalH = allInvestHours(day.blocks);
+    const playH = consumeHours(day.blocks);
     const weekend = isWeekend(day.iso);
     const isToday = day.iso === today;
     if (!isToday) {
@@ -175,10 +217,11 @@ export function buildPortfolio(state, now = new Date()) {
       const hadPosition = book.totalH > 0 || h > 0;
       let price = book.price;
       if (hadPosition) {
-        if (isToday) {
-          if (h > 0) price = nextPrice(book.price, h, weekend, globalH);
-        } else {
-          price = nextPrice(book.price, h, weekend, globalH);
+        const skipTodayEmpty = isToday && h <= 0;
+        if (!skipTodayEmpty) {
+          const prevAvg = avgHoursSlice(book.series, lookbackN(book.id));
+          const scaledAvg = isToday ? prevAvg * frac : prevAvg;
+          price = nextPrice(book.price, h, scaledAvg, playH);
         }
       }
       markDay(book, day.iso, h, price, lang);
@@ -235,15 +278,20 @@ export function forecastSeries(book) {
   let iso = last?.iso || todayISO();
   let price = book?.price || BASE_PRICE;
   let hours = book?.totalH || 0;
+  const windowH = (book?.series || []).map((p) => Number(p.hours || 0));
+  const lookN = lookbackN(book?.id);
   const future = [];
   for (let i = 1; i <= FUTURE_DAYS; i++) {
     iso = addDays(iso, 1);
     const weekend = isWeekend(iso);
     const h = weekend ? we : wd;
     if (hours > 0 || h > 0) {
-      price = nextPrice(price, h, weekend, h);
+      const prev = windowH.slice(-lookN);
+      const prevAvg = prev.length ? prev.reduce((s, x) => s + x, 0) / prev.length : 0;
+      price = nextPrice(price, h, prevAvg, 0);
       hours += h;
     }
+    windowH.push(h);
     future.push({
       iso,
       hours: h,
@@ -276,15 +324,18 @@ export function packFor(book, port) {
 }
 
 export function bookEval(book, port) {
-  const { recentH, prevH } = packFor(book, port);
   if (book.totalH <= 0.01) return "empty";
-  const series = book.series;
-  const nowV = series[series.length - 1]?.value || 0;
-  const agoV = series[Math.max(0, series.length - 8)]?.value || 0;
   if (book.id === "all" && port.lastWaste === "weekday") return "waste";
   if (book.id === "all" && port.lastWaste === "weekend") return "weekend";
-  if (nowV > agoV * 1.08 || recentH > prevH * 1.12) return "rising";
-  if (nowV < agoV * 0.92 || (prevH > 0.05 && recentH < prevH * 0.88)) return "slow";
+  const series = book.series || [];
+  const today = todayISO();
+  const completed = series[series.length - 1]?.iso === today ? series.slice(0, -1) : series;
+  const day = completed[completed.length - 1];
+  if (!day) return "flat";
+  const n = lookbackN(book.id === "all" ? "mind" : book.id);
+  const prevAvg = avgHoursSlice(completed.slice(0, -1), n);
+  if (day.hours > prevAvg + FLAT_H) return "rising";
+  if (day.hours < prevAvg - FLAT_H) return "slow";
   return "flat";
 }
 
