@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108">
-  <rect width="108" height="108" rx="24" fill="#0F1419"/>
-  <circle cx="54" cy="62" r="18" fill="#7DCEA0"/>
-  <rect x="50" y="28" width="8" height="28" rx="4" fill="#E8A87C"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" fill="#0F1419"/>
+  <clipPath id="sky">
+    <rect width="512" height="300"/>
+  </clipPath>
+  <circle cx="256" cy="300" r="158" fill="#E8A87C" clip-path="url(#sky)"/>
+  <rect x="86" y="292" width="340" height="16" rx="8" fill="#F4EDE4"/>
 </svg>
