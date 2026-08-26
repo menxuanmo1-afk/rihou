@@ -116,6 +116,69 @@ export function overlaps(block, start, end) {
   return block.startMin < end && block.endMin > start;
 }
 
+export function actualAtMinute(blocks, minute, exceptId) {
+  return (blocks || []).find(
+    (b) => !b.isPlan && b.id !== exceptId && b.startMin <= minute && minute < b.endMin,
+  ) || null;
+}
+
+export function emptySpan(blocks, origin, exceptId, loBound, hiBound) {
+  if (actualAtMinute(blocks, origin, exceptId)) return null;
+  let lo = loBound;
+  let hi = hiBound;
+  for (const b of blocks || []) {
+    if (b.isPlan || b.id === exceptId) continue;
+    if (b.endMin <= origin) lo = Math.max(lo, b.endMin);
+    else if (b.startMin >= origin) hi = Math.min(hi, b.startMin);
+    else return null;
+  }
+  if (hi - lo < 1) return null;
+  return { startMin: lo, endMin: hi };
+}
+
+function subtractRange(block, cutStart, cutEnd) {
+  if (block.endMin <= cutStart || block.startMin >= cutEnd) return [block];
+  const pieces = [];
+  if (block.startMin < cutStart) {
+    pieces.push({ ...block, endMin: cutStart });
+  }
+  if (block.endMin > cutEnd) {
+    const right = { ...block, startMin: cutEnd };
+    if (pieces.length) right.id = uid();
+    pieces.push(right);
+  }
+  return pieces.filter((p) => p.endMin - p.startMin >= 1);
+}
+
+/** Place an actual block so each minute belongs to at most one record. Later block wins the overlap. */
+export function insertExclusive(blocks, incoming) {
+  const start = Math.min(Number(incoming.startMin), Number(incoming.endMin));
+  const end = Math.max(Number(incoming.startMin), Number(incoming.endMin));
+  if (end - start < 1) return (blocks || []).filter((b) => b.id !== incoming.id);
+  const placed = { ...incoming, startMin: start, endMin: end, isPlan: false };
+  const next = [];
+  for (const b of blocks || []) {
+    if (b.id === placed.id) continue;
+    if (b.isPlan) {
+      next.push(b);
+      continue;
+    }
+    next.push(...subtractRange(b, start, end));
+  }
+  next.push(placed);
+  next.sort((a, b) => a.startMin - b.startMin);
+  return next;
+}
+
+export function foldExclusive(blocks) {
+  let out = [];
+  for (const b of blocks || []) {
+    if (b.isPlan) out.push(b);
+    else out = insertExclusive(out, b);
+  }
+  return out;
+}
+
 export function minutesToHm(minutes) {
   const clamped = Math.max(0, Math.min(24 * 60, minutes));
   if (clamped === 24 * 60) return "24:00";

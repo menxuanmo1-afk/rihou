@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO } from "./models.js?v=40";
+import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive } from "./models.js?v=41";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -33,14 +33,14 @@ export function loadDay(date) {
   if (!saved) return { ...emptyDay(date), habits: blanks };
   return {
     date,
-    blocks: Array.isArray(saved.blocks) ? saved.blocks : [],
+    blocks: foldExclusive(Array.isArray(saved.blocks) ? saved.blocks : []),
     habits: { ...blanks, ...(saved.habits || {}) },
   };
 }
 
 export function saveDay(day) {
   const all = readJson(DAYS, {});
-  all[day.date] = { blocks: day.blocks, habits: day.habits };
+  all[day.date] = { blocks: foldExclusive(day.blocks), habits: day.habits };
   writeJson(DAYS, all);
 }
 
@@ -48,14 +48,15 @@ export function upsertBlock(day, block) {
   const kinds = Array.isArray(block.kinds) && block.kinds.length > 0
     ? block.kinds
     : [block.kind || "OTHER"];
+  const { clipStart: _cs, clipEnd: _ce, ...rest } = block;
   const normalized = {
-    ...block,
+    ...rest,
     kinds,
     kind: kinds[0],
   };
   const next = {
     ...day,
-    blocks: [...day.blocks.filter((b) => b.id !== normalized.id), normalized],
+    blocks: insertExclusive(day.blocks, normalized),
   };
   saveDay(next);
   return next;
@@ -89,7 +90,15 @@ export function loadSettings() {
 }
 
 export function loadAllDays() {
-  return readJson(DAYS, {});
+  const all = readJson(DAYS, {});
+  const out = {};
+  for (const [iso, day] of Object.entries(all)) {
+    out[iso] = {
+      ...day,
+      blocks: foldExclusive(Array.isArray(day?.blocks) ? day.blocks : []),
+    };
+  }
+  return out;
 }
 
 export function earliestDate() {
@@ -106,7 +115,7 @@ export function exportAll() {
   return JSON.stringify(
     {
       exportedAt: new Date().toISOString(),
-      days: readJson(DAYS, {}),
+      days: loadAllDays(),
       settings: loadSettings(),
     },
     null,
@@ -116,7 +125,16 @@ export function exportAll() {
 
 export function importAll(raw) {
   const data = JSON.parse(raw);
-  if (data.days) writeJson(DAYS, data.days);
+  if (data.days) {
+    const folded = {};
+    for (const [iso, day] of Object.entries(data.days)) {
+      folded[iso] = {
+        ...day,
+        blocks: foldExclusive(Array.isArray(day?.blocks) ? day.blocks : []),
+      };
+    }
+    writeJson(DAYS, folded);
+  }
   if (data.settings) writeJson(SETTINGS, { ...loadSettings(), ...data.settings });
 }
 

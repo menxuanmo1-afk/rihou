@@ -14,7 +14,9 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=40";
+  actualAtMinute,
+  emptySpan,
+} from "./models.js?v=41";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +28,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=40";
+} from "./store.js?v=41";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -39,8 +41,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=40";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=40";
+} from "./analysis.js?v=41";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=41";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -66,6 +68,8 @@ const gesture = {
   suppressClick: false,
   suppressTimer: 0,
   windowBound: false,
+  clipStart: 0,
+  clipEnd: 0,
 };
 
 const LONG_PRESS_MS = 420;
@@ -258,12 +262,25 @@ function planDraftHtml() {
   </div>`;
 }
 
+function draftClip() {
+  return {
+    lo: state.planDraft?.clipStart ?? gesture.clipStart ?? START_HOUR * 60,
+    hi: state.planDraft?.clipEnd ?? gesture.clipEnd ?? END_HOUR * 60,
+  };
+}
+
 function setDraftRange(startMin, endMin) {
   let a = snapPlanMin(startMin);
   let b = snapPlanMin(endMin);
   if (b < a) [a, b] = [b, a];
-  if (b - a < PLAN_MIN) b = Math.min(END_HOUR * 60, a + PLAN_MIN);
-  if (b - a < PLAN_MIN) a = Math.max(START_HOUR * 60, b - PLAN_MIN);
+  const { lo, hi } = draftClip();
+  a = Math.max(lo, Math.min(a, hi));
+  b = Math.max(lo, Math.min(b, hi));
+  if (b < a) [a, b] = [b, a];
+  const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
+  if (b - a < minLen) b = Math.min(hi, a + minLen);
+  if (b - a < minLen) a = Math.max(lo, b - minLen);
+  if (b - a < 1) return;
   state.planDraft = {
     id: state.planDraft?.id || uid(),
     isPlan: false,
@@ -271,6 +288,8 @@ function setDraftRange(startMin, endMin) {
     title: state.planDraft?.title || "",
     startMin: a,
     endMin: b,
+    clipStart: lo,
+    clipEnd: hi,
   };
 }
 
@@ -278,10 +297,13 @@ function setDraftEdge(which, minutes) {
   const d = state.planDraft;
   if (!d) return;
   const t = snapPlanMin(minutes);
+  const lo = d.clipStart ?? START_HOUR * 60;
+  const hi = d.clipEnd ?? END_HOUR * 60;
+  const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
   if (which === "start") {
-    d.startMin = Math.max(START_HOUR * 60, Math.min(t, d.endMin - PLAN_MIN));
+    d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
   } else {
-    d.endMin = Math.min(END_HOUR * 60, Math.max(t, d.startMin + PLAN_MIN));
+    d.endMin = Math.min(hi, Math.max(t, d.startMin + minLen));
   }
 }
 
@@ -497,6 +519,25 @@ function onTimelinePointerDown(event) {
     if (gesture.kind !== "press" || gesture.pointerId !== event.pointerId) return;
     gesture.kind = "stretch";
     armSuppressClick();
+    const hit = actualAtMinute(state.day.blocks, gesture.originMin);
+    if (hit) {
+      resetGesture();
+      openEditor(hit);
+      return;
+    }
+    const span = emptySpan(
+      state.day.blocks,
+      gesture.originMin,
+      state.planDraft?.id,
+      START_HOUR * 60,
+      END_HOUR * 60,
+    );
+    if (!span || span.endMin - span.startMin < 1) {
+      resetGesture();
+      return;
+    }
+    gesture.clipStart = span.startMin;
+    gesture.clipEnd = span.endMin;
     timeline.classList.add("drawing");
     bindWindowGesture();
     try {
@@ -1128,5 +1169,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=40").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=41").catch(() => {});
 }
