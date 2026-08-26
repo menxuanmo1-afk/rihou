@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=35";
-import { loadSettings } from "./store.js?v=35";
+import { formatDuration } from "./models.js?v=36";
+import { loadSettings } from "./store.js?v=36";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -55,7 +55,7 @@ const STR = {
     valuation: "估值",
     totalValuation: "总估值",
     price: "现价",
-    "gloss.principal": "古人云：一寸光阴一寸金。你每天都有24小时的本金，可以投资，亦可消费。但请记住，光阴易逝，掷金难收。盈亏皆在人为。"
+    "gloss.principal": "古人云：一寸光阴一寸金。你每天都有24小时的本金，可以投资，亦可消费。但请记住，光阴易逝，掷金难收。盈亏皆在人为。",
     "gloss.todayInvest": "你今天有多长时间投资在了自己身上？投资自己，长期复利。",
     "gloss.totalInvest": "从你进入这个APP开始，你一共投资了多少时间？",
     "gloss.valuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。",
@@ -142,7 +142,7 @@ const STR = {
     "gloss.todayInvest": "Hours already logged that day as investment — study, reading, class, fitness, sport, making, social, meals, rest, sleep, shower. The chips above filter which book this counts. Change the date at the top, and both this number and the curve follow.",
     "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
     "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Beating recent days lifts the price; falling short, or playing too long, marks it down.",
-    "gloss.totalValuation": "Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
+    "gloss.totalValuation": "Total value is mind, health, craft, and restore added together.",
     "gloss.price": "What one invested hour is worth right now. It is priced against the last two days (health uses the last week): more than an hour above that average speeds up; within an hour keeps the same pace; below it, or too much scrolling/games, the price falls. Hours already logged stay; they just get cheaper.",
     "book.all": "All",
     "book.mind": "Mind",
