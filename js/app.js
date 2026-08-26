@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=37";
+} from "./models.js?v=38";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=37";
+} from "./store.js?v=38";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -39,8 +39,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=37";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=37";
+} from "./analysis.js?v=38";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=38";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -395,8 +395,7 @@ function achieveHtml(r) {
   const price = formatPrice(snap.price);
   const hero = isToday
     ? `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
-    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>
-    <p class="muted principal-hint">${t("principalHint")}</p>`
+    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>`
     : `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="todayInvest">${investLabel}</button>
     <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="todayInvest">${formatHours(snap.dayH, L)}</button>`;
   const investTicker = `<button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="todayInvest">
@@ -1129,5 +1128,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=37").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=38").catch(() => {});
 }

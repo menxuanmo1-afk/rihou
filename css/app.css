@@ -158,7 +158,6 @@ button { cursor: pointer; }
   margin: 6px 0 8px;
   font-variant-numeric: tabular-nums;
 }
-.principal-hint { margin: 0 0 4px; }
 .tickers {
   display: grid;
   grid-template-columns: 1fr 1fr 1fr;

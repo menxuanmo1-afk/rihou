@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=37";
-import { loadSettings } from "./store.js?v=37";
+import { formatDuration } from "./models.js?v=38";
+import { loadSettings } from "./store.js?v=38";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -47,7 +47,6 @@ const STR = {
     hoursThatDay: "这一天 24 小时",
     compound: "复利资产",
     principal: "今日本金",
-    principalHint: "点「今日本金」可以看它是什么。到 24:00 清零。",
     todayInvest: "今日投资",
     thatDayInvest: "这一天投资",
     totalInvest: "总投资",
@@ -130,7 +129,6 @@ const STR = {
     hoursThatDay: "That day, 24 hours",
     compound: "Compound asset",
     principal: "Today's capital",
-    principalHint: "Tap the label to see what it means. It clears at midnight.",
     todayInvest: "Today's invest",
     thatDayInvest: "That day's invest",
     totalInvest: "Total invest",
