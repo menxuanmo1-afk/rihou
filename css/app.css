@@ -45,6 +45,13 @@ button { cursor: pointer; }
     right: 0;
     width: 100%;
   }
+  .main.asset-day .achieve-wrap {
+    order: -1;
+    flex: 0.9;
+    padding: 14px 16px 12px;
+  }
+  .main.asset-day .timeline-wrap { flex: 1.1; }
+  .main.asset-day .hint { display: none; }
 }
 
 .top {
@@ -84,6 +91,17 @@ button { cursor: pointer; }
   flex-direction: column;
   gap: 10px;
   padding: 0 12px;
+  touch-action: pan-y;
+}
+.main.in-left { animation: day-in-right 0.28s ease; }
+.main.in-right { animation: day-in-left 0.28s ease; }
+@keyframes day-in-right {
+  from { transform: translateX(22%); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
+}
+@keyframes day-in-left {
+  from { transform: translateX(-22%); opacity: 0.4; }
+  to { transform: none; opacity: 1; }
 }
 
 .panel {
@@ -154,6 +172,7 @@ button { cursor: pointer; }
   gap: 10px;
   margin: 18px 0 4px;
 }
+.tickers.pair { grid-template-columns: 1fr 1fr; }
 .ticker .lab {
   font-size: 11px;
   color: var(--mute);

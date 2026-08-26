@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=28";
-import { loadAllDays } from "./store.js?v=28";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=29";
+import { loadAllDays } from "./store.js?v=29";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -169,8 +169,24 @@ function markDay(book, iso, hours, price, lang) {
     hours,
     price: book.price,
     value: book.value,
+    totalH: book.totalH,
     label: chartLabels(iso, lang),
   });
+}
+
+export function bookAt(book, iso) {
+  const series = book?.series || [];
+  const hit = series.find((p) => p.iso === iso);
+  if (hit) {
+    const totalH = hit.totalH != null ? hit.totalH : hit.price > 0 ? hit.value / hit.price : 0;
+    return { dayH: hit.hours, totalH, price: hit.price, value: hit.value };
+  }
+  const last = series[series.length - 1];
+  if (last && iso > last.iso) {
+    const totalH = last.totalH != null ? last.totalH : last.price > 0 ? last.value / last.price : 0;
+    return { dayH: 0, totalH, price: last.price, value: last.value };
+  }
+  return { dayH: 0, totalH: 0, price: BASE_PRICE, value: 0 };
 }
 
 export function minutesByBucket(blocks) {
@@ -236,6 +252,7 @@ export function buildPortfolio(state, now = new Date()) {
       hours: globalH,
       price: all.price,
       value: all.value,
+      totalH: all.totalH,
       label: chartLabels(day.iso, lang),
     });
   }
@@ -271,18 +288,34 @@ function pace(series) {
   };
 }
 
-export function forecastSeries(book) {
-  const past = (book?.series || []).slice(-PAST_DAYS);
-  const { wd, we, recentH, prevH } = pace(book?.series || []);
-  const last = past[past.length - 1];
-  let iso = last?.iso || todayISO();
-  let price = book?.price || BASE_PRICE;
-  let hours = book?.totalH || 0;
-  const windowH = (book?.series || []).map((p) => Number(p.hours || 0));
+export function forecastSeries(book, focusISO) {
+  const focus = focusISO || todayISO();
+  const today = todayISO();
+  const series = book?.series || [];
+  const past = [];
+  for (let i = PAST_DAYS - 1; i >= 0; i--) {
+    const iso = addDays(focus, -i);
+    const hit = series.find((p) => p.iso === iso);
+    if (hit) past.push(hit);
+  }
+  const { wd, we, recentH, prevH } = pace(series);
+  const prior = series.filter((p) => p.iso <= focus);
+  const last = past[past.length - 1] || prior[prior.length - 1];
+  let price = last?.price || book?.price || BASE_PRICE;
+  let hours = last?.totalH ?? book?.totalH ?? 0;
+  const windowH = series.filter((p) => p.iso <= focus).map((p) => Number(p.hours || 0));
   const lookN = lookbackN(book?.id);
   const future = [];
   for (let i = 1; i <= FUTURE_DAYS; i++) {
-    iso = addDays(iso, 1);
+    const iso = addDays(focus, i);
+    const actual = iso <= today ? series.find((p) => p.iso === iso) : null;
+    if (actual) {
+      price = actual.price;
+      hours = actual.totalH ?? hours + actual.hours;
+      windowH.push(actual.hours);
+      future.push({ ...actual, forecast: false });
+      continue;
+    }
     const weekend = isWeekend(iso);
     const h = weekend ? we : wd;
     if (hours > 0 || h > 0) {
@@ -304,12 +337,18 @@ export function forecastSeries(book) {
   return { past, future, recentH, prevH };
 }
 
-function forecastAll(port) {
-  const packs = SUB_IDS.map((id) => forecastSeries(port.books?.[id]));
-  const past = port.books.all.series.slice(-PAST_DAYS);
+function forecastAll(port, focusISO) {
+  const focus = focusISO || todayISO();
+  const packs = SUB_IDS.map((id) => forecastSeries(port.books?.[id], focus));
+  const past = [];
+  for (let i = PAST_DAYS - 1; i >= 0; i--) {
+    const iso = addDays(focus, -i);
+    const hit = port.books.all.series.find((p) => p.iso === iso);
+    if (hit) past.push(hit);
+  }
   const future = packs[0].future.map((row, i) => ({
     iso: row.iso,
-    forecast: true,
+    forecast: packs.every((p) => p.future[i].forecast),
     value: packs.reduce((s, p) => s + p.future[i].value, 0),
     price: 0,
     hours: packs.reduce((s, p) => s + p.future[i].hours, 0),
@@ -319,8 +358,8 @@ function forecastAll(port) {
   return { past, future, recentH, prevH };
 }
 
-export function packFor(book, port) {
-  return book.id === "all" ? forecastAll(port) : forecastSeries(book);
+export function packFor(book, port, focusISO) {
+  return book.id === "all" ? forecastAll(port, focusISO) : forecastSeries(book, focusISO);
 }
 
 export function bookEval(book, port) {
@@ -369,12 +408,12 @@ function yRange(vals) {
   };
 }
 
-function scaleFor(book, port) {
-  const mine = packFor(book, port);
+function scaleFor(book, port, focusISO) {
+  const mine = packFor(book, port, focusISO);
   const myVals = [...mine.past, ...mine.future].map((p) => p.value);
   if (book.id === "all") return { ...mine, ...yRange(myVals) };
   const pool = SUB_IDS.flatMap((id) => {
-    const pack = packFor(port.books[id], port);
+    const pack = packFor(port.books[id], port, focusISO);
     return [...pack.past, ...pack.future].map((p) => p.value);
   });
   return { ...mine, ...yRange(pool) };
@@ -386,8 +425,9 @@ function pathFrom(points, x, y) {
     .join(" ");
 }
 
-export function assetChartHtml(book, port, lang) {
-  const { past, future, minY, maxY } = scaleFor(book, port);
+export function assetChartHtml(book, port, lang, focusISO) {
+  const focus = focusISO || todayISO();
+  const { past, future, minY, maxY } = scaleFor(book, port, focus);
   const leftPad = Math.max(0, PAST_DAYS - past.length);
   const pastPts = past.map((p, i) => ({ ...p, i: leftPad + i }));
   const futurePts = future.map((p, i) => ({ ...p, i: leftPad + past.length - 1 + i + 1 }));
@@ -410,9 +450,13 @@ export function assetChartHtml(book, port, lang) {
         .join(" ")}`
     : "";
   const todayX = x(Math.max(0, todayI));
-  const todayLabel = lang === "en" ? "now" : "今天";
+  const isFocusToday = focus === todayISO();
+  const todayLabel = isFocusToday ? (lang === "en" ? "now" : "今天") : (lang === "en" ? "day" : "当天");
   const pastLabel = lang === "en" ? "past" : "已过";
-  const nextLabel = lang === "en" ? "ahead" : "预测";
+  const hasActualFuture = future.some((p) => !p.forecast);
+  const nextLabel = hasActualFuture
+    ? lang === "en" ? "after" : "之后"
+    : lang === "en" ? "ahead" : "预测";
   const tickVals = [maxY, minY + span * (2 / 3), minY + span / 3, minY];
   const grids = tickVals
     .map((v) => `<line class="chart-grid" x1="${padL}" y1="${y(v).toFixed(1)}" x2="${W - padR}" y2="${y(v).toFixed(1)}"/>`)

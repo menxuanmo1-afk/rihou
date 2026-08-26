@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=28";
-import { loadSettings } from "./store.js?v=28";
+import { formatDuration } from "./models.js?v=29";
+import { loadSettings } from "./store.js?v=29";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -48,13 +48,14 @@ const STR = {
     principal: "今日本金",
     principalHint: "点「今日本金」可以看它是什么。到 24:00 清零。",
     todayInvest: "今日投资",
+    thatDayInvest: "这一天投资",
     totalInvest: "总投资",
     hiddenAsset: "估值",
     valuation: "估值",
     totalValuation: "总估值",
     price: "现价",
     "gloss.principal": "今天还没花掉的时间。它像现金，但过不了夜：到 24:00 还没投出去，就清零，不能攒到明天。",
-    "gloss.todayInvest": "今天已经记下来的投入时间。学习、读书、上课、健身、运动、创作、吃饭、休息、睡觉、洗澡都算。上面选了哪一栏，这里就只统计那一栏。",
+    "gloss.todayInvest": "这一天已经记下来的投入时间。学习、读书、上课、健身、运动、创作、吃饭、休息、睡觉、洗澡都算。上面选了哪一栏，这里就只统计那一栏。左上角换日期，数字和时间线都会跟着变。",
     "gloss.totalInvest": "从第一笔记入开始，这一栏一共投了多少小时。这是库存，行情再差也不会把小时抹掉。",
     "gloss.valuation": "市场给这批时间的标价。估值 = 总投资小时 × 现价。比近几天投得多会涨，少了或玩太久会跌。",
     "gloss.totalValuation": "学识、健康、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
@@ -131,13 +132,14 @@ const STR = {
     principal: "Today's capital",
     principalHint: "Tap the label to see what it means. It clears at midnight.",
     todayInvest: "Today's invest",
+    thatDayInvest: "That day's invest",
     totalInvest: "Total invest",
     hiddenAsset: "Valuation",
     valuation: "Valuation",
     totalValuation: "Total value",
     price: "Price",
     "gloss.principal": "Hours still unspent today. Like cash that spoils: if you don't invest it by midnight, it clears and does not roll over.",
-    "gloss.todayInvest": "Hours already logged today as investment — study, reading, class, fitness, sport, making, meals, rest, sleep, shower. The chips above filter which book this counts.",
+    "gloss.todayInvest": "Hours already logged that day as investment — study, reading, class, fitness, sport, making, meals, rest, sleep, shower. The chips above filter which book this counts. Change the date at the top, and both this number and the timeline follow.",
     "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
     "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Beating recent days lifts the price; falling short, or playing too long, marks it down.",
     "gloss.totalValuation": "Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",

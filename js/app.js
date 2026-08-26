@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=28";
+} from "./models.js?v=29";
 import {
   loadDay,
   upsertBlock,
@@ -26,11 +26,12 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=28";
+} from "./store.js?v=29";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
   buildPortfolio,
+  bookAt,
   assetChartHtml,
   formatMoney,
   formatPrice,
@@ -38,8 +39,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=28";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=28";
+} from "./analysis.js?v=29";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=29";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -51,6 +52,7 @@ const state = {
   tab: "time",
   book: "all",
   planDraft: null,
+  slide: "",
 };
 
 const gesture = {
@@ -70,6 +72,16 @@ const LONG_PRESS_MS = 420;
 const PRESS_MOVE_PX = 18;
 const PLAN_SNAP = 5;
 const PLAN_MIN = 15;
+const DAY_SWIPE_PX = 56;
+const DAY_AXIS_PX = 14;
+
+const daySwipe = {
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  dx: 0,
+  axis: null,
+};
 
 function currentDay() {
   state.day = loadDay(state.date);
@@ -101,6 +113,8 @@ function renderApp() {
   currentDay();
   const app = document.getElementById("app");
   const isToday = state.date === todayISO();
+  const slide = state.slide;
+  state.slide = "";
   let r;
   try {
     r = report();
@@ -108,8 +122,10 @@ function renderApp() {
     r = { remainingMin: remainingMinutes(todayISO()), books: { all: { todayH: 0, totalH: 0, value: 0, price: BASE_PRICE, series: [] } } };
   }
   const wide = window.matchMedia("(min-width: 900px)").matches;
-  const showTime = wide || state.tab === "time";
-  const showAchieve = wide || state.tab === "achieve";
+  const onAsset = state.tab === "achieve";
+  const showTime = wide || state.tab === "time" || onAsset;
+  const showAchieve = wide || onAsset;
+  const stacked = !wide && onAsset;
   document.documentElement.lang = lang() === "en" ? "en" : "zh-CN";
   let achieve = "";
   if (showAchieve) {
@@ -119,13 +135,20 @@ function renderApp() {
       achieve = `<p class="muted">估值页暂时画不出来。</p>`;
     }
   }
+  const book = r.books?.[state.book] || r.books?.all;
+  const snap = bookAt(book, state.date);
+  const investLabel = isToday ? t("todayInvest") : t("thatDayInvest");
+  const headerIsInvest = (!wide && onAsset) || !isToday;
+  const headerGloss = headerIsInvest ? "todayInvest" : "principal";
+  const headerLabel = headerIsInvest ? investLabel : t("principal");
+  const headerVal = headerIsInvest ? formatHours(snap.dayH, lang()) : formatRemain(r.remainingMin, lang());
   app.innerHTML = `
     <header class="top">
       <div class="date-nav">
         <button class="btn" data-act="prev">‹</button>
         <div>
           <h1>${dateTitle(state.date, lang())}</h1>
-          <div class="sub"><button type="button" class="gloss-inline" data-act="gloss" data-gloss="principal">${t("principal")}</button> ${formatRemain(r.remainingMin, lang())}</div>
+          <div class="sub"><button type="button" class="gloss-inline" data-act="gloss" data-gloss="${headerGloss}">${headerLabel}</button> ${headerVal}</div>
         </div>
         <button class="btn" data-act="next">›</button>
       </div>
@@ -133,7 +156,7 @@ function renderApp() {
         ${isToday ? `<button class="btn log-now" data-act="log-now">${t("logNow")}</button>` : `<button class="btn" data-act="today">${t("today")}</button>`}
       </div>
     </header>
-    <div class="main">
+    <div class="main ${stacked ? "asset-day" : ""} ${slide ? `in-${slide}` : ""}" id="day-stage">
       <section class="panel timeline-wrap ${showTime ? "" : "hidden"}">
         <div class="hint">${t("hint")}</div>
         ${timelineHtml()}
@@ -354,6 +377,9 @@ function achieveHtml(r) {
   const L = lang();
   const book = r.books?.[state.book] || r.books?.all;
   if (!book) return `<p class="muted">${t("evalEmpty")}</p>`;
+  const snap = bookAt(book, state.date);
+  const isToday = state.date === todayISO();
+  const investLabel = isToday ? t("todayInvest") : t("thatDayInvest");
   const chips = ASSET_BOOKS.map((item) => {
     const on = item.id === book.id ? "on" : "";
     return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${t(`book.${item.id}`)}</button>`;
@@ -367,28 +393,23 @@ function achieveHtml(r) {
     flat: "evalFlat",
   }[bookEval(book, r)] || "evalFlat";
   const valueKey = book.id === "all" ? "totalValuation" : "valuation";
-  const price = formatPrice(book.price);
+  const price = formatPrice(snap.price);
   return `
-    <button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
-    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>
-    <p class="muted principal-hint">${t("principalHint")}</p>
-    <div class="tickers">
-      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="todayInvest">
-        <div class="lab">${t("todayInvest")}</div>
-        <div class="val">${formatHours(book.todayH, L)}</div>
-      </button>
+    <button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="todayInvest">${investLabel}</button>
+    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="todayInvest">${formatHours(snap.dayH, L)}</button>
+    <div class="tickers pair">
       <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="totalInvest">
         <div class="lab">${t("totalInvest")}</div>
-        <div class="val">${formatHours(book.totalH, L)}</div>
+        <div class="val">${formatHours(snap.totalH, L)}</div>
       </button>
       <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="${valueKey}">
         <div class="lab">${t(valueKey)}</div>
-        <div class="val">${formatMoney(book.value)}</div>
+        <div class="val">${formatMoney(snap.value)}</div>
         <div class="ratio-tag">${price}</div>
       </button>
     </div>
     <div class="book-row">${chips}</div>
-    ${assetChartHtml(book, r, L)}
+    ${assetChartHtml(book, r, L, state.date)}
     <p class="eval-line">${t(evalKey, { price })}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
@@ -399,6 +420,7 @@ function bindApp() {
     el.addEventListener("click", onAction);
   });
   bindTimeline(document.getElementById("timeline"));
+  bindDaySwipe(document.getElementById("day-stage"));
 }
 
 function bindTimeline(timeline) {
@@ -522,17 +544,12 @@ function onTimelinePointerUp(event) {
 function onAction(event) {
   const act = event.currentTarget.dataset.act;
   if (act === "prev") {
-    state.date = addDays(state.date, -1);
-    clearPlanDraft();
-    render();
+    goDate(addDays(state.date, -1), "right");
   } else if (act === "next") {
-    state.date = addDays(state.date, 1);
-    clearPlanDraft();
-    render();
+    goDate(addDays(state.date, 1), "left");
   } else if (act === "today") {
-    state.date = todayISO();
-    clearPlanDraft();
-    render();
+    const dir = state.date < todayISO() ? "left" : "right";
+    goDate(todayISO(), dir);
   } else if (act === "log-now") {
     currentDay();
     let range = gapFromLastToNow(state.day);
@@ -566,15 +583,107 @@ function onAction(event) {
   }
 }
 
+function goDate(iso, dir) {
+  if (iso === state.date) return;
+  state.date = iso;
+  state.slide = dir || "";
+  clearPlanDraft();
+  render();
+}
+
+function sheetOpen() {
+  return document.getElementById("sheet-bg")?.classList.contains("show");
+}
+
+function resetDaySwipe(stage) {
+  daySwipe.pointerId = null;
+  daySwipe.axis = null;
+  daySwipe.dx = 0;
+  if (stage) {
+    stage.style.transform = "";
+    stage.style.transition = "";
+  }
+}
+
+function bindDaySwipe(stage) {
+  if (!stage) return;
+  stage.addEventListener("pointerdown", onDaySwipeDown);
+  stage.addEventListener("pointermove", onDaySwipeMove);
+  stage.addEventListener("pointerup", onDaySwipeUp);
+  stage.addEventListener("pointercancel", onDaySwipeUp);
+}
+
+function onDaySwipeDown(event) {
+  if (sheetOpen()) return;
+  if (event.button && event.button !== 0) return;
+  if (event.target.closest("button, input, textarea, .book-row, .sheet")) return;
+  daySwipe.pointerId = event.pointerId;
+  daySwipe.startX = event.clientX;
+  daySwipe.startY = event.clientY;
+  daySwipe.dx = 0;
+  daySwipe.axis = null;
+}
+
+function onDaySwipeMove(event) {
+  if (daySwipe.pointerId !== event.pointerId) return;
+  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+    resetDaySwipe(document.getElementById("day-stage"));
+    return;
+  }
+  const dx = event.clientX - daySwipe.startX;
+  const dy = event.clientY - daySwipe.startY;
+  if (!daySwipe.axis) {
+    if (Math.hypot(dx, dy) < DAY_AXIS_PX) return;
+    daySwipe.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? "x" : "y";
+  }
+  if (daySwipe.axis !== "x") return;
+  event.preventDefault();
+  resetGesture();
+  daySwipe.dx = dx;
+  const stage = document.getElementById("day-stage");
+  if (stage) {
+    try {
+      stage.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    stage.style.transition = "none";
+    stage.style.transform = `translateX(${dx}px)`;
+  }
+}
+
+function onDaySwipeUp(event) {
+  if (daySwipe.pointerId !== event.pointerId) return;
+  const stage = document.getElementById("day-stage");
+  const dx = daySwipe.dx;
+  const axis = daySwipe.axis;
+  resetDaySwipe(stage);
+  if (axis !== "x" || Math.abs(dx) < DAY_SWIPE_PX) {
+    if (stage) {
+      stage.style.transition = "transform 0.22s ease";
+      stage.style.transform = "";
+    }
+    return;
+  }
+  goDate(addDays(state.date, dx < 0 ? 1 : -1), dx < 0 ? "left" : "right");
+}
+
 function scrollToNow() {
   if (state.planDraft) return;
-  if (state.date !== todayISO()) return;
   const timeline = document.getElementById("timeline");
   if (!timeline) return;
-  const last = lastActualEnd(state.day);
-  const focus = last == null ? nowMinutes() : last;
-  const hour = Math.max(START_HOUR, Math.floor(focus / 60) - 1);
-  timeline.scrollTop = (hour - START_HOUR) * HOUR_H;
+  if (state.date === todayISO()) {
+    const last = lastActualEnd(state.day);
+    const focus = last == null ? nowMinutes() : last;
+    const hour = Math.max(START_HOUR, Math.floor(focus / 60) - 1);
+    timeline.scrollTop = (hour - START_HOUR) * HOUR_H;
+    return;
+  }
+  const first = (state.day.blocks || [])
+    .filter((b) => !b.isPlan)
+    .sort((a, b) => a.startMin - b.startMin)[0];
+  const focus = first ? first.startMin : 8 * 60;
+  timeline.scrollTop = Math.max(0, (focus / 60 - START_HOUR - 1) * HOUR_H);
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -1011,5 +1120,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=28").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=29").catch(() => {});
 }
