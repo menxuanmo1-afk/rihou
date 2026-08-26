@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=34";
-import { loadSettings } from "./store.js?v=34";
+import { formatDuration } from "./models.js?v=32";
+import { loadSettings } from "./store.js?v=32";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -55,11 +55,11 @@ const STR = {
     valuation: "估值",
     totalValuation: "总估值",
     price: "现价",
-    "gloss.principal": "古人云：一寸光阴一寸金。你每天都有24小时的本金，可以投资，亦可消费。但请记住，光阴易逝，掷金难收。盈亏皆在人为。",
+    "gloss.principal": "古人云：一寸光阴一寸金。你每天都有24小时的本金，可以投资，亦可消费。但请记住，光阴易逝，掷金难收。盈亏皆在人为。"
     "gloss.todayInvest": "你今天有多长时间投资在了自己身上？投资自己，长期复利。",
     "gloss.totalInvest": "从你进入这个APP开始，你一共投资了多少时间？",
     "gloss.valuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。",
-    "gloss.totalValuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。学识、健康、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
+    "gloss.totalValuation": "总估值是学识、健康、创作、休养四栏估值的总和。",
     "gloss.price": "现在一小时投入值多少钱。和近两天的投入比（健康看近一周）：今天多出一小时以上会加速；幅度不超过一小时就按原速涨；今天少了，或者刷短视频、游戏太久，现价会跌。已经记下的小时还在，只是变便宜。",
     "book.all": "总览",
     "book.mind": "学识",
@@ -115,7 +115,6 @@ const STR = {
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
     notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
     notifyTitle: "记一笔：上次到现在",
-    unclear: "（记不清分界）",
   },
   en: {
     time: "Time",
@@ -139,11 +138,11 @@ const STR = {
     valuation: "Valuation",
     totalValuation: "Total value",
     price: "Price",
-    "gloss.principal": "An inch of time is an inch of gold. You get 24 hours of capital every day, to invest or to spend. Time slips away; gold spent is hard to reclaim. Gain and loss are yours.",
-    "gloss.todayInvest": "How many hours did you invest in yourself today? Invest in yourself. It compounds.",
-    "gloss.totalInvest": "Since you started this app, how much time have you invested in total?",
-    "gloss.valuation": "Long-term investing may not pay off right away. Valuation makes that visible: steady daily input and it grows steadily; put in more and it rises faster; lose yourself in play and it falls.",
-    "gloss.totalValuation": "Long-term investing may not pay off right away. Valuation makes that visible: steady daily input and it grows steadily; put in more and it rises faster; lose yourself in play and it falls. Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
+    "gloss.principal": "Hours still unspent today. Like cash that spoils: if you don't invest it by midnight, it clears and does not roll over.",
+    "gloss.todayInvest": "Hours already logged that day as investment — study, reading, class, fitness, sport, making, social, meals, rest, sleep, shower. The chips above filter which book this counts. Change the date at the top, and both this number and the curve follow.",
+    "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
+    "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Beating recent days lifts the price; falling short, or playing too long, marks it down.",
+    "gloss.totalValuation": "Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
     "gloss.price": "What one invested hour is worth right now. It is priced against the last two days (health uses the last week): more than an hour above that average speeds up; within an hour keeps the same pace; below it, or too much scrolling/games, the price falls. Hours already logged stay; they just get cheaper.",
     "book.all": "All",
     "book.mind": "Mind",
@@ -199,7 +198,6 @@ const STR = {
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
     notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",
     notifyTitle: "Log: last to now",
-    unclear: "(unclear split)",
   },
 };
 
