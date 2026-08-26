@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=33";
-import { loadSettings } from "./store.js?v=33";
+import { formatDuration } from "./models.js?v=34";
+import { loadSettings } from "./store.js?v=34";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -59,7 +59,7 @@ const STR = {
     "gloss.todayInvest": "你今天有多长时间投资在了自己身上？投资自己，长期复利。",
     "gloss.totalInvest": "从你进入这个APP开始，你一共投资了多少时间？",
     "gloss.valuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。",
-    "gloss.totalValuation": "学识、健康、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
+    "gloss.totalValuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。学识、健康、创作、休养四栏估值加在一起。比单栏大，所以总览用自己的纵轴。",
     "gloss.price": "现在一小时投入值多少钱。和近两天的投入比（健康看近一周）：今天多出一小时以上会加速；幅度不超过一小时就按原速涨；今天少了，或者刷短视频、游戏太久，现价会跌。已经记下的小时还在，只是变便宜。",
     "book.all": "总览",
     "book.mind": "学识",
@@ -143,7 +143,7 @@ const STR = {
     "gloss.todayInvest": "How many hours did you invest in yourself today? Invest in yourself. It compounds.",
     "gloss.totalInvest": "Since you started this app, how much time have you invested in total?",
     "gloss.valuation": "Long-term investing may not pay off right away. Valuation makes that visible: steady daily input and it grows steadily; put in more and it rises faster; lose yourself in play and it falls.",
-    "gloss.totalValuation": "Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
+    "gloss.totalValuation": "Long-term investing may not pay off right away. Valuation makes that visible: steady daily input and it grows steadily; put in more and it rises faster; lose yourself in play and it falls. Mind, health, craft, and restore added together. It is larger than any one book, so Overview has its own axis.",
     "gloss.price": "What one invested hour is worth right now. It is priced against the last two days (health uses the last week): more than an hour above that average speeds up; within an hour keeps the same pace; below it, or too much scrolling/games, the price falls. Hours already logged stay; they just get cheaper.",
     "book.all": "All",
     "book.mind": "Mind",

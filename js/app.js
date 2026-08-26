@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=33";
+} from "./models.js?v=34";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=33";
+} from "./store.js?v=34";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -39,8 +39,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=33";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=33";
+} from "./analysis.js?v=34";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=34";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -1129,5 +1129,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=33").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=34").catch(() => {});
 }
