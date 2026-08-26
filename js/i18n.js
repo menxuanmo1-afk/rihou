@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=38";
-import { loadSettings } from "./store.js?v=38";
+import { formatDuration } from "./models.js?v=39";
+import { loadSettings } from "./store.js?v=39";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -39,7 +39,7 @@ const STR = {
     logNow: "记到现在",
     today: "今天",
     thatDay: "这一天",
-    hint: "长按空白处再向下拉，画出一段实际记录；拖上下边改时间，点框写内容。点色块可以改。",
+    hint: "长按空白处再向下拉，画出一段实际记录。",
     invest: "投资",
     consume: "消费",
     rest: "其余",
@@ -107,10 +107,10 @@ const STR = {
     end: "结束",
     now: "此刻",
     pickOne: "先选至少一件事",
-    mixOne: "整段都是这件事。结束时间可以改成只记其中几分钟。",
-    mixMany: "记不清哪分钟换的事：这段会显示成渐变色块，打分时时间均分。",
-    mixEmpty: "点一件或多件。学了半小时就去通勤：只改结束时间，或两件都点上做成渐变。",
-    logHint: "默认从上次记录结束，记到此刻，精确到 1 分钟。整点只是提醒，不必记满一小时。",
+    mixOne: "整段都是这件事。",
+    mixMany: "记不清什么时候切换的任务？没关系，都选上，这段会显示成渐变色块，打分时时间均分。",
+    mixEmpty: "选择点一件或多件事情",
+    logHint: "从上次记录到现在，你都做了什么？骗骗兄弟得了，别把自己也骗了",
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
     notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
     notifyTitle: "记一笔：上次到现在",
@@ -121,7 +121,7 @@ const STR = {
     logNow: "Log to now",
     today: "Today",
     thatDay: "That day",
-    hint: "Long-press empty space and drag to log what you did. Drag the edges to change time. Tap the box to add details. Tap a block to edit.",
+    hint: "Long-press empty space and drag down to log what you actually did.",
     invest: "Invest",
     consume: "Spend",
     rest: "Rest",
@@ -189,10 +189,10 @@ const STR = {
     end: "End",
     now: "Now",
     pickOne: "Pick at least one",
-    mixOne: "This whole stretch is that. You can still end it after just a few minutes.",
-    mixMany: "If you forgot the split, it shows as a gradient. Scoring splits the time evenly.",
-    mixEmpty: "Pick one or more. Studied then commuted: change the end time, or pick both as a gradient.",
-    logHint: "From the last log to now, to the minute. The hourly chime is only a reminder.",
+    mixOne: "This whole stretch is that.",
+    mixMany: "Forgot when you switched tasks? Pick them all. This stretch shows as a gradient, and scoring splits the time evenly.",
+    mixEmpty: "Pick one or more things.",
+    logHint: "From the last log to now, what did you actually do? Fine to fool a friend — don't fool yourself.",
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
     notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",
     notifyTitle: "Log: last to now",
