@@ -12,6 +12,7 @@ export const KINDS = [
   { id: "FITNESS", label: "健身", payoff: Payoff.DELAY, bucket: "invest", color: "#7EB6D9" },
   { id: "SPORT", label: "运动", payoff: Payoff.DELAY, bucket: "invest", color: "#5BB798" },
   { id: "CREATE", label: "创作", payoff: Payoff.DELAY, bucket: "invest", color: "#C9A7EB" },
+  { id: "SOCIAL", label: "社交", payoff: Payoff.CARE, bucket: "invest", color: "#E6A4C4" },
   { id: "WORK", label: "功课", payoff: Payoff.DELAY, bucket: "invest", color: "#E8C07D", hidden: true },
   { id: "MEAL", label: "吃饭", payoff: Payoff.CARE, bucket: "invest", color: "#E8C9A0" },
   { id: "REST", label: "休息", payoff: Payoff.CARE, bucket: "invest", color: "#B8B0A6" },

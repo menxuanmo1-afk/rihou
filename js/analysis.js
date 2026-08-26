@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=31";
-import { loadAllDays } from "./store.js?v=31";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=32";
+import { loadAllDays } from "./store.js?v=32";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -10,7 +10,7 @@ export const ASSET_BOOKS = [
   { id: "mind", kinds: ["STUDY", "READ", "CLASS", "WORK"] },
   { id: "body", kinds: ["FITNESS", "SPORT"] },
   { id: "craft", kinds: ["CREATE"] },
-  { id: "restore", kinds: ["MEAL", "REST", "SLEEP", "SHOWER"] },
+  { id: "restore", kinds: ["MEAL", "REST", "SLEEP", "SHOWER", "SOCIAL"] },
 ];
 
 const SUB_IDS = ["mind", "body", "craft", "restore"];
