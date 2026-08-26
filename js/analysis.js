@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=36";
-import { loadAllDays } from "./store.js?v=36";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=37";
+import { loadAllDays } from "./store.js?v=37";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -438,7 +438,7 @@ export function assetChartHtml(book, port, lang, focusISO) {
   const padL = 4;
   const padR = 8;
   const padT = 8;
-  const padB = 22;
+  const padB = 10;
   const span = Math.max(1, maxY - minY);
   const x = (i) => padL + (i / Math.max(1, n - 1)) * (W - padL - padR);
   const y = (v) => padT + (1 - (v - minY) / span) * (H - padT - padB);
@@ -468,10 +468,12 @@ export function assetChartHtml(book, port, lang, focusISO) {
     <line class="chart-today" x1="${todayX.toFixed(1)}" y1="${padT}" x2="${todayX.toFixed(1)}" y2="${H - padB}"/>
     <path class="chart-past" d="${pastPath}"/>
     <path class="chart-future mid" d="${futurePath}"/>
-    <text class="chart-lab" x="${padL + 4}" y="${H - 6}">${pastLabel}</text>
-    <text class="chart-lab mid" x="${todayX.toFixed(1)}" y="${H - 6}">${todayLabel}</text>
-    <text class="chart-lab end" x="${W - padR - 4}" y="${H - 6}">${nextLabel}</text>
-  </svg>`;
+  </svg>
+  <div class="chart-xlab" aria-hidden="true">
+    <span class="start">${pastLabel}</span>
+    <span class="mid" style="left:${((todayX / W) * 100).toFixed(2)}%">${todayLabel}</span>
+    <span class="end">${nextLabel}</span>
+  </div>`;
   return `<div class="chart-frame">
     <div class="y-axis" aria-hidden="true">
       <span class="y-unit">$</span>

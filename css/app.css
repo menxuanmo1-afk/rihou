@@ -240,7 +240,7 @@ button { cursor: pointer; }
   top: 8px;
   right: 0;
   left: 0;
-  height: 146px;
+  height: 158px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -258,9 +258,22 @@ button { cursor: pointer; }
 .chart-future.low { opacity: 0.22; }
 .chart-future.mid { opacity: 0.72; }
 .chart-future.high { opacity: 0.88; }
-.chart-lab { fill: #b8b0a6; font-size: 9px; font-family: inherit; }
-.chart-lab.mid { text-anchor: middle; }
-.chart-lab.end { text-anchor: end; }
+.chart-xlab {
+  position: relative;
+  height: 16px;
+  margin-top: 4px;
+  color: #b8b0a6;
+  font-size: 11px;
+  line-height: 1;
+}
+.chart-xlab span {
+  position: absolute;
+  top: 0;
+  white-space: nowrap;
+}
+.chart-xlab .start { left: 0; }
+.chart-xlab .mid { transform: translateX(-50%); }
+.chart-xlab .end { right: 0; }
 .chart-dot { fill: #f4ede4; }
 .eval-line {
   margin: 12px 0 0;
