@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""在本机打开日后。同一 Wi-Fi 下，iPhone Safari 访问打印出的地址即可。"""
+"""在本机打开人生记录仪。同一 Wi-Fi 下，iPhone Safari 访问打印出的地址即可。"""
 
 from __future__ import annotations
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the 日后 home-screen icon to PNG with stdlib only."""
+"""Render the 人生记录仪 home-screen icon to PNG with stdlib only."""
 
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 {
-  "name": "日后",
-  "short_name": "日后",
+  "name": "人生记录仪",
+  "short_name": "人生记录仪",
   "description": "记下每个小时实际做的事，把延迟满足画出来。",
   "start_url": "./",
   "scope": "./",
@@ -12,13 +12,13 @@
   "lang": "zh-CN",
   "icons": [
     {
-      "src": "icon-192.png?v=39",
+      "src": "icon-192.png?v=40",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "icon-512.png?v=39",
+      "src": "icon-512.png?v=40",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
