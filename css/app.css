@@ -45,13 +45,6 @@ button { cursor: pointer; }
     right: 0;
     width: 100%;
   }
-  .main.asset-day .achieve-wrap {
-    order: -1;
-    flex: 0.9;
-    padding: 14px 16px 12px;
-  }
-  .main.asset-day .timeline-wrap { flex: 1.1; }
-  .main.asset-day .hint { display: none; }
 }
 
 .top {

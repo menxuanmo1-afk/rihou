@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=29";
+} from "./models.js?v=30";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=29";
+} from "./store.js?v=30";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -39,8 +39,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=29";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=29";
+} from "./analysis.js?v=30";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=30";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -123,9 +123,8 @@ function renderApp() {
   }
   const wide = window.matchMedia("(min-width: 900px)").matches;
   const onAsset = state.tab === "achieve";
-  const showTime = wide || state.tab === "time" || onAsset;
+  const showTime = wide || state.tab === "time";
   const showAchieve = wide || onAsset;
-  const stacked = !wide && onAsset;
   document.documentElement.lang = lang() === "en" ? "en" : "zh-CN";
   let achieve = "";
   if (showAchieve) {
@@ -156,14 +155,14 @@ function renderApp() {
         ${isToday ? `<button class="btn log-now" data-act="log-now">${t("logNow")}</button>` : `<button class="btn" data-act="today">${t("today")}</button>`}
       </div>
     </header>
-    <div class="main ${stacked ? "asset-day" : ""} ${slide ? `in-${slide}` : ""}" id="day-stage">
-      <section class="panel timeline-wrap ${showTime ? "" : "hidden"}">
+    <div class="main ${slide ? `in-${slide}` : ""}" id="day-stage">
+      ${showTime ? `<section class="panel timeline-wrap">
         <div class="hint">${t("hint")}</div>
         ${timelineHtml()}
-      </section>
-      <section class="panel achieve-wrap ${showAchieve ? "" : "hidden"}">
+      </section>` : ""}
+      ${showAchieve ? `<section class="panel achieve-wrap">
         ${achieve}
-      </section>
+      </section>` : ""}
     </div>
     <nav class="tabs">
       <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">${t("time")}</button>
@@ -1120,5 +1119,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=29").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=30").catch(() => {});
 }
