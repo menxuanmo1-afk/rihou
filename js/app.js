@@ -14,7 +14,7 @@ import {
   gapFromLastToNow,
   lastActualEnd,
   nowMinutes,
-} from "./models.js?v=30";
+} from "./models.js?v=31";
 import {
   loadDay,
   upsertBlock,
@@ -26,7 +26,7 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=30";
+} from "./store.js?v=31";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -39,8 +39,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=30";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=30";
+} from "./analysis.js?v=31";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=31";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -137,7 +137,7 @@ function renderApp() {
   const book = r.books?.[state.book] || r.books?.all;
   const snap = bookAt(book, state.date);
   const investLabel = isToday ? t("todayInvest") : t("thatDayInvest");
-  const headerIsInvest = (!wide && onAsset) || !isToday;
+  const headerIsInvest = !isToday;
   const headerGloss = headerIsInvest ? "todayInvest" : "principal";
   const headerLabel = headerIsInvest ? investLabel : t("principal");
   const headerVal = headerIsInvest ? formatHours(snap.dayH, lang()) : formatRemain(r.remainingMin, lang());
@@ -393,10 +393,20 @@ function achieveHtml(r) {
   }[bookEval(book, r)] || "evalFlat";
   const valueKey = book.id === "all" ? "totalValuation" : "valuation";
   const price = formatPrice(snap.price);
+  const hero = isToday
+    ? `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
+    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>
+    <p class="muted principal-hint">${t("principalHint")}</p>`
+    : `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="todayInvest">${investLabel}</button>
+    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="todayInvest">${formatHours(snap.dayH, L)}</button>`;
+  const investTicker = `<button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="todayInvest">
+        <div class="lab">${investLabel}</div>
+        <div class="val">${formatHours(snap.dayH, L)}</div>
+      </button>`;
   return `
-    <button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="todayInvest">${investLabel}</button>
-    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="todayInvest">${formatHours(snap.dayH, L)}</button>
-    <div class="tickers pair">
+    ${hero}
+    <div class="tickers${isToday ? "" : " pair"}">
+      ${isToday ? investTicker : ""}
       <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="totalInvest">
         <div class="lab">${t("totalInvest")}</div>
         <div class="val">${formatHours(snap.totalH, L)}</div>
@@ -1119,5 +1129,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=30").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=31").catch(() => {});
 }
