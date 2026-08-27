@@ -289,10 +289,6 @@ button { cursor: pointer; }
   line-height: 1.7;
   color: #d4cdc4;
 }
-.ai-hint {
-  margin: 8px 0 0;
-  line-height: 1.65;
-}
 .settings-link {
   width: auto;
   margin: 28px 0 0;
@@ -519,7 +515,7 @@ button { cursor: pointer; }
 .gloss-card {
   background: #1a2128;
   width: min(100%, 340px);
-  max-height: 70%;
+  max-height: 82%;
   overflow: auto;
   border-radius: 16px;
   padding: 18px 18px 12px;
@@ -530,6 +526,16 @@ button { cursor: pointer; }
   color: var(--mute);
   font-size: 14px;
   line-height: 1.65;
+}
+.gloss-card .row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.gloss-card .row .btn {
+  width: 100%;
+  text-align: center;
 }
 .sheet {
   background: #1a2128;

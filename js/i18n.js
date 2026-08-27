@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=51";
-import { loadSettings } from "./store.js?v=51";
+import { formatDuration, kindById } from "./models.js?v=52";
+import { loadSettings } from "./store.js?v=52";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -89,7 +89,7 @@ const STR = {
     export: "导出备份",
     import: "从备份导入",
     aiAnalysis: "AI分析",
-    aiAnalysisHint: "到 WorkBuddy 里使用「人生记录仪」技能，导入这一周或这一天的数据。AI 会分析你的表现，并给出安排建议。",
+    aiAnalysisHint: "打开电脑上的 WorkBuddy，对它说「用人生记录仪分析」，再把导出的文件拖进对话。如果提示还没有这个技能，把人生记录仪仓库里的 skill/rihou-review 文件夹拷到 ~/.workbuddy/skills/ 后重启 WorkBuddy 即可。\n\n可以导出本周（周一到今天）或今日。WorkBuddy 会顺着时间轴看你学了多少、玩了多少、哪天空着，然后给出接下来几天落到时段的安排。\n\n文件会下载到手机的「文件」里。用隔空投送或 iCloud 发到电脑即可。这和设置里的「导出备份」不是一回事：备份用来换手机，这里只给 AI 看这一段日子。",
     aiExportWeek: "导出本周数据",
     aiExportToday: "导出今日数据",
     close: "关闭",
@@ -190,7 +190,7 @@ const STR = {
     export: "Export backup",
     import: "Import backup",
     aiAnalysis: "AI review",
-    aiAnalysisHint: "In WorkBuddy, use the 人生记录仪 skill and import this week or today. It will review how you did and suggest a schedule.",
+    aiAnalysisHint: "On your computer, open WorkBuddy and ask it to review with the 人生记录仪 skill, then drop the exported file into the chat. If the skill is missing, copy skill/rihou-review from this repo into ~/.workbuddy/skills/ and restart WorkBuddy.\n\nExport this week (Monday through today) or just today. WorkBuddy reads the timeline — how much you invested, how much you spent, which days were empty — and suggests a schedule for the next few days, down to time slots.\n\nThe file lands in the Files app. AirDrop or iCloud it to your Mac. This is not the backup in Settings: that dump is for moving phones. This export is only the stretch of days for AI.",
     aiExportWeek: "Export this week",
     aiExportToday: "Export today",
     close: "Close",

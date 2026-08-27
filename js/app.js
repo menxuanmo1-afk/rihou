@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=51";
+} from "./models.js?v=52";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +38,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=51";
+} from "./store.js?v=52";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=51";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=51";
-import { pickEvalLine } from "./lines.js?v=51";
-import { buildAiExport } from "./ai-export.js?v=51";
+} from "./analysis.js?v=52";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=52";
+import { pickEvalLine } from "./lines.js?v=52";
+import { buildAiExport } from "./ai-export.js?v=52";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -177,6 +177,7 @@ function renderApp() {
         <button class="btn" data-act="next">›</button>
       </div>
       <div class="top-actions">
+        <button class="btn log-now" data-act="ai-analysis">${t("aiAnalysis")}</button>
         ${isToday ? `<button class="btn log-now" data-act="log-now">${t("logNow")}</button>` : `<button class="btn" data-act="today">${t("today")}</button>`}
       </div>
     </header>
@@ -1325,9 +1326,6 @@ function openSettingsSheet() {
         <button type="button" class="btn" data-manage-custom>${t("manageCustom")}</button>
       </div>
       <div class="row" style="margin-top:16px">
-        <button class="btn" data-act="ai-analysis">${t("aiAnalysis")}</button>
-      </div>
-      <div class="row" style="margin-top:16px">
         <button class="btn" data-act="export">${t("export")}</button>
         <button class="btn" data-act="import">${t("import")}</button>
       </div>
@@ -1357,22 +1355,30 @@ function downloadAiExport(range) {
 }
 
 function openAiAnalysisSheet() {
-  showSheet(`
-    <div class="sheet">
+  const hint = t("aiAnalysisHint")
+    .split(/\n\n+/)
+    .map((p) => `<p>${escapeHtml(p)}</p>`)
+    .join("");
+  const bg = document.getElementById("sheet-bg");
+  bg.className = "sheet-bg show gloss";
+  bg.innerHTML = `
+    <div class="gloss-card">
       <h2>${t("aiAnalysis")}</h2>
-      <p class="muted ai-hint">${t("aiAnalysisHint")}</p>
-      <div class="row" style="margin-top:16px">
-        <button type="button" class="btn" data-ai-range="week">${t("aiExportWeek")}</button>
-        <button type="button" class="btn" data-ai-range="today">${t("aiExportToday")}</button>
+      ${hint}
+      <div class="row">
+        <button type="button" class="btn log-now" data-ai-range="week">${t("aiExportWeek")}</button>
+        <button type="button" class="btn log-now" data-ai-range="today">${t("aiExportToday")}</button>
       </div>
-      <button class="ghost" data-close>${t("close")}</button>
+      <button type="button" class="ghost" data-close>${t("close")}</button>
     </div>
-  `, (root) => {
-    root.querySelectorAll("[data-ai-range]").forEach((el) => {
-      el.addEventListener("click", () => downloadAiExport(el.dataset.aiRange));
-    });
-    root.querySelector("[data-close]").addEventListener("click", closeSheet);
+  `;
+  bg.onclick = (event) => {
+    if (event.target === bg) closeSheet();
+  };
+  bg.querySelectorAll("[data-ai-range]").forEach((el) => {
+    el.addEventListener("click", () => downloadAiExport(el.dataset.aiRange));
   });
+  bg.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
 
 function openGloss(key) {
@@ -1493,5 +1499,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=51").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=52").catch(() => {});
 }
