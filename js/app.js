@@ -19,7 +19,7 @@ import {
   KINDS,
   listCustomKinds,
   CUSTOM_MAX,
-} from "./models.js?v=42";
+} from "./models.js?v=43";
 import {
   loadDay,
   upsertBlock,
@@ -33,7 +33,7 @@ import {
   loadAllDays,
   loadCustomKinds,
   saveCustomKinds,
-} from "./store.js?v=42";
+} from "./store.js?v=43";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -46,10 +46,10 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=42";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=42";
+} from "./analysis.js?v=43";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=43";
 
-const START_HOUR = 6;
+const START_HOUR = 0;
 const END_HOUR = 24;
 const HOUR_H = 56;
 
@@ -1272,5 +1272,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=42").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=43").catch(() => {});
 }

@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=42";
-import { loadAllDays } from "./store.js?v=42";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=43";
+import { loadAllDays } from "./store.js?v=43";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -77,8 +77,8 @@ function avgHoursSlice(series, n) {
 }
 
 function dayFrac(now) {
-  const elapsed = nowMinutes(now) - 6 * 60;
-  return Math.max(0.2, Math.min(1, elapsed / (18 * 60)));
+  const elapsed = nowMinutes(now);
+  return Math.max(0.2, Math.min(1, elapsed / (24 * 60)));
 }
 
 function heatDamp(r, price) {
