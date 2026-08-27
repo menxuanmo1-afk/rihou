@@ -284,10 +284,10 @@ button { cursor: pointer; }
 .chart-xlab .end { right: 0; }
 .chart-dot { fill: #f4ede4; }
 .eval-line {
-  margin: 12px 0 0;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--mute);
+  margin: 14px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: #d4cdc4;
 }
 .settings-link {
   width: auto;

@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=47";
+} from "./models.js?v=48";
 import {
   loadDay,
   upsertBlock,
@@ -40,7 +40,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=47";
+} from "./store.js?v=48";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,8 +53,10 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=47";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=47";
+  minutesByBucket,
+} from "./analysis.js?v=48";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=48";
+import { pickEvalLine } from "./lines.js?v=48";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -432,16 +434,20 @@ function achieveHtml(r) {
     }),
     `<button type="button" class="book-chip add" data-act="add-book">${t("customKind")}</button>`,
   ].join("");
-  const evalKey = {
-    empty: "evalEmpty",
-    waste: "evalWaste",
-    weekend: "evalWeekend",
-    rising: "evalRising",
-    slow: "evalSlow",
-    flat: "evalFlat",
-  }[bookEval(book, r)] || "evalFlat";
   const valueKey = book.id === "all" ? "totalValuation" : "valuation";
   const price = formatPrice(snap.price);
+  const buckets = minutesByBucket(state.day?.blocks);
+  const evalLine = pickEvalLine({
+    mood: bookEval(book, r),
+    bookId: book.id,
+    hour: new Date().getHours(),
+    todayH: Number(snap.dayH || 0),
+    consumeH: (buckets.consume || 0) / 60,
+    isToday,
+    dateISO: state.date,
+    lang: L,
+    price,
+  });
   const hero = isToday
     ? `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
     <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>`
@@ -467,7 +473,7 @@ function achieveHtml(r) {
     </div>
     <div class="book-row">${chips}</div>
     ${assetChartHtml(book, r, L, state.date)}
-    <p class="eval-line">${t(evalKey, { price })}</p>
+    <p class="eval-line">${escapeHtml(evalLine)}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
 }
@@ -1518,5 +1524,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=47").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=48").catch(() => {});
 }
