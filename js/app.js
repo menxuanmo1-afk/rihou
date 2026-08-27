@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=55";
+} from "./models.js?v=56";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +38,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=55";
+} from "./store.js?v=56";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=55";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=55";
-import { pickEvalLine } from "./lines.js?v=55";
-import { buildAiExport } from "./ai-export.js?v=55";
+} from "./analysis.js?v=56";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=56";
+import { pickEvalLine } from "./lines.js?v=56";
+import { buildAiExport } from "./ai-export.js?v=56";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -258,8 +258,19 @@ function blockGeom(startMin, endMin) {
 }
 
 function snapPlanMin(minutes) {
-  const clamped = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, minutes));
-  return Math.round(clamped / PLAN_SNAP) * PLAN_SNAP;
+  const lo = START_HOUR * 60;
+  const hi = recordableUntil();
+  const clamped = Math.max(lo, Math.min(hi, minutes));
+  if (clamped >= hi) return hi;
+  const snapped = Math.round(clamped / PLAN_SNAP) * PLAN_SNAP;
+  return Math.max(lo, Math.min(hi, snapped));
+}
+
+function recordableUntil() {
+  const today = todayISO();
+  if (state.date > today) return START_HOUR * 60;
+  if (state.date < today) return END_HOUR * 60;
+  return Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, nowMinutes()));
 }
 
 function minutesFromClientY(clientY) {
@@ -285,9 +296,10 @@ function planDraftHtml() {
 }
 
 function draftClip() {
+  const cap = recordableUntil();
   return {
     lo: state.planDraft?.clipStart ?? gesture.clipStart ?? START_HOUR * 60,
-    hi: state.planDraft?.clipEnd ?? gesture.clipEnd ?? END_HOUR * 60,
+    hi: Math.min(state.planDraft?.clipEnd ?? gesture.clipEnd ?? cap, cap),
   };
 }
 
@@ -320,7 +332,7 @@ function setDraftEdge(which, minutes) {
   if (!d) return;
   const t = snapPlanMin(minutes);
   const lo = d.clipStart ?? START_HOUR * 60;
-  const hi = d.clipEnd ?? END_HOUR * 60;
+  const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
   const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
   if (which === "start") {
     d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
@@ -536,8 +548,10 @@ function onTimelinePointerDown(event) {
   }
   if (event.target.closest("#plan-draft") || event.target.closest("[data-id]")) return;
 
+  const originMin = minutesFromClientY(event.clientY);
+  if (originMin >= recordableUntil()) return;
   gesture.pointerId = event.pointerId;
-  gesture.originMin = minutesFromClientY(event.clientY);
+  gesture.originMin = originMin;
   gesture.startX = event.clientX;
   gesture.startY = event.clientY;
   gesture.lastY = event.clientY;
@@ -558,7 +572,7 @@ function onTimelinePointerDown(event) {
       gesture.originMin,
       state.planDraft?.id,
       START_HOUR * 60,
-      END_HOUR * 60,
+      recordableUntil(),
     );
     if (!span || span.endMin - span.startMin < 1) {
       resetGesture();
@@ -1518,5 +1532,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=55").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=56").catch(() => {});
 }

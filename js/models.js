@@ -260,6 +260,7 @@ export function actualAtMinute(blocks, minute, exceptId) {
 }
 
 export function emptySpan(blocks, origin, exceptId, loBound, hiBound) {
+  if (origin < loBound || origin >= hiBound) return null;
   if (actualAtMinute(blocks, origin, exceptId)) return null;
   let lo = loBound;
   let hi = hiBound;

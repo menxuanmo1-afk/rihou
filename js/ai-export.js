@@ -8,8 +8,8 @@ import {
   kindsForBook,
   listCustomBooks,
   CORE_BOOKS,
-} from "./models.js?v=55";
-import { loadAllDays, loadSettings } from "./store.js?v=55";
+} from "./models.js?v=56";
+import { loadAllDays, loadSettings } from "./store.js?v=56";
 
 const BOOK_LABEL = {
   mind: "学识",
