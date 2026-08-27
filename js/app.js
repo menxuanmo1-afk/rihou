@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=49";
+} from "./models.js?v=50";
 import {
   loadDay,
   upsertBlock,
@@ -40,7 +40,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=49";
+} from "./store.js?v=50";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -54,10 +54,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=49";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=49";
-import { pickEvalLine } from "./lines.js?v=49";
-import { buildAiExport } from "./ai-export.js?v=49";
+} from "./analysis.js?v=50";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=50";
+import { pickEvalLine } from "./lines.js?v=50";
+import { buildAiExport } from "./ai-export.js?v=50";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1557,5 +1557,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=49").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=50").catch(() => {});
 }

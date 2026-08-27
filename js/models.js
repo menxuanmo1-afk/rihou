@@ -181,12 +181,6 @@ export function pickerKinds(selected = []) {
 
 export { CUSTOM_MAX, CUSTOM_LABEL_MAX, CUSTOM_BOOK_MAX };
 
-export const DEFAULT_HABITS = [
-  { id: "BRUSH", label: "刷牙", points: 8, hint: "小事，但每天都做才算数" },
-  { id: "SLEEP_BEFORE_11", label: "十一点前睡觉", points: 15, hint: "把明天上午连本带利还给你" },
-  { id: "TIDY", label: "整理房间", points: 10, hint: "环境干净，注意力也干净" },
-];
-
 export function kindById(id) {
   const custom = customKinds.find((c) => c.id === id);
   if (custom) return customAsKind(custom);
@@ -247,12 +241,8 @@ export function uid() {
   return crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
 }
 
-export function emptyHabits(habitList = DEFAULT_HABITS) {
-  return Object.fromEntries(habitList.map((h) => [h.id, false]));
-}
-
 export function emptyDay(date) {
-  return { date, blocks: [], habits: emptyHabits() };
+  return { date, blocks: [] };
 }
 
 export function durationMin(block) {

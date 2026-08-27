@@ -16,6 +16,7 @@ description: >-
 2. 以「逐日时间轴」为主阅读；用文末 JSON 核对分钟。两者冲突时以 JSON 的 `summary.*.Min` 和 `days[].blocks` 为准。
 3. **计划**块（时间轴里带「计划」，JSON 里 `isPlan: true`）只作对照，**不算**投资/消费。
 4. 没有文件时，请用户到人生记录仪「设置 → AI分析」导出本周或今日，再拖进对话。不要编造记录。
+5. 若 JSON 里出现 `habits`、刷牙、十一点前睡觉、整理房间等打卡字段，**整段忽略**。那是已淘汰功能，不要评论有没有打卡。
 
 未安装本 skill 时，把仓库里的 `skill/rihou-review/` 拷到 `~/.workbuddy/skills/rihou-review/`。
 

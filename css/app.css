@@ -707,15 +707,6 @@ button { cursor: pointer; }
   margin: 8px 0 4px;
 }
 
-.habit-edit {
-  display: grid;
-  grid-template-columns: 1fr 72px auto;
-  gap: 8px;
-  margin: 8px 0;
-  align-items: center;
-}
-.habit-edit .points { text-align: center; }
-
 .block.mix { border: 0; }
 
 .hidden { display: none !important; }

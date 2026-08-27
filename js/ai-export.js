@@ -8,8 +8,8 @@ import {
   kindsForBook,
   listCustomBooks,
   CORE_BOOKS,
-} from "./models.js?v=49";
-import { loadAllDays, loadSettings } from "./store.js?v=49";
+} from "./models.js?v=50";
+import { loadAllDays, loadSettings } from "./store.js?v=50";
 
 const BOOK_LABEL = {
   mind: "学识",
@@ -97,8 +97,7 @@ function slimBlock(block) {
 
 function dayPayload(iso, saved) {
   const blocks = Array.isArray(saved?.blocks) ? saved.blocks.map(slimBlock) : [];
-  const habits = saved?.habits && typeof saved.habits === "object" ? saved.habits : {};
-  return { date: iso, blocks, habits };
+  return { date: iso, blocks };
 }
 
 function timelineLine(block) {

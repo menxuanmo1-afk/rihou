@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=49";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=50";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -16,32 +16,25 @@ function writeJson(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-export function loadHabits() {
-  const saved = loadSettings().habits;
-  if (Array.isArray(saved) && saved.length > 0) return saved;
-  return DEFAULT_HABITS.map((h) => ({ ...h }));
-}
-
-export function saveHabits(habits) {
-  saveSettings({ ...loadSettings(), habits });
+function blocksOnly(day) {
+  return { blocks: foldExclusive(Array.isArray(day?.blocks) ? day.blocks : []) };
 }
 
 export function loadDay(date) {
   const all = readJson(DAYS, {});
   const saved = all[date];
-  const blanks = emptyHabits(loadHabits());
-  if (!saved) return { ...emptyDay(date), habits: blanks };
-  return {
-    date,
-    blocks: foldExclusive(Array.isArray(saved.blocks) ? saved.blocks : []),
-    habits: { ...blanks, ...(saved.habits || {}) },
-  };
+  if (!saved) return emptyDay(date);
+  return { date, ...blocksOnly(saved) };
 }
 
 export function saveDay(day) {
   const all = readJson(DAYS, {});
-  all[day.date] = { blocks: foldExclusive(day.blocks), habits: day.habits };
-  writeJson(DAYS, all);
+  all[day.date] = blocksOnly(day);
+  const cleaned = {};
+  for (const [iso, saved] of Object.entries(all)) {
+    cleaned[iso] = blocksOnly(saved);
+  }
+  writeJson(DAYS, cleaned);
 }
 
 export function upsertBlock(day, block) {
@@ -68,29 +61,21 @@ export function removeBlock(day, id) {
   return next;
 }
 
-export function toggleHabit(day, habitId) {
-  const next = {
-    ...day,
-    habits: { ...day.habits, [habitId]: !day.habits[habitId] },
-  };
-  saveDay(next);
-  return next;
-}
-
 export function loadSettings() {
   const saved = readJson(SETTINGS, {});
-  const daily = Number(saved.dailyHours);
-  setCustomBooks(saved.customBooks);
-  setCustomKinds(saved.customKinds);
-  const customBooks = setCustomBooks(saved.customBooks);
-  const customKinds = setCustomKinds(saved.customKinds);
+  const { habits: _habits, ...rest } = saved && typeof saved === "object" ? saved : {};
+  const daily = Number(rest.dailyHours);
+  setCustomBooks(rest.customBooks);
+  setCustomKinds(rest.customKinds);
+  const customBooks = setCustomBooks(rest.customBooks);
+  const customKinds = setCustomKinds(rest.customKinds);
   return {
     promptEnabled: true,
     lastOffer: "",
     lang: "zh",
     customKinds: [],
     customBooks: [],
-    ...saved,
+    ...rest,
     customKinds,
     customBooks,
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
@@ -124,10 +109,7 @@ export function loadAllDays() {
   const all = readJson(DAYS, {});
   const out = {};
   for (const [iso, day] of Object.entries(all)) {
-    out[iso] = {
-      ...day,
-      blocks: foldExclusive(Array.isArray(day?.blocks) ? day.blocks : []),
-    };
+    out[iso] = blocksOnly(day);
   }
   return out;
 }
@@ -139,7 +121,8 @@ export function earliestDate() {
 }
 
 export function saveSettings(settings) {
-  writeJson(SETTINGS, settings);
+  const { habits: _habits, ...rest } = settings && typeof settings === "object" ? settings : {};
+  writeJson(SETTINGS, rest);
 }
 
 export function exportAll() {
@@ -159,14 +142,14 @@ export function importAll(raw) {
   if (data.days) {
     const folded = {};
     for (const [iso, day] of Object.entries(data.days)) {
-      folded[iso] = {
-        ...day,
-        blocks: foldExclusive(Array.isArray(day?.blocks) ? day.blocks : []),
-      };
+      folded[iso] = blocksOnly(day);
     }
     writeJson(DAYS, folded);
   }
-  if (data.settings) writeJson(SETTINGS, { ...loadSettings(), ...data.settings });
+  if (data.settings) {
+    const { habits: _habits, ...rest } = data.settings;
+    writeJson(SETTINGS, { ...loadSettings(), ...rest });
+  }
 }
 
 export function alreadyOffered(stamp) {
