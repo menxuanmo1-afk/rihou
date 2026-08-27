@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=45";
+} from "./models.js?v=46";
 import {
   loadDay,
   upsertBlock,
@@ -40,7 +40,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=45";
+} from "./store.js?v=46";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,8 +53,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=45";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=45";
+} from "./analysis.js?v=46";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=46";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -643,13 +643,7 @@ function onAction(event) {
     state.tab = "achieve";
     render();
   } else if (act === "book") {
-    const id = event.currentTarget.dataset.book || "all";
-    const userBook = listCustomBooks().some((b) => b.id === id);
-    if (userBook && state.book === id) {
-      openCustomBookSheet(id);
-      return;
-    }
-    state.book = id;
+    state.book = event.currentTarget.dataset.book || "all";
     render();
   } else if (act === "add-book") {
     openCustomBookSheet();
@@ -774,13 +768,10 @@ function scrollToNow() {
 function kindRowHtml(draft) {
   const chips = pickerKinds(draft.kinds).map((k) => {
     const on = draft.kinds.includes(k.id) ? "on" : "";
-    const del = k.custom
-      ? `<span class="chip-x" data-del-kind="${escapeAttr(k.id)}">×</span>`
-      : "";
     const swatch = k.custom
       ? `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`
       : "";
-    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${swatch}${escapeAttr(kindLabel(k.id))}${del}</button>`;
+    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${swatch}${escapeAttr(kindLabel(k.id))}</button>`;
   }).join("");
   return `${chips}<button type="button" class="chip-h add" data-add-custom>${t("customKind")}</button>`;
 }
@@ -789,8 +780,7 @@ function bindKindRow(root, draft, refresh, keepOne, reopen) {
   const row = root.querySelector("#kind-row");
   if (!row) return;
   row.querySelectorAll("[data-kind]").forEach((el) => {
-    el.addEventListener("click", (event) => {
-      if (event.target.closest("[data-del-kind]")) return;
+    el.addEventListener("click", () => {
       const id = el.dataset.kind;
       if (draft.kinds.includes(id)) {
         draft.kinds = draft.kinds.filter((k) => k !== id);
@@ -798,16 +788,6 @@ function bindKindRow(root, draft, refresh, keepOne, reopen) {
       } else {
         draft.kinds = [...draft.kinds, id];
       }
-      refresh();
-    });
-  });
-  row.querySelectorAll("[data-del-kind]").forEach((el) => {
-    el.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      const id = el.dataset.delKind;
-      saveCustomKinds(listCustomKinds().filter((c) => c.id !== id));
-      draft.kinds = draft.kinds.filter((k) => k !== id);
       refresh();
     });
   });
@@ -835,7 +815,7 @@ function customKindHtml(form) {
   }).join("");
   return `
     <div class="mini-card">
-      <h2>${t("customKind")}</h2>
+      <h2>${form.id ? t("customEdit") : t("customKind")}</h2>
       <p class="muted">${t("customName")}</p>
       <input class="field" id="custom-name" maxlength="${CUSTOM_LABEL_MAX}" placeholder="${escapeAttr(t("customName"))}" value="${escapeAttr(form.name)}" />
       <p class="muted">${t("customColor")}</p>
@@ -850,8 +830,10 @@ function customKindHtml(form) {
   `;
 }
 
-function openCustomKindSheet({ onDismiss, onCreated }) {
-  const form = { name: "", color: KIND_COLORS[0], book: "mind" };
+function openCustomKindSheet({ onDismiss, onCreated, existing }) {
+  const form = existing
+    ? { id: existing.id, name: existing.label, color: existing.color, book: existing.book || "mind" }
+    : { id: "", name: "", color: KIND_COLORS[0], book: "mind" };
   const bind = (root) => {
     const nameEl = root.querySelector("#custom-name");
     nameEl?.focus();
@@ -880,13 +862,28 @@ function openCustomKindSheet({ onDismiss, onCreated }) {
       }
       const builtin = KINDS.filter((k) => !k.hidden).find((k) => kindLabel(k.id) === name || k.label === name);
       if (builtin) {
+        if (form.id) {
+          nameEl?.focus();
+          return;
+        }
         onCreated?.(builtin.id);
         onDismiss();
         return;
       }
       const hit = listCustomKinds().find((c) => c.label === name);
-      if (hit) {
+      if (hit && hit.id !== form.id) {
+        if (form.id) {
+          nameEl?.focus();
+          return;
+        }
         onCreated?.(hit.id);
+        onDismiss();
+        return;
+      }
+      if (form.id) {
+        saveCustomKinds(listCustomKinds().map((c) => (
+          c.id === form.id ? { ...c, label: name, color: form.color, book: form.book } : c
+        )));
         onDismiss();
         return;
       }
@@ -927,16 +924,21 @@ function customBookHtml(form, picked, locked) {
         <button type="button" class="ghost" data-custom-cancel>${t("cancel")}</button>
         <button type="button" class="primary" data-custom-ok>${t("customOk")}</button>
       </div>
-      ${form.id ? `<button type="button" class="danger" data-custom-delete>${t("customBookDelete")}</button>` : ""}
     </div>
   `;
 }
 
-function openCustomBookSheet(editId) {
+function openCustomBookSheet(editId, opts = {}) {
   const existing = editId ? listCustomBooks().find((b) => b.id === editId) : null;
   const form = { id: existing?.id || "", name: existing?.label || "" };
   const picked = new Set(existing?.kinds || []);
   const locked = new Set(listCustomKinds().filter((c) => c.book === form.id).map((c) => c.id));
+  const done = typeof opts.onDone === "function"
+    ? opts.onDone
+    : () => {
+      closeSheet();
+      render();
+    };
   const bind = (root) => {
     const nameEl = root.querySelector("#book-name");
     nameEl?.focus();
@@ -949,7 +951,7 @@ function openCustomBookSheet(editId) {
         el.classList.toggle("on", picked.has(id));
       });
     });
-    root.querySelector("[data-custom-cancel]")?.addEventListener("click", closeSheet);
+    root.querySelector("[data-custom-cancel]")?.addEventListener("click", done);
     root.querySelector("[data-custom-ok]")?.addEventListener("click", () => {
       const name = (nameEl?.value || "").trim().slice(0, CUSTOM_LABEL_MAX);
       if (!name) {
@@ -975,17 +977,111 @@ function openCustomBookSheet(editId) {
         saveCustomBooks([...listCustomBooks(), { id, label: name, kinds }]);
         state.book = id;
       }
-      closeSheet();
       render();
-    });
-    root.querySelector("[data-custom-delete]")?.addEventListener("click", () => {
-      saveCustomBooks(listCustomBooks().filter((b) => b.id !== form.id));
-      if (state.book === form.id) state.book = "all";
-      closeSheet();
-      render();
+      done();
     });
   };
-  showSheet(customBookHtml(form, picked, locked), bind, { mini: true });
+  showSheet(customBookHtml(form, picked, locked), bind, { mini: true, onDismiss: done });
+}
+
+function manageRowHtml(id, label, color, kind) {
+  const swatch = color
+    ? `<span class="chip-dot" style="background:${escapeAttr(color)}"></span>`
+    : "";
+  return `
+    <div class="manage-row">
+      <div class="manage-name">${swatch}${escapeHtml(label)}</div>
+      <div class="manage-actions">
+        <button type="button" class="ghost" data-edit-${kind}="${escapeAttr(id)}">${t("customEdit")}</button>
+        <button type="button" class="danger" data-del-${kind}="${escapeAttr(id)}">${t("customDelete")}</button>
+      </div>
+    </div>`;
+}
+
+function openManageCustomSheet() {
+  const kinds = listCustomKinds();
+  const books = listCustomBooks();
+  const kindBlock = kinds.length
+    ? kinds.map((c) => manageRowHtml(c.id, c.label, c.color, "kind")).join("")
+    : `<p class="muted">${t("manageEmpty")}</p>`;
+  const bookBlock = books.length
+    ? books.map((b) => manageRowHtml(b.id, b.label, "", "book")).join("")
+    : `<p class="muted">${t("manageEmpty")}</p>`;
+  showSheet(`
+    <div class="sheet">
+      <h2>${t("manageCustom")}</h2>
+      <p class="muted">${t("customDeleteWarn")}</p>
+      <div class="section">${t("manageKinds")}</div>
+      ${kindBlock}
+      <div class="section">${t("manageBooks")}</div>
+      ${bookBlock}
+      <button class="ghost" data-back>${t("manageBack")}</button>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-back]")?.addEventListener("click", () => openSettingsSheet());
+    root.querySelectorAll("[data-edit-kind]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = listCustomKinds().find((c) => c.id === el.dataset.editKind);
+        if (!item) return;
+        openCustomKindSheet({
+          existing: item,
+          onDismiss: () => {
+            render();
+            openManageCustomSheet();
+          },
+        });
+      });
+    });
+    root.querySelectorAll("[data-del-kind]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = listCustomKinds().find((c) => c.id === el.dataset.delKind);
+        if (!item) return;
+        openDeleteConfirm(item.label, () => {
+          saveCustomKinds(listCustomKinds().filter((c) => c.id !== item.id));
+          render();
+          openManageCustomSheet();
+        }, () => openManageCustomSheet());
+      });
+    });
+    root.querySelectorAll("[data-edit-book]").forEach((el) => {
+      el.addEventListener("click", () => {
+        openCustomBookSheet(el.dataset.editBook, {
+          onDone: () => {
+            render();
+            openManageCustomSheet();
+          },
+        });
+      });
+    });
+    root.querySelectorAll("[data-del-book]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = listCustomBooks().find((b) => b.id === el.dataset.delBook);
+        if (!item) return;
+        openDeleteConfirm(item.label, () => {
+          saveCustomBooks(listCustomBooks().filter((b) => b.id !== item.id));
+          if (state.book === item.id) state.book = "all";
+          render();
+          openManageCustomSheet();
+        }, () => openManageCustomSheet());
+      });
+    });
+  });
+}
+
+function openDeleteConfirm(label, onConfirm, onCancel) {
+  showSheet(`
+    <div class="mini-card">
+      <h2>${t("customDelete")}「${escapeHtml(label)}」</h2>
+      <p class="muted">${t("customDeleteWarn")}</p>
+      <div class="mini-actions">
+        <button type="button" class="ghost" data-cancel>${t("cancel")}</button>
+        <button type="button" class="danger" data-ok>${t("customDeleteConfirm")}</button>
+      </div>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-cancel]")?.addEventListener("click", onCancel);
+    root.querySelector("[data-ok]")?.addEventListener("click", onConfirm);
+  }, { mini: true, onDismiss: onCancel });
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -1220,6 +1316,9 @@ function openSettingsSheet() {
         <button type="button" class="chip-h ${current === "zh" ? "on" : ""}" data-lang="zh">${t("langZh")}</button>
         <button type="button" class="chip-h ${current === "en" ? "on" : ""}" data-lang="en">${t("langEn")}</button>
       </div>
+      <div class="row" style="margin-top:16px">
+        <button type="button" class="btn" data-manage-custom>${t("manageCustom")}</button>
+      </div>
       <div class="switch-row">
         <div>
           <div>${t("prompt")}</div>
@@ -1240,6 +1339,9 @@ function openSettingsSheet() {
         closeSheet();
         render();
       });
+    });
+    root.querySelector("[data-manage-custom]")?.addEventListener("click", () => {
+      openManageCustomSheet();
     });
     const toggle = root.querySelector("#prompt-toggle");
     if (toggle) {
@@ -1292,8 +1394,16 @@ function closeSheet() {
   bg.innerHTML = "";
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
 function escapeAttr(value) {
-  return String(value).replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;");
+  return escapeHtml(value);
 }
 
 function download(name, text) {
@@ -1408,5 +1518,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=45").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=46").catch(() => {});
 }

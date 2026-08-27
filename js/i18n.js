@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=45";
-import { loadSettings } from "./store.js?v=45";
+import { formatDuration, kindById } from "./models.js?v=46";
+import { loadSettings } from "./store.js?v=46";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -120,6 +120,15 @@ const STR = {
     customBookName: "名称",
     customBookDelete: "删除这一栏",
     customBookFull: "最多 6 栏",
+    manageCustom: "管理自定义",
+    manageKinds: "自定义事项",
+    manageBooks: "自定义估值",
+    manageEmpty: "还没有自定义。",
+    manageBack: "返回",
+    customEdit: "编辑",
+    customDelete: "删除",
+    customDeleteWarn: "若删除，之前的数据将无法恢复。",
+    customDeleteConfirm: "确认删除",
     logHint: "从上次记录到现在，你都做了什么？骗骗兄弟得了，别把自己也骗了",
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
     notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
@@ -212,6 +221,15 @@ const STR = {
     customBookName: "Name",
     customBookDelete: "Delete this book",
     customBookFull: "Up to 6 books",
+    manageCustom: "Manage custom",
+    manageKinds: "Custom activities",
+    manageBooks: "Custom valuations",
+    manageEmpty: "None yet.",
+    manageBack: "Back",
+    customEdit: "Edit",
+    customDelete: "Delete",
+    customDeleteWarn: "If you delete this, previous data cannot be recovered.",
+    customDeleteConfirm: "Delete",
     logHint: "From the last log to now, what did you actually do? Fine to fool a friend — don't fool yourself.",
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
     notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",
