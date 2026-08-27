@@ -1,5 +1,5 @@
-import { formatDuration } from "./models.js?v=41";
-import { loadSettings } from "./store.js?v=41";
+import { formatDuration, kindById } from "./models.js?v=42";
+import { loadSettings } from "./store.js?v=42";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -110,6 +110,11 @@ const STR = {
     mixOne: "整段都是这件事。",
     mixMany: "记不清什么时候切换的任务？没关系，都选上，这段会显示成渐变色块，打分时时间均分。",
     mixEmpty: "选择点一件或多件事情",
+    customKind: "自定义",
+    customName: "名称，比如练琴",
+    customLike: "按哪一类计分",
+    customAdd: "加上",
+    customFull: "最多 12 个",
     logHint: "从上次记录到现在，你都做了什么？骗骗兄弟得了，别把自己也骗了",
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
     notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
@@ -192,6 +197,11 @@ const STR = {
     mixOne: "This whole stretch is that.",
     mixMany: "Forgot when you switched tasks? Pick them all. This stretch shows as a gradient, and scoring splits the time evenly.",
     mixEmpty: "Pick one or more things.",
+    customKind: "Custom",
+    customName: "Name, e.g. Piano",
+    customLike: "Count as",
+    customAdd: "Add",
+    customFull: "Up to 12",
     logHint: "From the last log to now, what did you actually do? Fine to fool a friend — don't fool yourself.",
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
     notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",
@@ -213,6 +223,8 @@ export function t(key, vars = {}) {
 }
 
 export function kindLabel(id) {
+  const resolved = kindById(id);
+  if (resolved.custom) return resolved.label;
   return (KIND[id] || KIND.OTHER)[lang()];
 }
 

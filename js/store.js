@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive } from "./models.js?v=41";
+import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds } from "./models.js?v=42";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -84,9 +84,20 @@ export function loadSettings() {
     promptEnabled: true,
     lastOffer: "",
     lang: "zh",
+    customKinds: [],
     ...saved,
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
   };
+}
+
+export function loadCustomKinds() {
+  return setCustomKinds(loadSettings().customKinds);
+}
+
+export function saveCustomKinds(list) {
+  const next = setCustomKinds(list);
+  saveSettings({ ...loadSettings(), customKinds: next });
+  return next;
 }
 
 export function loadAllDays() {

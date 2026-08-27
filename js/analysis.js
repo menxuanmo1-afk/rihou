@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=41";
-import { loadAllDays } from "./store.js?v=41";
+import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=42";
+import { loadAllDays } from "./store.js?v=42";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -35,7 +35,10 @@ function expanded(blocks) {
     if (b.isPlan) continue;
     const ids = Array.isArray(b.kinds) && b.kinds.length ? b.kinds : [b.kind || "OTHER"];
     const share = (Number(b.endMin) - Number(b.startMin)) / Math.max(1, ids.length);
-    for (const id of ids) rows.push({ kind: id, minutes: share });
+    for (const id of ids) {
+      const k = kindById(id);
+      rows.push({ kind: k.like || k.id, minutes: share });
+    }
   }
   return rows;
 }

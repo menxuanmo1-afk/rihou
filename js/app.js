@@ -16,7 +16,10 @@ import {
   nowMinutes,
   actualAtMinute,
   emptySpan,
-} from "./models.js?v=41";
+  KINDS,
+  listCustomKinds,
+  CUSTOM_MAX,
+} from "./models.js?v=42";
 import {
   loadDay,
   upsertBlock,
@@ -28,7 +31,9 @@ import {
   alreadyOffered,
   markOffered,
   loadAllDays,
-} from "./store.js?v=41";
+  loadCustomKinds,
+  saveCustomKinds,
+} from "./store.js?v=42";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -41,8 +46,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=41";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=41";
+} from "./analysis.js?v=42";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=42";
 
 const START_HOUR = 6;
 const END_HOUR = 24;
@@ -114,6 +119,7 @@ function render() {
 }
 
 function renderApp() {
+  loadCustomKinds();
   currentDay();
   const app = document.getElementById("app");
   const isToday = state.date === todayISO();
@@ -735,6 +741,123 @@ function scrollToNow() {
   timeline.scrollTop = Math.max(0, (focus / 60 - START_HOUR - 1) * HOUR_H);
 }
 
+
+function kindRowHtml(draft) {
+  const chips = pickerKinds(draft.kinds).map((k) => {
+    const on = draft.kinds.includes(k.id) ? "on" : "";
+    const del = k.custom
+      ? `<span class="chip-x" data-del-kind="${escapeAttr(k.id)}">×</span>`
+      : "";
+    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${escapeAttr(kindLabel(k.id))}${del}</button>`;
+  }).join("");
+  return `${chips}<button type="button" class="chip-h add" data-add-custom>${t("customKind")}</button>`;
+}
+
+function likeRowHtml(likeId) {
+  return KINDS.filter((k) => !k.hidden).map((k) => {
+    const on = k.id === likeId ? "on" : "";
+    return `<button type="button" class="chip-h ${on}" data-like="${k.id}">${kindLabel(k.id)}</button>`;
+  }).join("");
+}
+
+function bindKindRow(root, draft, refresh, keepOne) {
+  const row = root.querySelector("#kind-row");
+  if (!row) return;
+  row.querySelectorAll("[data-kind]").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      if (event.target.closest("[data-del-kind]")) return;
+      const id = el.dataset.kind;
+      if (draft.kinds.includes(id)) {
+        draft.kinds = draft.kinds.filter((k) => k !== id);
+        if (keepOne && draft.kinds.length === 0) draft.kinds = [id];
+      } else {
+        draft.kinds = [...draft.kinds, id];
+      }
+      refresh();
+    });
+  });
+  row.querySelectorAll("[data-del-kind]").forEach((el) => {
+    el.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const id = el.dataset.delKind;
+      saveCustomKinds(listCustomKinds().filter((c) => c.id !== id));
+      draft.kinds = draft.kinds.filter((k) => k !== id);
+      refresh();
+    });
+  });
+  row.querySelector("[data-add-custom]")?.addEventListener("click", () => {
+    toggleCustomBox(root, draft, refresh);
+  });
+}
+
+function toggleCustomBox(root, draft, refresh) {
+  const existing = root.querySelector("#custom-box");
+  if (existing) {
+    existing.remove();
+    return;
+  }
+  draft._customLike = draft._customLike || "OTHER";
+  const row = root.querySelector("#kind-row");
+  if (!row) return;
+  row.insertAdjacentHTML("afterend", `
+    <div class="custom-box" id="custom-box">
+      <input class="field" id="custom-name" maxlength="8" placeholder="${escapeAttr(t("customName"))}" />
+      <p class="muted">${t("customLike")}</p>
+      <div class="row" id="custom-like">${likeRowHtml(draft._customLike)}</div>
+      <button type="button" class="btn" data-custom-save>${t("customAdd")}</button>
+    </div>`);
+  bindCustomBox(root, draft, refresh);
+  root.querySelector("#custom-name")?.focus();
+}
+
+function bindCustomBox(root, draft, refresh) {
+  const box = root.querySelector("#custom-box");
+  if (!box) return;
+  const likeRow = box.querySelector("#custom-like");
+  likeRow?.querySelectorAll("[data-like]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft._customLike = el.dataset.like;
+      if (likeRow) likeRow.innerHTML = likeRowHtml(draft._customLike);
+      bindCustomBox(root, draft, refresh);
+    });
+  });
+  const saveBtn = box.querySelector("[data-custom-save]");
+  if (saveBtn && saveBtn.dataset.bound === "1") return;
+  if (saveBtn) saveBtn.dataset.bound = "1";
+  saveBtn?.addEventListener("click", () => {
+    const input = box.querySelector("#custom-name");
+    const name = (input?.value || "").trim().slice(0, 8);
+    if (!name) {
+      input?.focus();
+      return;
+    }
+    const builtin = KINDS.filter((k) => !k.hidden).find((k) => kindLabel(k.id) === name);
+    if (builtin) {
+      if (!draft.kinds.includes(builtin.id)) draft.kinds.push(builtin.id);
+      box.remove();
+      refresh();
+      return;
+    }
+    const hit = listCustomKinds().find((c) => c.label === name);
+    if (hit) {
+      if (!draft.kinds.includes(hit.id)) draft.kinds.push(hit.id);
+      box.remove();
+      refresh();
+      return;
+    }
+    if (listCustomKinds().length >= CUSTOM_MAX) {
+      if (saveBtn) saveBtn.textContent = t("customFull");
+      return;
+    }
+    const id = `CUS_${uid().replace(/-/g, "").slice(0, 10)}`;
+    saveCustomKinds([...listCustomKinds(), { id, label: name, like: draft._customLike || "OTHER" }]);
+    if (!draft.kinds.includes(id)) draft.kinds.push(id);
+    box.remove();
+    refresh();
+  });
+}
+
 function openRecordSheet(range, extra = {}) {
   const draft = {
     id: extra.id || uid(),
@@ -749,10 +872,6 @@ function openRecordSheet(range, extra = {}) {
 }
 
 function recordHtml(draft) {
-  const kinds = pickerKinds(draft.kinds).map((k) => {
-    const on = draft.kinds.includes(k.id);
-    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
-  }).join("");
   const preview = draft.kinds.length
     ? `<div class="mix-preview" id="mix-box" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
        <p class="muted" id="mix-hint">${draft.kinds.length === 1 ? t("mixOne") : t("mixMany")}</p>`
@@ -763,7 +882,7 @@ function recordHtml(draft) {
       <h2>${lastActualEnd(state.day) == null ? t("logTitle") : t("sinceLast")}</h2>
       <p class="muted">${t("logHint")}</p>
       ${timeFields(draft)}
-      <div class="row">${kinds}</div>
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       ${preview}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
       <button class="primary" data-save>${t("save")}</button>
@@ -852,15 +971,14 @@ function bindRecord(root, draft) {
     hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
   };
 
-  root.querySelectorAll("[data-kind]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const id = el.dataset.kind;
-      if (draft.kinds.includes(id)) draft.kinds = draft.kinds.filter((k) => k !== id);
-      else draft.kinds.push(id);
-      el.classList.toggle("on", draft.kinds.includes(id));
-      updateMix();
-    });
-  });
+  const refreshKinds = () => {
+    const row = root.querySelector("#kind-row");
+    if (row) row.innerHTML = kindRowHtml(draft);
+    bindKindRow(root, draft, refreshKinds, false);
+    updateMix();
+  };
+  bindKindRow(root, draft, refreshKinds, false);
+
 
   root.querySelector("[data-save]").addEventListener("click", () => {
     if (draft.kinds.length === 0) {
@@ -899,10 +1017,6 @@ function openEditor(block) {
 }
 
 function editorHtml(draft, isEdit) {
-  const kinds = pickerKinds(draft.kinds).map((k) => {
-    const on = draft.kinds.includes(k.id);
-    return `<button type="button" class="chip-h ${on ? "on" : ""}" data-kind="${k.id}">${kindLabel(k.id)}</button>`;
-  }).join("");
   const mixHint = draft.kinds.length > 1
     ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
        <p class="muted">${t("mixEdit")}</p>`
@@ -910,7 +1024,7 @@ function editorHtml(draft, isEdit) {
   return `
     <div class="sheet">
       <h2>${isEdit ? t("editBlock") : t("logRange")}</h2>
-      <div class="row">${kinds}</div>
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       ${mixHint}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
       ${timeFields(draft)}
@@ -932,18 +1046,7 @@ function bindEditor(root, draft, isEdit) {
   };
 
   bindTimeFields(root, draft);
-  root.querySelectorAll("[data-kind]").forEach((el) => {
-    el.addEventListener("click", () => {
-      const id = el.dataset.kind;
-      if (draft.kinds.includes(id)) {
-        draft.kinds = draft.kinds.filter((k) => k !== id);
-        if (draft.kinds.length === 0) draft.kinds = [id];
-      } else {
-        draft.kinds = [...draft.kinds, id];
-      }
-      redraw();
-    });
-  });
+  bindKindRow(root, draft, redraw, true);
   root.querySelector("[data-save]").addEventListener("click", () => {
     draft.title = root.querySelector("#title").value.trim();
     if (draft.kinds.length === 0) draft.kinds = ["OTHER"];
@@ -1169,5 +1272,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=41").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=42").catch(() => {});
 }

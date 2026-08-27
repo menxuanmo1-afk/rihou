@@ -26,15 +26,55 @@ export const KINDS = [
   { id: "OTHER", label: "其他", payoff: Payoff.NEUTRAL, bucket: "other", color: "#9AA8B5" },
 ];
 
-export function pickerKinds(selected = []) {
-  const base = KINDS.filter((k) => !k.hidden);
-  for (const id of selected) {
-    if (base.some((k) => k.id === id)) continue;
-    const extra = KINDS.find((k) => k.id === id);
-    if (extra) base.push(extra);
+const CUSTOM_MAX = 12;
+const CUSTOM_LABEL_MAX = 8;
+
+let customKinds = [];
+
+export function normalizeCustomKinds(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  const seen = new Set();
+  for (const raw of list) {
+    if (!raw || !raw.id) continue;
+    const label = String(raw.label || "").trim().slice(0, CUSTOM_LABEL_MAX);
+    if (!label || seen.has(label)) continue;
+    seen.add(label);
+    const like = KINDS.some((k) => k.id === raw.like && !k.hidden) ? raw.like : "OTHER";
+    out.push({ id: String(raw.id), label, like });
+    if (out.length >= CUSTOM_MAX) break;
   }
-  return base;
+  return out;
 }
+
+export function setCustomKinds(list) {
+  customKinds = normalizeCustomKinds(list);
+  return customKinds;
+}
+
+export function listCustomKinds() {
+  return customKinds;
+}
+
+function customAsKind(c) {
+  const base = KINDS.find((k) => k.id === c.like) || KINDS[KINDS.length - 1];
+  return { ...base, id: c.id, label: c.label, custom: true, like: c.like || "OTHER" };
+}
+
+export function pickerKinds(selected = []) {
+  const builtins = KINDS.filter((k) => !k.hidden);
+  const otherAt = builtins.findIndex((k) => k.id === "OTHER");
+  const head = otherAt >= 0 ? builtins.slice(0, otherAt + 1) : builtins;
+  const tail = otherAt >= 0 ? builtins.slice(otherAt + 1) : [];
+  const merged = [...head, ...customKinds.map(customAsKind), ...tail];
+  for (const id of selected) {
+    if (merged.some((k) => k.id === id)) continue;
+    merged.push(kindById(id));
+  }
+  return merged;
+}
+
+export { CUSTOM_MAX, CUSTOM_LABEL_MAX };
 
 export const DEFAULT_HABITS = [
   { id: "BRUSH", label: "刷牙", points: 8, hint: "小事，但每天都做才算数" },
@@ -43,6 +83,8 @@ export const DEFAULT_HABITS = [
 ];
 
 export function kindById(id) {
+  const custom = customKinds.find((c) => c.id === id);
+  if (custom) return customAsKind(custom);
   return KINDS.find((k) => k.id === id) || KINDS[KINDS.length - 1];
 }
 

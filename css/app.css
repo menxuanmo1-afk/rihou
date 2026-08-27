@@ -543,6 +543,20 @@ button { cursor: pointer; }
   padding: 8px 12px;
 }
 .chip-h.on { border-color: var(--clay); color: var(--clay); }
+.chip-h.add {
+  border: 1px dashed rgba(184, 176, 166, 0.4);
+  color: var(--mute);
+}
+.chip-x {
+  margin-left: 6px;
+  opacity: 0.55;
+}
+.custom-box {
+  margin: 4px 0 12px;
+  padding: 8px 0 0;
+}
+.custom-box .muted { margin: 8px 0 0; }
+.custom-box .btn { margin-top: 10px; }
 
 .field {
   width: 100%;
