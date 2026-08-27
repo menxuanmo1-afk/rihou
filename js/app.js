@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=54";
+} from "./models.js?v=55";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +38,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=54";
+} from "./store.js?v=55";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=54";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=54";
-import { pickEvalLine } from "./lines.js?v=54";
-import { buildAiExport } from "./ai-export.js?v=54";
+} from "./analysis.js?v=55";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=55";
+import { pickEvalLine } from "./lines.js?v=55";
+import { buildAiExport } from "./ai-export.js?v=55";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -628,15 +628,7 @@ function onAction(event) {
     const dir = state.date < todayISO() ? "left" : "right";
     goDate(todayISO(), dir);
   } else if (act === "log-now") {
-    currentDay();
-    let range = gapFromLastToNow(state.day);
-    if (range.endMin <= range.startMin) {
-      range = {
-        startMin: Math.max(START_HOUR * 60, range.endMin - 1),
-        endMin: Math.max(range.endMin, START_HOUR * 60 + 1),
-      };
-    }
-    openRecordSheet(range);
+    openRecordSheet(logNowRange());
   } else if (act === "tab-time") {
     state.tab = "time";
     render();
@@ -1452,6 +1444,33 @@ function pickFile(onText) {
   input.click();
 }
 
+function logNowRange() {
+  currentDay();
+  let range = gapFromLastToNow(state.day);
+  if (range.endMin <= range.startMin) {
+    range = {
+      startMin: Math.max(START_HOUR * 60, range.endMin - 1),
+      endMin: Math.max(range.endMin, START_HOUR * 60 + 1),
+    };
+  }
+  return range;
+}
+
+let offerLockUntil = 0;
+
+function offerLogNowOnOpen() {
+  const now = Date.now();
+  if (now < offerLockUntil) return;
+  if (document.getElementById("sheet-bg")?.classList.contains("show")) return;
+  offerLockUntil = now + 1000;
+  if (state.date !== todayISO()) state.date = todayISO();
+  currentDay();
+  const gap = gapFromLastToNow(state.day);
+  if (gap.endMin - gap.startMin < 1) return;
+  render();
+  openRecordSheet(gap);
+}
+
 function pinFrame() {
   const app = document.getElementById("app");
   if (!app) return;
@@ -1480,11 +1499,13 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     pinFrame();
     render();
+    offerLogNowOnOpen();
   }
 });
 window.addEventListener("pageshow", () => {
   pinFrame();
   render();
+  offerLogNowOnOpen();
 });
 
 render();
@@ -1493,8 +1514,9 @@ requestAnimationFrame(() => {
   pinFrame();
   render();
   pinFrame();
+  offerLogNowOnOpen();
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=54").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=55").catch(() => {});
 }
