@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds, normalizeCustomBookKinds } from "./models.js?v=44";
+import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=45";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -80,36 +80,43 @@ export function toggleHabit(day, habitId) {
 export function loadSettings() {
   const saved = readJson(SETTINGS, {});
   const daily = Number(saved.dailyHours);
+  setCustomBooks(saved.customBooks);
+  setCustomKinds(saved.customKinds);
+  const customBooks = setCustomBooks(saved.customBooks);
+  const customKinds = setCustomKinds(saved.customKinds);
   return {
     promptEnabled: true,
     lastOffer: "",
     lang: "zh",
     customKinds: [],
-    customBookKinds: [],
+    customBooks: [],
     ...saved,
-    customKinds: setCustomKinds(saved.customKinds),
-    customBookKinds: Array.isArray(saved.customBookKinds)
-      ? normalizeCustomBookKinds(saved.customBookKinds)
-      : [],
+    customKinds,
+    customBooks,
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
   };
 }
 
 export function loadCustomKinds() {
-  return setCustomKinds(loadSettings().customKinds);
+  return loadSettings().customKinds;
 }
 
 export function saveCustomKinds(list) {
   const prev = loadSettings();
   const next = setCustomKinds(list);
-  const customBookKinds = normalizeCustomBookKinds(prev.customBookKinds);
-  saveSettings({ ...prev, customKinds: next, customBookKinds });
+  const customBooks = setCustomBooks(prev.customBooks);
+  saveSettings({ ...prev, customKinds: next, customBooks });
   return next;
 }
 
-export function saveCustomBookKinds(list) {
-  const next = normalizeCustomBookKinds(list);
-  saveSettings({ ...loadSettings(), customBookKinds: next });
+export function saveCustomBooks(list) {
+  const prev = loadSettings();
+  const next = setCustomBooks(list);
+  const allowed = new Set(["mind", "body", "craft", ...next.map((b) => b.id)]);
+  const customKinds = setCustomKinds(prev.customKinds.map((c) => (
+    allowed.has(c.book) ? c : { ...c, book: "mind" }
+  )));
+  saveSettings({ ...prev, customBooks: next, customKinds });
   return next;
 }
 

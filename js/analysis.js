@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes, kindsForBook } from "./models.js?v=44";
-import { loadAllDays } from "./store.js?v=44";
+import { kindById, todayISO, addDays, nowMinutes, kindsForBook, listCustomBooks } from "./models.js?v=45";
+import { loadAllDays } from "./store.js?v=45";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -10,10 +10,11 @@ export const ASSET_BOOKS = [
   { id: "mind", kinds: ["STUDY", "READ", "CLASS", "WORK"] },
   { id: "body", kinds: ["FITNESS", "SPORT"] },
   { id: "craft", kinds: ["CREATE"] },
-  { id: "custom", kinds: [] },
 ];
 
-const SUB_IDS = ["mind", "body", "craft", "custom"];
+function subIdsFrom(books) {
+  return Object.keys(books || {}).filter((id) => id !== "all");
+}
 const P_MIN = 14;
 const P_MAX = 260;
 const FLAT_H = 1;
@@ -209,14 +210,20 @@ export function buildPortfolio(state, now = new Date()) {
     : { days: loadAllDays(), settings: {} };
   const dayTable = payload.days || loadAllDays();
   const lang = payload.settings?.lang || "zh";
-  const customBookKinds = Array.isArray(payload.settings?.customBookKinds)
-    ? payload.settings.customBookKinds
-    : [];
+  const extraBooks = Array.isArray(payload.settings?.customBooks)
+    ? payload.settings.customBooks
+    : listCustomBooks();
   const earliest = firstInvestISO(dayTable, today);
   const days = walkDays(earliest, today, dayTable);
-  const subs = SUB_IDS.map((id) => emptyBook({
-    ...ASSET_BOOKS.find((b) => b.id === id),
-    kinds: kindsForBook(id, customBookKinds),
+  const specs = [
+    { id: "mind" },
+    { id: "body" },
+    { id: "craft" },
+    ...extraBooks.map((b) => ({ id: b.id, custom: true })),
+  ];
+  const subs = specs.map((spec) => emptyBook({
+    ...spec,
+    kinds: kindsForBook(spec.id),
   }));
   const all = emptyBook(ASSET_BOOKS[0]);
   let lastWaste = null;
@@ -234,7 +241,7 @@ export function buildPortfolio(state, now = new Date()) {
     }
 
     for (const book of subs) {
-      const h = hoursForKinds(day.blocks, book.kinds, book.id === "custom");
+      const h = hoursForKinds(day.blocks, book.kinds, Boolean(book.custom));
       if (isToday) book.todayH = h;
       const hadPosition = book.totalH > 0 || h > 0;
       let price = book.price;
@@ -345,7 +352,7 @@ export function forecastSeries(book, focusISO) {
 
 function forecastAll(port, focusISO) {
   const focus = focusISO || todayISO();
-  const packs = SUB_IDS.map((id) => forecastSeries(port.books?.[id], focus));
+  const packs = subIdsFrom(port.books).map((id) => forecastSeries(port.books?.[id], focus));
   const past = [];
   for (let i = PAST_DAYS - 1; i >= 0; i--) {
     const iso = addDays(focus, -i);
@@ -418,7 +425,7 @@ function scaleFor(book, port, focusISO) {
   const mine = packFor(book, port, focusISO);
   const myVals = [...mine.past, ...mine.future].map((p) => p.value);
   if (book.id === "all") return { ...mine, ...yRange(myVals) };
-  const pool = SUB_IDS.flatMap((id) => {
+  const pool = subIdsFrom(port.books).flatMap((id) => {
     const pack = packFor(port.books[id], port, focusISO);
     return [...pack.past, ...pack.future].map((p) => p.value);
   });

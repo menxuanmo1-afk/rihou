@@ -203,6 +203,10 @@ button { cursor: pointer; }
   border-color: #f4ede4;
   color: #f4ede4;
 }
+.book-chip.add {
+  border-style: dashed;
+  border-color: rgba(184, 176, 166, 0.4);
+}
 .break-note {
   color: var(--mute);
   font-size: 13px;
@@ -570,6 +574,10 @@ button { cursor: pointer; }
 }
 .mini-card .mini-actions .primary,
 .mini-card .mini-actions .ghost { flex: 1; }
+.mini-card .danger {
+  width: 100%;
+  margin-top: 10px;
+}
 .color-dot {
   width: 28px;
   height: 28px;

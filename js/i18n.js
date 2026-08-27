@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=44";
-import { loadSettings } from "./store.js?v=44";
+import { formatDuration, kindById } from "./models.js?v=45";
+import { loadSettings } from "./store.js?v=45";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -58,7 +58,7 @@ const STR = {
     "gloss.todayInvest": "你今天有多长时间投资在了自己身上？投资自己，长期复利。",
     "gloss.totalInvest": "从你进入这个APP开始，你一共投资了多少时间？",
     "gloss.valuation": "长期投资可能在短期看不到回报，但，别担心，“估值”的使命就是把长期主义可视化，每天保持平稳投入，估值就会稳步增长，增加投入，估值就会快速增长，玩物丧志，估值就会降低。",
-    "gloss.totalValuation": "总估值是学识、健康、创作、自定义四栏估值的总和。",
+    "gloss.totalValuation": "总估值是学识、健康、创作，以及你添加的估值栏的总和。",
     "gloss.price": "现在一小时投入值多少钱。和近两天的投入比（健康看近一周）：今天多出一小时以上会加速；幅度不超过一小时就按原速涨；今天少了，或者刷短视频、游戏太久，现价会跌。已经记下的小时还在，只是变便宜。",
     "book.all": "总览",
     "book.mind": "学识",
@@ -116,8 +116,10 @@ const STR = {
     customBook: "属于哪个估值",
     customOk: "确认",
     customFull: "最多 12 个",
-    customPick: "选择计入的事项",
-    customPickHint: "选中的事情会计入「自定义」估值。再点一次「自定义」也可以改。",
+    customPick: "选择统计的事项",
+    customBookName: "名称",
+    customBookDelete: "删除这一栏",
+    customBookFull: "最多 6 栏",
     logHint: "从上次记录到现在，你都做了什么？骗骗兄弟得了，别把自己也骗了",
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
     notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
@@ -148,7 +150,7 @@ const STR = {
     "gloss.todayInvest": "Hours already logged that day as investment — study, reading, class, fitness, sport, making, social, meals, rest, sleep, shower. The chips above filter which book this counts. Change the date at the top, and both this number and the curve follow.",
     "gloss.totalInvest": "Hours in this book since the first log. That inventory stays even when the market marks it down.",
     "gloss.valuation": "What the market pays for those hours. Value = total hours × price. Beating recent days lifts the price; falling short, or playing too long, marks it down.",
-    "gloss.totalValuation": "Total value is mind, health, craft, and custom added together.",
+    "gloss.totalValuation": "Total value is mind, health, craft, and any books you add.",
     "gloss.price": "What one invested hour is worth right now. It is priced against the last two days (health uses the last week): more than an hour above that average speeds up; within an hour keeps the same pace; below it, or too much scrolling/games, the price falls. Hours already logged stay; they just get cheaper.",
     "book.all": "All",
     "book.mind": "Mind",
@@ -206,8 +208,10 @@ const STR = {
     customBook: "Which valuation",
     customOk: "OK",
     customFull: "Up to 12",
-    customPick: "Choose what counts",
-    customPickHint: "Checked activities add to Custom. Tap Custom again to change.",
+    customPick: "What counts",
+    customBookName: "Name",
+    customBookDelete: "Delete this book",
+    customBookFull: "Up to 6 books",
     logHint: "From the last log to now, what did you actually do? Fine to fool a friend — don't fool yourself.",
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
     notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",

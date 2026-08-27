@@ -20,10 +20,12 @@ import {
   listCustomKinds,
   CUSTOM_MAX,
   CUSTOM_LABEL_MAX,
+  CUSTOM_BOOK_MAX,
   KIND_COLORS,
-  VALUATION_BOOKS,
+  listValuationBooks,
+  listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=44";
+} from "./models.js?v=45";
 import {
   loadDay,
   upsertBlock,
@@ -37,8 +39,8 @@ import {
   loadAllDays,
   loadCustomKinds,
   saveCustomKinds,
-  saveCustomBookKinds,
-} from "./store.js?v=44";
+  saveCustomBooks,
+} from "./store.js?v=45";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -51,8 +53,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=44";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=44";
+} from "./analysis.js?v=45";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=45";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -102,8 +104,14 @@ function currentDay() {
   return state.day;
 }
 
+function bookLabel(id) {
+  if (id === "all" || id === "mind" || id === "body" || id === "craft") return t(`book.${id}`);
+  return listCustomBooks().find((b) => b.id === id)?.label || t("customKind");
+}
+
 function report() {
-  if (state.book === "restore") state.book = "custom";
+  const known = new Set(["all", "mind", "body", "craft", ...listCustomBooks().map((b) => b.id)]);
+  if (!known.has(state.book)) state.book = "all";
   return buildPortfolio({
     days: loadAllDays(),
     settings: loadSettings(),
@@ -413,10 +421,17 @@ function achieveHtml(r) {
   const snap = bookAt(book, state.date);
   const isToday = state.date === todayISO();
   const investLabel = isToday ? t("todayInvest") : t("thatDayInvest");
-  const chips = ASSET_BOOKS.map((item) => {
-    const on = item.id === book.id ? "on" : "";
-    return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${t(`book.${item.id}`)}</button>`;
-  }).join("");
+  const chips = [
+    ...ASSET_BOOKS.map((item) => {
+      const on = item.id === book.id ? "on" : "";
+      return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${bookLabel(item.id)}</button>`;
+    }),
+    ...listCustomBooks().map((item) => {
+      const on = item.id === book.id ? "on" : "";
+      return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${escapeAttr(item.id)}">${escapeAttr(item.label)}</button>`;
+    }),
+    `<button type="button" class="book-chip add" data-act="add-book">${t("customKind")}</button>`,
+  ].join("");
   const evalKey = {
     empty: "evalEmpty",
     waste: "evalWaste",
@@ -451,8 +466,6 @@ function achieveHtml(r) {
       </button>
     </div>
     <div class="book-row">${chips}</div>
-    ${book.id === "custom" ? `<button type="button" class="ghost book-config" data-act="custom-book">${t("customPick")}</button>
-    <p class="muted book-hint">${t("customPickHint")}</p>` : ""}
     ${assetChartHtml(book, r, L, state.date)}
     <p class="eval-line">${t(evalKey, { price })}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
@@ -631,14 +644,14 @@ function onAction(event) {
     render();
   } else if (act === "book") {
     const id = event.currentTarget.dataset.book || "all";
-    if (id === "custom" && state.book === "custom") {
-      openCustomBookSheet();
+    const userBook = listCustomBooks().some((b) => b.id === id);
+    if (userBook && state.book === id) {
+      openCustomBookSheet(id);
       return;
     }
     state.book = id;
     render();
-  } else if (act === "custom-book") {
-    state.book = "custom";
+  } else if (act === "add-book") {
     openCustomBookSheet();
   } else if (act === "gloss") {
     openGloss(event.currentTarget.dataset.gloss || "principal");
@@ -815,9 +828,10 @@ function customKindHtml(form) {
     const on = color === form.color ? "on" : "";
     return `<button type="button" class="color-dot ${on}" data-color="${escapeAttr(color)}" style="background:${escapeAttr(color)}"></button>`;
   }).join("");
-  const books = VALUATION_BOOKS.map((id) => {
-    const on = id === form.book ? "on" : "";
-    return `<button type="button" class="chip-h ${on}" data-val-book="${id}">${t(`book.${id}`)}</button>`;
+  const books = listValuationBooks().map((item) => {
+    const on = item.id === form.book ? "on" : "";
+    const label = item.core ? t(`book.${item.id}`) : item.label;
+    return `<button type="button" class="chip-h ${on}" data-val-book="${escapeAttr(item.id)}">${escapeAttr(label)}</button>`;
   }).join("");
   return `
     <div class="mini-card">
@@ -837,7 +851,7 @@ function customKindHtml(form) {
 }
 
 function openCustomKindSheet({ onDismiss, onCreated }) {
-  const form = { name: "", color: KIND_COLORS[0], book: "custom" };
+  const form = { name: "", color: KIND_COLORS[0], book: "mind" };
   const bind = (root) => {
     const nameEl = root.querySelector("#custom-name");
     nameEl?.focus();
@@ -895,8 +909,8 @@ function openCustomKindSheet({ onDismiss, onCreated }) {
   showSheet(customKindHtml(form), bind, { mini: true, onDismiss });
 }
 
-function customBookHtml(picked, locked) {
-  const chips = customBookCandidates().map((k) => {
+function customBookHtml(form, picked, locked) {
+  const chips = customBookCandidates(form.id).map((k) => {
     const isLocked = locked.has(k.id);
     const on = isLocked || picked.has(k.id) ? "on" : "";
     const swatch = `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`;
@@ -904,38 +918,74 @@ function customBookHtml(picked, locked) {
   }).join("");
   return `
     <div class="mini-card">
-      <h2>${t("book.custom")}</h2>
-      <p class="muted">${t("customPickHint")}</p>
+      <h2>${form.id ? escapeAttr(form.name || t("customKind")) : t("customKind")}</h2>
+      <p class="muted">${t("customBookName")}</p>
+      <input class="field" id="book-name" maxlength="${CUSTOM_LABEL_MAX}" placeholder="${escapeAttr(t("customBookName"))}" value="${escapeAttr(form.name)}" />
+      <p class="muted">${t("customPick")}</p>
       <div class="row" id="custom-book-picks">${chips}</div>
       <div class="mini-actions">
         <button type="button" class="ghost" data-custom-cancel>${t("cancel")}</button>
         <button type="button" class="primary" data-custom-ok>${t("customOk")}</button>
       </div>
+      ${form.id ? `<button type="button" class="danger" data-custom-delete>${t("customBookDelete")}</button>` : ""}
     </div>
   `;
 }
 
-function openCustomBookSheet() {
-  const locked = new Set(listCustomKinds().filter((c) => c.book === "custom").map((c) => c.id));
-  const picked = new Set(loadSettings().customBookKinds || []);
+function openCustomBookSheet(editId) {
+  const existing = editId ? listCustomBooks().find((b) => b.id === editId) : null;
+  const form = { id: existing?.id || "", name: existing?.label || "" };
+  const picked = new Set(existing?.kinds || []);
+  const locked = new Set(listCustomKinds().filter((c) => c.book === form.id).map((c) => c.id));
   const bind = (root) => {
+    const nameEl = root.querySelector("#book-name");
+    nameEl?.focus();
     root.querySelectorAll("[data-pick]").forEach((el) => {
       el.addEventListener("click", () => {
-        const id = el.dataset.pick;
         if (el.hasAttribute("data-locked")) return;
+        const id = el.dataset.pick;
         if (picked.has(id)) picked.delete(id);
         else picked.add(id);
-        showSheet(customBookHtml(picked, locked), bind, { mini: true });
+        el.classList.toggle("on", picked.has(id));
       });
     });
     root.querySelector("[data-custom-cancel]")?.addEventListener("click", closeSheet);
     root.querySelector("[data-custom-ok]")?.addEventListener("click", () => {
-      saveCustomBookKinds([...picked]);
+      const name = (nameEl?.value || "").trim().slice(0, CUSTOM_LABEL_MAX);
+      if (!name) {
+        nameEl?.focus();
+        return;
+      }
+      const reserved = new Set(["总览", "学识", "健康", "创作", "自定义", "All", "Mind", "Health", "Craft", "Custom"]);
+      if (reserved.has(name) || listCustomBooks().some((b) => b.label === name && b.id !== form.id)) {
+        nameEl.focus();
+        return;
+      }
+      const ok = root.querySelector("[data-custom-ok]");
+      if (!form.id && listCustomBooks().length >= CUSTOM_BOOK_MAX) {
+        if (ok) ok.textContent = t("customBookFull");
+        return;
+      }
+      const kinds = [...picked];
+      if (form.id) {
+        saveCustomBooks(listCustomBooks().map((b) => (b.id === form.id ? { ...b, label: name, kinds } : b)));
+        state.book = form.id;
+      } else {
+        const id = `CBK_${uid().replace(/-/g, "").slice(0, 10)}`;
+        saveCustomBooks([...listCustomBooks(), { id, label: name, kinds }]);
+        state.book = id;
+      }
+      closeSheet();
+      render();
+    });
+    root.querySelector("[data-custom-delete]")?.addEventListener("click", () => {
+      saveCustomBooks(listCustomBooks().filter((b) => b.id !== form.id));
+      if (state.book === form.id) state.book = "all";
       closeSheet();
       render();
     });
   };
-  showSheet(customBookHtml(picked, locked), bind, { mini: true });
+  showSheet(customBookHtml(form, picked, locked), bind, { mini: true });
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -1358,5 +1408,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=44").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=45").catch(() => {});
 }
