@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=52";
+} from "./models.js?v=53";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +38,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=52";
+} from "./store.js?v=53";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=52";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=52";
-import { pickEvalLine } from "./lines.js?v=52";
-import { buildAiExport } from "./ai-export.js?v=52";
+} from "./analysis.js?v=53";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=53";
+import { pickEvalLine } from "./lines.js?v=53";
+import { buildAiExport } from "./ai-export.js?v=53";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -306,7 +306,7 @@ function setDraftRange(startMin, endMin) {
   state.planDraft = {
     id: state.planDraft?.id || uid(),
     isPlan: false,
-    kinds: state.planDraft?.kinds || ["STUDY"],
+    kinds: state.planDraft?.kinds || [],
     title: state.planDraft?.title || "",
     startMin: a,
     endMin: b,
@@ -354,15 +354,10 @@ function clearPlanDraft() {
 function openPlanFromDraft() {
   const d = state.planDraft;
   if (!d) return;
-  openEditor({
-    id: d.id,
-    isPlan: false,
-    kinds: [...(d.kinds || ["STUDY"])],
-    kind: (d.kinds || ["STUDY"])[0],
-    title: d.title || "",
-    startMin: d.startMin,
-    endMin: d.endMin,
-  });
+  openRecordSheet(
+    { startMin: d.startMin, endMin: d.endMin },
+    { id: d.id, kinds: [], title: d.title || "" },
+  );
 }
 
 function armSuppressClick() {
@@ -1231,6 +1226,7 @@ function bindRecord(root, draft) {
       kind: draft.kinds[0],
       isPlan: false,
     });
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
     render();
   });
@@ -1499,5 +1495,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=52").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=53").catch(() => {});
 }
