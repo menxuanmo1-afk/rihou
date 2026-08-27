@@ -29,7 +29,31 @@ export const KINDS = [
 const CUSTOM_MAX = 12;
 const CUSTOM_LABEL_MAX = 8;
 
+export const KIND_COLORS = [
+  "#E8A87C", "#7DCEA0", "#E8C07D", "#7EB6D9", "#5BB798",
+  "#C9A7EB", "#E6A4C4", "#8EC5D6", "#E07A5F", "#9AA8B5",
+];
+
+export const VALUATION_BOOKS = ["mind", "body", "craft", "custom"];
+
+export const BOOK_KIND_MAP = {
+  mind: ["STUDY", "READ", "CLASS", "WORK"],
+  body: ["FITNESS", "SPORT"],
+  craft: ["CREATE"],
+};
+
 let customKinds = [];
+
+function bookFromLegacyLike(like) {
+  if (BOOK_KIND_MAP.mind.includes(like)) return "mind";
+  if (BOOK_KIND_MAP.body.includes(like)) return "body";
+  if (BOOK_KIND_MAP.craft.includes(like)) return "craft";
+  return "custom";
+}
+
+function validColor(color) {
+  return KIND_COLORS.includes(color) ? color : KIND_COLORS[0];
+}
 
 export function normalizeCustomKinds(list) {
   if (!Array.isArray(list)) return [];
@@ -40,8 +64,13 @@ export function normalizeCustomKinds(list) {
     const label = String(raw.label || "").trim().slice(0, CUSTOM_LABEL_MAX);
     if (!label || seen.has(label)) continue;
     seen.add(label);
-    const like = KINDS.some((k) => k.id === raw.like && !k.hidden) ? raw.like : "OTHER";
-    out.push({ id: String(raw.id), label, like });
+    const book = VALUATION_BOOKS.includes(raw.book) ? raw.book : bookFromLegacyLike(raw.like);
+    out.push({
+      id: String(raw.id),
+      label,
+      color: validColor(raw.color),
+      book,
+    });
     if (out.length >= CUSTOM_MAX) break;
   }
   return out;
@@ -57,8 +86,41 @@ export function listCustomKinds() {
 }
 
 function customAsKind(c) {
-  const base = KINDS.find((k) => k.id === c.like) || KINDS[KINDS.length - 1];
-  return { ...base, id: c.id, label: c.label, custom: true, like: c.like || "OTHER" };
+  const proto = { mind: "STUDY", body: "FITNESS", craft: "CREATE", custom: "OTHER" }[c.book] || "OTHER";
+  const base = KINDS.find((k) => k.id === proto) || KINDS[KINDS.length - 1];
+  return {
+    ...base,
+    id: c.id,
+    label: c.label,
+    color: c.color || base.color,
+    custom: true,
+    book: c.book || "custom",
+    bucket: "invest",
+    payoff: Payoff.DELAY,
+  };
+}
+
+export function kindsForBook(bookId, extraCustom = []) {
+  if (bookId === "custom") {
+    const auto = customKinds.filter((c) => c.book === "custom").map((c) => c.id);
+    return [...new Set([...auto, ...extraCustom.filter(Boolean)])];
+  }
+  const base = BOOK_KIND_MAP[bookId] || [];
+  const extras = customKinds.filter((c) => c.book === bookId).map((c) => c.id);
+  return [...base, ...extras];
+}
+
+export function customBookCandidates() {
+  const core = new Set([...BOOK_KIND_MAP.mind, ...BOOK_KIND_MAP.body, ...BOOK_KIND_MAP.craft]);
+  const builtins = KINDS.filter((k) => !k.hidden && !core.has(k.id));
+  const customs = customKinds.filter((c) => c.book === "custom").map(customAsKind);
+  return [...builtins, ...customs];
+}
+
+export function normalizeCustomBookKinds(list) {
+  if (!Array.isArray(list)) return [];
+  const allowed = new Set(customBookCandidates().map((k) => k.id));
+  return [...new Set(list.map(String).filter((id) => allowed.has(id)))];
 }
 
 export function pickerKinds(selected = []) {

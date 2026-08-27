@@ -1,4 +1,4 @@
-const VERSION = "v43";
+const VERSION = "v44";
 
 self.addEventListener("install", () => self.skipWaiting());
 self.addEventListener("activate", (event) => {

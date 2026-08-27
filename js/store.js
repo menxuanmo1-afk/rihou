@@ -1,4 +1,4 @@
-import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds } from "./models.js?v=43";
+import { emptyDay, emptyHabits, DEFAULT_HABITS, todayISO, foldExclusive, insertExclusive, setCustomKinds, normalizeCustomBookKinds } from "./models.js?v=44";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -85,7 +85,12 @@ export function loadSettings() {
     lastOffer: "",
     lang: "zh",
     customKinds: [],
+    customBookKinds: [],
     ...saved,
+    customKinds: setCustomKinds(saved.customKinds),
+    customBookKinds: Array.isArray(saved.customBookKinds)
+      ? normalizeCustomBookKinds(saved.customBookKinds)
+      : [],
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
   };
 }
@@ -95,8 +100,16 @@ export function loadCustomKinds() {
 }
 
 export function saveCustomKinds(list) {
+  const prev = loadSettings();
   const next = setCustomKinds(list);
-  saveSettings({ ...loadSettings(), customKinds: next });
+  const customBookKinds = normalizeCustomBookKinds(prev.customBookKinds);
+  saveSettings({ ...prev, customKinds: next, customBookKinds });
+  return next;
+}
+
+export function saveCustomBookKinds(list) {
+  const next = normalizeCustomBookKinds(list);
+  saveSettings({ ...loadSettings(), customBookKinds: next });
   return next;
 }
 

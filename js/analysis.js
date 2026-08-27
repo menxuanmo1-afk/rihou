@@ -1,5 +1,5 @@
-import { kindById, todayISO, addDays, nowMinutes } from "./models.js?v=43";
-import { loadAllDays } from "./store.js?v=43";
+import { kindById, todayISO, addDays, nowMinutes, kindsForBook } from "./models.js?v=44";
+import { loadAllDays } from "./store.js?v=44";
 
 export const PAST_DAYS = 45;
 export const FUTURE_DAYS = 45;
@@ -10,10 +10,10 @@ export const ASSET_BOOKS = [
   { id: "mind", kinds: ["STUDY", "READ", "CLASS", "WORK"] },
   { id: "body", kinds: ["FITNESS", "SPORT"] },
   { id: "craft", kinds: ["CREATE"] },
-  { id: "restore", kinds: ["MEAL", "REST", "SLEEP", "SHOWER", "SOCIAL"] },
+  { id: "custom", kinds: [] },
 ];
 
-const SUB_IDS = ["mind", "body", "craft", "restore"];
+const SUB_IDS = ["mind", "body", "craft", "custom"];
 const P_MIN = 14;
 const P_MAX = 260;
 const FLAT_H = 1;
@@ -35,20 +35,17 @@ function expanded(blocks) {
     if (b.isPlan) continue;
     const ids = Array.isArray(b.kinds) && b.kinds.length ? b.kinds : [b.kind || "OTHER"];
     const share = (Number(b.endMin) - Number(b.startMin)) / Math.max(1, ids.length);
-    for (const id of ids) {
-      const k = kindById(id);
-      rows.push({ kind: k.like || k.id, minutes: share });
-    }
+    for (const id of ids) rows.push({ kind: id, minutes: share });
   }
   return rows;
 }
 
-function hoursForKinds(blocks, kinds) {
+function hoursForKinds(blocks, kinds, anyBucket = false) {
   const rows = expanded(blocks);
   let min = 0;
   for (const row of rows) {
     const k = kindById(row.kind);
-    if (k.bucket !== "invest") continue;
+    if (!anyBucket && k.bucket !== "invest") continue;
     if (!kinds || kinds.includes(row.kind)) min += row.minutes;
   }
   return min / 60;
@@ -212,9 +209,15 @@ export function buildPortfolio(state, now = new Date()) {
     : { days: loadAllDays(), settings: {} };
   const dayTable = payload.days || loadAllDays();
   const lang = payload.settings?.lang || "zh";
+  const customBookKinds = Array.isArray(payload.settings?.customBookKinds)
+    ? payload.settings.customBookKinds
+    : [];
   const earliest = firstInvestISO(dayTable, today);
   const days = walkDays(earliest, today, dayTable);
-  const subs = SUB_IDS.map((id) => emptyBook(ASSET_BOOKS.find((b) => b.id === id)));
+  const subs = SUB_IDS.map((id) => emptyBook({
+    ...ASSET_BOOKS.find((b) => b.id === id),
+    kinds: kindsForBook(id, customBookKinds),
+  }));
   const all = emptyBook(ASSET_BOOKS[0]);
   let lastWaste = null;
   const frac = dayFrac(now);
@@ -231,7 +234,7 @@ export function buildPortfolio(state, now = new Date()) {
     }
 
     for (const book of subs) {
-      const h = hoursForKinds(day.blocks, book.kinds);
+      const h = hoursForKinds(day.blocks, book.kinds, book.id === "custom");
       if (isToday) book.todayH = h;
       const hadPosition = book.totalH > 0 || h > 0;
       let price = book.price;

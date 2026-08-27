@@ -505,7 +505,8 @@ button { cursor: pointer; }
   z-index: 20;
 }
 .sheet-bg.show { display: flex; }
-.sheet-bg.gloss {
+.sheet-bg.gloss,
+.sheet-bg.mini {
   align-items: center;
   justify-content: center;
   padding: 24px;
@@ -551,12 +552,50 @@ button { cursor: pointer; }
   margin-left: 6px;
   opacity: 0.55;
 }
-.custom-box {
-  margin: 4px 0 12px;
-  padding: 8px 0 0;
+.mini-card {
+  background: #1a2128;
+  width: min(100%, 360px);
+  max-height: 78%;
+  overflow: auto;
+  border-radius: 16px;
+  padding: 18px 18px 12px;
 }
-.custom-box .muted { margin: 8px 0 0; }
-.custom-box .btn { margin-top: 10px; }
+.mini-card h2 { margin: 0 0 12px; font-size: 18px; }
+.mini-card .muted { margin: 10px 0 6px; }
+.mini-card .field { margin-bottom: 4px; }
+.mini-card .mini-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.mini-card .mini-actions .primary,
+.mini-card .mini-actions .ghost { flex: 1; }
+.color-dot {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  padding: 0;
+}
+.color-dot.on {
+  border-color: #f4efe8;
+  box-shadow: 0 0 0 2px var(--clay);
+}
+.chip-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: 1px;
+}
+.book-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+}
+.book-config {
+  margin-top: 4px;
+}
 
 .field {
   width: 100%;

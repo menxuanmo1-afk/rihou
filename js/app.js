@@ -19,7 +19,11 @@ import {
   KINDS,
   listCustomKinds,
   CUSTOM_MAX,
-} from "./models.js?v=43";
+  CUSTOM_LABEL_MAX,
+  KIND_COLORS,
+  VALUATION_BOOKS,
+  customBookCandidates,
+} from "./models.js?v=44";
 import {
   loadDay,
   upsertBlock,
@@ -33,7 +37,8 @@ import {
   loadAllDays,
   loadCustomKinds,
   saveCustomKinds,
-} from "./store.js?v=43";
+  saveCustomBookKinds,
+} from "./store.js?v=44";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -46,8 +51,8 @@ import {
   formatRemain,
   remainingMinutes,
   bookEval,
-} from "./analysis.js?v=43";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=43";
+} from "./analysis.js?v=44";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=44";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -98,9 +103,10 @@ function currentDay() {
 }
 
 function report() {
+  if (state.book === "restore") state.book = "custom";
   return buildPortfolio({
     days: loadAllDays(),
-    settings: { lang: lang() },
+    settings: loadSettings(),
   });
 }
 
@@ -445,6 +451,8 @@ function achieveHtml(r) {
       </button>
     </div>
     <div class="book-row">${chips}</div>
+    ${book.id === "custom" ? `<button type="button" class="ghost book-config" data-act="custom-book">${t("customPick")}</button>
+    <p class="muted book-hint">${t("customPickHint")}</p>` : ""}
     ${assetChartHtml(book, r, L, state.date)}
     <p class="eval-line">${t(evalKey, { price })}</p>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
@@ -622,8 +630,16 @@ function onAction(event) {
     state.tab = "achieve";
     render();
   } else if (act === "book") {
-    state.book = event.currentTarget.dataset.book || "all";
+    const id = event.currentTarget.dataset.book || "all";
+    if (id === "custom" && state.book === "custom") {
+      openCustomBookSheet();
+      return;
+    }
+    state.book = id;
     render();
+  } else if (act === "custom-book") {
+    state.book = "custom";
+    openCustomBookSheet();
   } else if (act === "gloss") {
     openGloss(event.currentTarget.dataset.gloss || "principal");
   } else if (act === "settings") {
@@ -748,19 +764,15 @@ function kindRowHtml(draft) {
     const del = k.custom
       ? `<span class="chip-x" data-del-kind="${escapeAttr(k.id)}">×</span>`
       : "";
-    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${escapeAttr(kindLabel(k.id))}${del}</button>`;
+    const swatch = k.custom
+      ? `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`
+      : "";
+    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${swatch}${escapeAttr(kindLabel(k.id))}${del}</button>`;
   }).join("");
   return `${chips}<button type="button" class="chip-h add" data-add-custom>${t("customKind")}</button>`;
 }
 
-function likeRowHtml(likeId) {
-  return KINDS.filter((k) => !k.hidden).map((k) => {
-    const on = k.id === likeId ? "on" : "";
-    return `<button type="button" class="chip-h ${on}" data-like="${k.id}">${kindLabel(k.id)}</button>`;
-  }).join("");
-}
-
-function bindKindRow(root, draft, refresh, keepOne) {
+function bindKindRow(root, draft, refresh, keepOne, reopen) {
   const row = root.querySelector("#kind-row");
   if (!row) return;
   row.querySelectorAll("[data-kind]").forEach((el) => {
@@ -787,75 +799,143 @@ function bindKindRow(root, draft, refresh, keepOne) {
     });
   });
   row.querySelector("[data-add-custom]")?.addEventListener("click", () => {
-    toggleCustomBox(root, draft, refresh);
-  });
-}
-
-function toggleCustomBox(root, draft, refresh) {
-  const existing = root.querySelector("#custom-box");
-  if (existing) {
-    existing.remove();
-    return;
-  }
-  draft._customLike = draft._customLike || "OTHER";
-  const row = root.querySelector("#kind-row");
-  if (!row) return;
-  row.insertAdjacentHTML("afterend", `
-    <div class="custom-box" id="custom-box">
-      <input class="field" id="custom-name" maxlength="8" placeholder="${escapeAttr(t("customName"))}" />
-      <p class="muted">${t("customLike")}</p>
-      <div class="row" id="custom-like">${likeRowHtml(draft._customLike)}</div>
-      <button type="button" class="btn" data-custom-save>${t("customAdd")}</button>
-    </div>`);
-  bindCustomBox(root, draft, refresh);
-  root.querySelector("#custom-name")?.focus();
-}
-
-function bindCustomBox(root, draft, refresh) {
-  const box = root.querySelector("#custom-box");
-  if (!box) return;
-  const likeRow = box.querySelector("#custom-like");
-  likeRow?.querySelectorAll("[data-like]").forEach((el) => {
-    el.addEventListener("click", () => {
-      draft._customLike = el.dataset.like;
-      if (likeRow) likeRow.innerHTML = likeRowHtml(draft._customLike);
-      bindCustomBox(root, draft, refresh);
+    const titleEl = root.querySelector("#title");
+    if (titleEl) draft.title = titleEl.value;
+    openCustomKindSheet({
+      onDismiss: reopen || refresh,
+      onCreated(id) {
+        if (!draft.kinds.includes(id)) draft.kinds.push(id);
+      },
     });
   });
-  const saveBtn = box.querySelector("[data-custom-save]");
-  if (saveBtn && saveBtn.dataset.bound === "1") return;
-  if (saveBtn) saveBtn.dataset.bound = "1";
-  saveBtn?.addEventListener("click", () => {
-    const input = box.querySelector("#custom-name");
-    const name = (input?.value || "").trim().slice(0, 8);
-    if (!name) {
-      input?.focus();
-      return;
-    }
-    const builtin = KINDS.filter((k) => !k.hidden).find((k) => kindLabel(k.id) === name);
-    if (builtin) {
-      if (!draft.kinds.includes(builtin.id)) draft.kinds.push(builtin.id);
-      box.remove();
-      refresh();
-      return;
-    }
-    const hit = listCustomKinds().find((c) => c.label === name);
-    if (hit) {
-      if (!draft.kinds.includes(hit.id)) draft.kinds.push(hit.id);
-      box.remove();
-      refresh();
-      return;
-    }
-    if (listCustomKinds().length >= CUSTOM_MAX) {
-      if (saveBtn) saveBtn.textContent = t("customFull");
-      return;
-    }
-    const id = `CUS_${uid().replace(/-/g, "").slice(0, 10)}`;
-    saveCustomKinds([...listCustomKinds(), { id, label: name, like: draft._customLike || "OTHER" }]);
-    if (!draft.kinds.includes(id)) draft.kinds.push(id);
-    box.remove();
-    refresh();
-  });
+}
+
+function customKindHtml(form) {
+  const colors = KIND_COLORS.map((color) => {
+    const on = color === form.color ? "on" : "";
+    return `<button type="button" class="color-dot ${on}" data-color="${escapeAttr(color)}" style="background:${escapeAttr(color)}"></button>`;
+  }).join("");
+  const books = VALUATION_BOOKS.map((id) => {
+    const on = id === form.book ? "on" : "";
+    return `<button type="button" class="chip-h ${on}" data-val-book="${id}">${t(`book.${id}`)}</button>`;
+  }).join("");
+  return `
+    <div class="mini-card">
+      <h2>${t("customKind")}</h2>
+      <p class="muted">${t("customName")}</p>
+      <input class="field" id="custom-name" maxlength="${CUSTOM_LABEL_MAX}" placeholder="${escapeAttr(t("customName"))}" value="${escapeAttr(form.name)}" />
+      <p class="muted">${t("customColor")}</p>
+      <div class="row" id="custom-colors">${colors}</div>
+      <p class="muted">${t("customBook")}</p>
+      <div class="row" id="custom-books">${books}</div>
+      <div class="mini-actions">
+        <button type="button" class="ghost" data-custom-cancel>${t("cancel")}</button>
+        <button type="button" class="primary" data-custom-ok>${t("customOk")}</button>
+      </div>
+    </div>
+  `;
+}
+
+function openCustomKindSheet({ onDismiss, onCreated }) {
+  const form = { name: "", color: KIND_COLORS[0], book: "custom" };
+  const bind = (root) => {
+    const nameEl = root.querySelector("#custom-name");
+    nameEl?.focus();
+    root.querySelectorAll("[data-color]").forEach((el) => {
+      el.addEventListener("click", () => {
+        form.color = el.dataset.color;
+        root.querySelectorAll("[data-color]").forEach((x) => {
+          x.classList.toggle("on", x.dataset.color === form.color);
+        });
+      });
+    });
+    root.querySelectorAll("[data-val-book]").forEach((el) => {
+      el.addEventListener("click", () => {
+        form.book = el.dataset.valBook;
+        root.querySelectorAll("[data-val-book]").forEach((x) => {
+          x.classList.toggle("on", x.dataset.valBook === form.book);
+        });
+      });
+    });
+    root.querySelector("[data-custom-cancel]")?.addEventListener("click", onDismiss);
+    root.querySelector("[data-custom-ok]")?.addEventListener("click", () => {
+      const name = (nameEl?.value || "").trim().slice(0, CUSTOM_LABEL_MAX);
+      if (!name) {
+        nameEl?.focus();
+        return;
+      }
+      const builtin = KINDS.filter((k) => !k.hidden).find((k) => kindLabel(k.id) === name || k.label === name);
+      if (builtin) {
+        onCreated?.(builtin.id);
+        onDismiss();
+        return;
+      }
+      const hit = listCustomKinds().find((c) => c.label === name);
+      if (hit) {
+        onCreated?.(hit.id);
+        onDismiss();
+        return;
+      }
+      const ok = root.querySelector("[data-custom-ok]");
+      if (listCustomKinds().length >= CUSTOM_MAX) {
+        if (ok) ok.textContent = t("customFull");
+        return;
+      }
+      const id = `CUS_${uid().replace(/-/g, "").slice(0, 10)}`;
+      saveCustomKinds([...listCustomKinds(), {
+        id,
+        label: name,
+        color: form.color,
+        book: form.book,
+      }]);
+      onCreated?.(id);
+      onDismiss();
+    });
+  };
+  showSheet(customKindHtml(form), bind, { mini: true, onDismiss });
+}
+
+function customBookHtml(picked, locked) {
+  const chips = customBookCandidates().map((k) => {
+    const isLocked = locked.has(k.id);
+    const on = isLocked || picked.has(k.id) ? "on" : "";
+    const swatch = `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`;
+    return `<button type="button" class="chip-h ${on}" data-pick="${escapeAttr(k.id)}" ${isLocked ? "data-locked" : ""}>${swatch}${escapeAttr(kindLabel(k.id))}</button>`;
+  }).join("");
+  return `
+    <div class="mini-card">
+      <h2>${t("book.custom")}</h2>
+      <p class="muted">${t("customPickHint")}</p>
+      <div class="row" id="custom-book-picks">${chips}</div>
+      <div class="mini-actions">
+        <button type="button" class="ghost" data-custom-cancel>${t("cancel")}</button>
+        <button type="button" class="primary" data-custom-ok>${t("customOk")}</button>
+      </div>
+    </div>
+  `;
+}
+
+function openCustomBookSheet() {
+  const locked = new Set(listCustomKinds().filter((c) => c.book === "custom").map((c) => c.id));
+  const picked = new Set(loadSettings().customBookKinds || []);
+  const bind = (root) => {
+    root.querySelectorAll("[data-pick]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const id = el.dataset.pick;
+        if (el.hasAttribute("data-locked")) return;
+        if (picked.has(id)) picked.delete(id);
+        else picked.add(id);
+        showSheet(customBookHtml(picked, locked), bind, { mini: true });
+      });
+    });
+    root.querySelector("[data-custom-cancel]")?.addEventListener("click", closeSheet);
+    root.querySelector("[data-custom-ok]")?.addEventListener("click", () => {
+      saveCustomBookKinds([...picked]);
+      closeSheet();
+      render();
+    });
+  };
+  showSheet(customBookHtml(picked, locked), bind, { mini: true });
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -971,13 +1051,14 @@ function bindRecord(root, draft) {
     hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
   };
 
+  const reopen = () => showSheet(recordHtml(draft), (r) => bindRecord(r, draft));
   const refreshKinds = () => {
     const row = root.querySelector("#kind-row");
     if (row) row.innerHTML = kindRowHtml(draft);
-    bindKindRow(root, draft, refreshKinds, false);
+    bindKindRow(root, draft, refreshKinds, false, reopen);
     updateMix();
   };
-  bindKindRow(root, draft, refreshKinds, false);
+  bindKindRow(root, draft, refreshKinds, false, reopen);
 
 
   root.querySelector("[data-save]").addEventListener("click", () => {
@@ -1046,7 +1127,9 @@ function bindEditor(root, draft, isEdit) {
   };
 
   bindTimeFields(root, draft);
-  bindKindRow(root, draft, redraw, true);
+  bindKindRow(root, draft, redraw, true, () => {
+    showSheet(editorHtml(draft, isEdit), (r) => bindEditor(r, draft, isEdit));
+  });
   root.querySelector("[data-save]").addEventListener("click", () => {
     draft.title = root.querySelector("#title").value.trim();
     if (draft.kinds.length === 0) draft.kinds = ["OTHER"];
@@ -1140,12 +1223,15 @@ function openGloss(key) {
   bg.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
 
-function showSheet(html, bind) {
+function showSheet(html, bind, opts = {}) {
   const bg = document.getElementById("sheet-bg");
-  bg.className = "sheet-bg show";
+  bg.className = opts.mini ? "sheet-bg show mini" : "sheet-bg show";
   bg.innerHTML = html;
   bg.onclick = (event) => {
-    if (event.target === bg) closeSheet();
+    if (event.target === bg) {
+      if (typeof opts.onDismiss === "function") opts.onDismiss();
+      else closeSheet();
+    }
   };
   bind(bg);
 }
@@ -1272,5 +1358,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=43").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=44").catch(() => {});
 }
