@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=48";
-import { loadSettings } from "./store.js?v=48";
+import { formatDuration, kindById } from "./models.js?v=49";
+import { loadSettings } from "./store.js?v=49";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -90,6 +90,10 @@ const STR = {
     promptHint: "提醒你补上「上次到现在」。添加到主屏幕后，打开页面才会弹出。",
     export: "导出备份",
     import: "从备份导入",
+    aiAnalysis: "AI分析",
+    aiAnalysisHint: "到 WorkBuddy 里使用「人生记录仪」技能，导入这一周或这一天的数据。AI 会分析你的表现，并给出安排建议。",
+    aiExportWeek: "导出本周数据",
+    aiExportToday: "导出今日数据",
     close: "关闭",
     save: "保存",
     cancel: "取消",
@@ -191,6 +195,10 @@ const STR = {
     promptHint: "Nudge you to fill last → now. Alerts only while the page is open.",
     export: "Export backup",
     import: "Import backup",
+    aiAnalysis: "AI review",
+    aiAnalysisHint: "In WorkBuddy, use the 人生记录仪 skill and import this week or today. It will review how you did and suggest a schedule.",
+    aiExportWeek: "Export this week",
+    aiExportToday: "Export today",
     close: "Close",
     save: "Save",
     cancel: "Cancel",

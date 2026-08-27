@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=48";
+} from "./models.js?v=49";
 import {
   loadDay,
   upsertBlock,
@@ -40,7 +40,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=48";
+} from "./store.js?v=49";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -54,9 +54,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=48";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=48";
-import { pickEvalLine } from "./lines.js?v=48";
+} from "./analysis.js?v=49";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=49";
+import { pickEvalLine } from "./lines.js?v=49";
+import { buildAiExport } from "./ai-export.js?v=49";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -657,6 +658,8 @@ function onAction(event) {
     openGloss(event.currentTarget.dataset.gloss || "principal");
   } else if (act === "settings") {
     openSettingsSheet();
+  } else if (act === "ai-analysis") {
+    openAiAnalysisSheet();
   } else if (act === "export") {
     download("rihou-backup.json", exportAll());
   } else if (act === "import") {
@@ -1333,6 +1336,9 @@ function openSettingsSheet() {
         <input type="checkbox" id="prompt-toggle" ${settings.promptEnabled ? "checked" : ""} />
       </div>
       <div class="row" style="margin-top:16px">
+        <button class="btn" data-act="ai-analysis">${t("aiAnalysis")}</button>
+      </div>
+      <div class="row" style="margin-top:16px">
         <button class="btn" data-act="export">${t("export")}</button>
         <button class="btn" data-act="import">${t("import")}</button>
       </div>
@@ -1358,6 +1364,30 @@ function openSettingsSheet() {
     }
     root.querySelectorAll("[data-act]").forEach((el) => {
       el.addEventListener("click", onAction);
+    });
+    root.querySelector("[data-close]").addEventListener("click", closeSheet);
+  });
+}
+
+function downloadAiExport(range) {
+  const { filename, markdown } = buildAiExport(range);
+  download(filename, markdown);
+}
+
+function openAiAnalysisSheet() {
+  showSheet(`
+    <div class="sheet">
+      <h2>${t("aiAnalysis")}</h2>
+      <p class="muted ai-hint">${t("aiAnalysisHint")}</p>
+      <div class="row" style="margin-top:16px">
+        <button type="button" class="btn" data-ai-range="week">${t("aiExportWeek")}</button>
+        <button type="button" class="btn" data-ai-range="today">${t("aiExportToday")}</button>
+      </div>
+      <button class="ghost" data-close>${t("close")}</button>
+    </div>
+  `, (root) => {
+    root.querySelectorAll("[data-ai-range]").forEach((el) => {
+      el.addEventListener("click", () => downloadAiExport(el.dataset.aiRange));
     });
     root.querySelector("[data-close]").addEventListener("click", closeSheet);
   });
@@ -1413,7 +1443,10 @@ function escapeAttr(value) {
 }
 
 function download(name, text) {
-  const blob = new Blob([text], { type: "application/json" });
+  const mime = String(name).endsWith(".md")
+    ? "text/markdown;charset=utf-8"
+    : "application/json";
+  const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -1524,5 +1557,5 @@ setInterval(tickHour, 15000);
 requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=48").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=49").catch(() => {});
 }

@@ -289,6 +289,10 @@ button { cursor: pointer; }
   line-height: 1.7;
   color: #d4cdc4;
 }
+.ai-hint {
+  margin: 8px 0 0;
+  line-height: 1.65;
+}
 .settings-link {
   width: auto;
   margin: 28px 0 0;
