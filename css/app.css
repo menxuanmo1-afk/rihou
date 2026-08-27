@@ -484,14 +484,6 @@ button { cursor: pointer; }
 .week-dot.mix { background: var(--instant); }
 .week-lab { font-size: 10px; color: var(--mute); }
 
-.switch-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 16px;
-}
-
 .tabs {
   flex-shrink: 0;
   display: flex;

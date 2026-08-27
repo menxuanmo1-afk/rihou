@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=50";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=51";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -61,21 +61,24 @@ export function removeBlock(day, id) {
   return next;
 }
 
+function dropUnusedSettings(obj) {
+  if (!obj || typeof obj !== "object") return {};
+  const { habits: _h, promptEnabled: _p, lastOffer: _o, ...rest } = obj;
+  return rest;
+}
+
 export function loadSettings() {
-  const saved = readJson(SETTINGS, {});
-  const { habits: _habits, ...rest } = saved && typeof saved === "object" ? saved : {};
-  const daily = Number(rest.dailyHours);
-  setCustomBooks(rest.customBooks);
-  setCustomKinds(rest.customKinds);
-  const customBooks = setCustomBooks(rest.customBooks);
-  const customKinds = setCustomKinds(rest.customKinds);
+  const saved = dropUnusedSettings(readJson(SETTINGS, {}));
+  const daily = Number(saved.dailyHours);
+  setCustomBooks(saved.customBooks);
+  setCustomKinds(saved.customKinds);
+  const customBooks = setCustomBooks(saved.customBooks);
+  const customKinds = setCustomKinds(saved.customKinds);
   return {
-    promptEnabled: true,
-    lastOffer: "",
     lang: "zh",
     customKinds: [],
     customBooks: [],
-    ...rest,
+    ...saved,
     customKinds,
     customBooks,
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
@@ -121,8 +124,7 @@ export function earliestDate() {
 }
 
 export function saveSettings(settings) {
-  const { habits: _habits, ...rest } = settings && typeof settings === "object" ? settings : {};
-  writeJson(SETTINGS, rest);
+  writeJson(SETTINGS, dropUnusedSettings(settings));
 }
 
 export function exportAll() {
@@ -147,17 +149,8 @@ export function importAll(raw) {
     writeJson(DAYS, folded);
   }
   if (data.settings) {
-    const { habits: _habits, ...rest } = data.settings;
-    writeJson(SETTINGS, { ...loadSettings(), ...rest });
+    writeJson(SETTINGS, { ...loadSettings(), ...dropUnusedSettings(data.settings) });
   }
-}
-
-export function alreadyOffered(stamp) {
-  return loadSettings().lastOffer === stamp;
-}
-
-export function markOffered(stamp) {
-  saveSettings({ ...loadSettings(), lastOffer: stamp });
 }
 
 export { todayISO };

@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=50";
+} from "./models.js?v=51";
 import {
   loadDay,
   upsertBlock,
@@ -34,13 +34,11 @@ import {
   saveSettings,
   exportAll,
   importAll,
-  alreadyOffered,
-  markOffered,
   loadAllDays,
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=50";
+} from "./store.js?v=51";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -54,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=50";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=50";
-import { pickEvalLine } from "./lines.js?v=50";
-import { buildAiExport } from "./ai-export.js?v=50";
+} from "./analysis.js?v=51";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=51";
+import { pickEvalLine } from "./lines.js?v=51";
+import { buildAiExport } from "./ai-export.js?v=51";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1232,7 +1230,6 @@ function bindRecord(root, draft) {
       kind: draft.kinds[0],
       isPlan: false,
     });
-    markOffered(`${todayISO()}-${draft.startMin}`);
     closeSheet();
     render();
   });
@@ -1315,7 +1312,6 @@ function bindEditor(root, draft, isEdit) {
 }
 
 function openSettingsSheet() {
-  const settings = loadSettings();
   const current = lang();
   showSheet(`
     <div class="sheet">
@@ -1327,13 +1323,6 @@ function openSettingsSheet() {
       </div>
       <div class="row" style="margin-top:16px">
         <button type="button" class="btn" data-manage-custom>${t("manageCustom")}</button>
-      </div>
-      <div class="switch-row">
-        <div>
-          <div>${t("prompt")}</div>
-          <p class="muted" style="margin:4px 0 0">${t("promptHint")}</p>
-        </div>
-        <input type="checkbox" id="prompt-toggle" ${settings.promptEnabled ? "checked" : ""} />
       </div>
       <div class="row" style="margin-top:16px">
         <button class="btn" data-act="ai-analysis">${t("aiAnalysis")}</button>
@@ -1355,13 +1344,6 @@ function openSettingsSheet() {
     root.querySelector("[data-manage-custom]")?.addEventListener("click", () => {
       openManageCustomSheet();
     });
-    const toggle = root.querySelector("#prompt-toggle");
-    if (toggle) {
-      toggle.addEventListener("change", async () => {
-        saveSettings({ ...loadSettings(), promptEnabled: toggle.checked });
-        if (toggle.checked) await requestNotify();
-      });
-    }
     root.querySelectorAll("[data-act]").forEach((el) => {
       el.addEventListener("click", onAction);
     });
@@ -1467,48 +1449,6 @@ function pickFile(onText) {
   input.click();
 }
 
-async function requestNotify() {
-  if (!("Notification" in window)) return;
-  if (Notification.permission === "default") await Notification.requestPermission();
-}
-
-function offerStamp(startMin) {
-  return `${todayISO()}-${startMin}`;
-}
-
-let offeredThisSession = false;
-
-function maybeOfferHour(fromTick = false) {
-  const settings = loadSettings();
-  if (!settings.promptEnabled) return;
-  const now = new Date();
-  const hour = now.getHours();
-  if (hour < 7 || hour > 23) return;
-  if (state.date !== todayISO()) state.date = todayISO();
-  currentDay();
-  const gap = gapFromLastToNow(state.day, now);
-  if (gap.endMin - gap.startMin < 1) return;
-  const stamp = offerStamp(gap.startMin);
-  if (!fromTick && (offeredThisSession || alreadyOffered(stamp))) return;
-  offeredThisSession = true;
-  if (Notification.permission === "granted") {
-    new Notification(t("notifyTitle"), {
-      body: t("notifyBody", { start: minutesToHm(gap.startMin), end: minutesToHm(gap.endMin) }),
-    });
-  }
-  openRecordSheet(gap);
-}
-
-let lastHour = new Date().getHours();
-function tickHour() {
-  const hour = new Date().getHours();
-  if (hour !== lastHour) {
-    lastHour = hour;
-    offeredThisSession = false;
-    maybeOfferHour(true);
-  }
-}
-
 function pinFrame() {
   const app = document.getElementById("app");
   if (!app) return;
@@ -1537,7 +1477,6 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") {
     pinFrame();
     render();
-    maybeOfferHour();
   }
 });
 window.addEventListener("pageshow", () => {
@@ -1552,10 +1491,7 @@ requestAnimationFrame(() => {
   render();
   pinFrame();
 });
-maybeOfferHour();
-setInterval(tickHour, 15000);
-requestNotify();
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=50").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=51").catch(() => {});
 }

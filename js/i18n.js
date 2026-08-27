@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=50";
-import { loadSettings } from "./store.js?v=50";
+import { formatDuration, kindById } from "./models.js?v=51";
+import { loadSettings } from "./store.js?v=51";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -86,8 +86,6 @@ const STR = {
     language: "语言",
     langZh: "中文",
     langEn: "English",
-    prompt: "整点提醒我记一笔",
-    promptHint: "提醒你补上「上次到现在」。添加到主屏幕后，打开页面才会弹出。",
     export: "导出备份",
     import: "从备份导入",
     aiAnalysis: "AI分析",
@@ -135,8 +133,6 @@ const STR = {
     customDeleteConfirm: "确认删除",
     logHint: "从上次记录到现在，你都做了什么？骗骗兄弟得了，别把自己也骗了",
     mixEdit: "多选表示这段里都做过，但记不清分界，时间轴上是渐变。",
-    notifyBody: "{start}–{end}，精确到分钟，不必记满一小时。",
-    notifyTitle: "记一笔：上次到现在",
   },
   en: {
     time: "Time",
@@ -191,8 +187,6 @@ const STR = {
     language: "Language",
     langZh: "中文",
     langEn: "English",
-    prompt: "Hourly reminder to log",
-    promptHint: "Nudge you to fill last → now. Alerts only while the page is open.",
     export: "Export backup",
     import: "Import backup",
     aiAnalysis: "AI review",
@@ -240,8 +234,6 @@ const STR = {
     customDeleteConfirm: "Delete",
     logHint: "From the last log to now, what did you actually do? Fine to fool a friend — don't fool yourself.",
     mixEdit: "Multi-select means you did all of these but forgot the boundary.",
-    notifyBody: "{start}–{end}, to the minute. No need to fill a whole hour.",
-    notifyTitle: "Log: last to now",
   },
 };
 
