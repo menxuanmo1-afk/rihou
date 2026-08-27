@@ -25,7 +25,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=53";
+} from "./models.js?v=54";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +38,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=53";
+} from "./store.js?v=54";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +52,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=53";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=53";
-import { pickEvalLine } from "./lines.js?v=53";
-import { buildAiExport } from "./ai-export.js?v=53";
+} from "./analysis.js?v=54";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=54";
+import { pickEvalLine } from "./lines.js?v=54";
+import { buildAiExport } from "./ai-export.js?v=54";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1352,7 +1352,8 @@ function downloadAiExport(range) {
 
 function openAiAnalysisSheet() {
   const hint = t("aiAnalysisHint")
-    .split(/\n\n+/)
+    .split(/\n+/)
+    .filter(Boolean)
     .map((p) => `<p>${escapeHtml(p)}</p>`)
     .join("");
   const bg = document.getElementById("sheet-bg");
@@ -1495,5 +1496,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=53").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=54").catch(() => {});
 }
