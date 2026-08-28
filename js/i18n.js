@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=56";
-import { loadSettings } from "./store.js?v=56";
+import { formatDuration, kindById } from "./models.js?v=57";
+import { loadSettings } from "./store.js?v=57";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -89,7 +89,7 @@ const STR = {
     export: "导出备份",
     import: "从备份导入",
     aiAnalysis: "AI分析",
-    aiAnalysisHint: "想要用 AI 系统性地分析你的投入？试试「AI分析」功能！\n选择「导出本周数据」或「导出今日数据」，然后把文件发给 WorkBuddy，它会自动下载 skill，并帮你做出更全面的分析，包括这几天时间都花在哪、哪天加仓或偷懒、有没有过猛或玩太久，以及接下来几天上午、下午、晚上分别该干什么。",
+    aiAnalysisHint: "想要用 AI 系统性地分析你的投入？试试「AI分析」功能！\n选择「导出本周数据」或「导出今日数据」，然后把文件发给 WorkBuddy、Cursor、Codex，或别的 AI。装了 skill 的会按同一套口径复盘；网页版把 SKILL.md 一起丢进去即可。分析包括这几天时间都花在哪、哪天加仓或偷懒、有没有过猛或玩太久，以及接下来几天上午、下午、晚上分别该干什么。",
     aiExportWeek: "导出本周数据",
     aiExportToday: "导出今日数据",
     close: "关闭",
@@ -190,7 +190,7 @@ const STR = {
     export: "Export backup",
     import: "Import backup",
     aiAnalysis: "AI review",
-    aiAnalysisHint: "Want a systematic AI read of where your time went? Try AI review.\nPick Export this week or Export today, send the file to WorkBuddy, and it will fetch the skill and give you a fuller review: where the hours actually went, which days you added load or slacked, whether you overdid it or played too long, and a morning / afternoon / evening plan for the next few days.",
+    aiAnalysisHint: "Want a systematic AI read of where your time went? Try AI review.\nPick Export this week or Export today, then send the file to WorkBuddy, Cursor, Codex, or another AI. Assistants with the skill will review the same way; on a web chat, attach SKILL.md with the file. The review covers where the hours went, which days you added load or slacked, whether you overdid it or played too long, and a morning / afternoon / evening plan for the next few days.",
     aiExportWeek: "Export this week",
     aiExportToday: "Export today",
     close: "Close",

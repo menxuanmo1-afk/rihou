@@ -12,11 +12,17 @@ description: >-
 
 ## 先做什么
 
-1. 读文件开头的「给 WorkBuddy 的指令」。确认范围是 **今日** 还是 **本周（周一至今天）**。
+1. 读文件开头的「给 AI 的指令」。确认范围是 **今日** 还是 **本周（周一至今天）**。
 2. 以「逐日时间轴」为主阅读；用文末 JSON 核对分钟。两者冲突时以 JSON 的 `summary.*.Min` 和 `days[].blocks` 为准。
-3. 没有文件时，请用户到人生记录仪「设置 → AI分析」导出本周或今日，再拖进对话。不要编造记录。
+3. 没有文件时，请用户到人生记录仪点「AI分析」导出本周或今日，再拖进对话。不要编造记录。
 
-未安装本 skill 时，把仓库里的 `skill/rihou-review/` 拷到 `~/.workbuddy/skills/rihou-review/`。
+未安装本 skill 时，把仓库里的 `skill/rihou-review/` 拷到该助手的 skills 目录：
+
+- WorkBuddy：`~/.workbuddy/skills/rihou-review/`
+- Cursor：`~/.cursor/skills/rihou-review/`
+- Codex：`~/.codex/skills/rihou-review/`
+
+没有 skills 目录的网页 AI（ChatGPT、Claude 网页版等），把 `SKILL.md` 和导出文件一起发给它即可。
 
 ## 字段怎么理解
 

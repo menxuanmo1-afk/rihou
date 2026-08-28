@@ -8,8 +8,8 @@ import {
   kindsForBook,
   listCustomBooks,
   CORE_BOOKS,
-} from "./models.js?v=56";
-import { loadAllDays, loadSettings } from "./store.js?v=56";
+} from "./models.js?v=57";
+import { loadAllDays, loadSettings } from "./store.js?v=57";
 
 const BOOK_LABEL = {
   mind: "学识",
@@ -178,12 +178,12 @@ export function buildAiExport(range) {
   };
 
   const markdown = `<!-- rihou-export v1 -->
-# 给 WorkBuddy 的指令
+# 给 AI 的指令
 
 请使用技能「人生记录仪」（内部名 \`rihou-review\`）分析下面的数据。
 
-- 已安装该 skill：直接按它执行，不要改用其他复盘框架。
-- 未安装：把人生记录仪仓库里的 \`skill/rihou-review/\` 复制到 \`~/.workbuddy/skills/rihou-review/\`，装好后再分析。
+- 已安装该 skill（WorkBuddy / Cursor / Codex 等）：直接按它执行，不要改用其他复盘框架。
+- 未安装：把仓库里的 \`skill/rihou-review/\` 拷到该助手的 skills 目录；网页版 AI 把 \`SKILL.md\` 和本文件一起发给它。
 
 范围：${rangeLabel}
 导出时间：${exportedAt}
@@ -205,8 +205,6 @@ ${bookSummary}
 ${kindSummary}
 
 ## 逐日时间轴
-
-计划块标了「计划」，不算进上面的投资 / 消费统计。
 
 ${timeline.join("\n\n")}
 
