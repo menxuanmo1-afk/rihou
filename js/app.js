@@ -26,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=71";
+} from "./models.js?v=72";
 import {
   loadDay,
   upsertBlock,
@@ -39,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=71";
+} from "./store.js?v=72";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,11 +53,11 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=71";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=71";
-import { pickEvalLine } from "./lines.js?v=71";
-import { buildAiExport } from "./ai-export.js?v=71";
-import { applyTheme, ACCENTS } from "./theme.js?v=71";
+} from "./analysis.js?v=72";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=72";
+import { pickEvalLine } from "./lines.js?v=72";
+import { buildAiExport } from "./ai-export.js?v=72";
+import { applyTheme, ACCENTS } from "./theme.js?v=72";
 
 applyTheme(loadSettings());
 
@@ -1515,9 +1515,6 @@ function bindEditor(root, draft, isEdit) {
 
 function paintThemeControls(root) {
   const current = loadSettings();
-  root.querySelectorAll("[data-appearance]").forEach((el) => {
-    el.classList.toggle("on", el.dataset.appearance === current.appearance);
-  });
   root.querySelectorAll("[data-accent]").forEach((el) => {
     el.classList.toggle("on", el.dataset.accent === current.accent);
   });
@@ -1533,15 +1530,6 @@ function openThemeSheet() {
   showSheet(`
     <div class="sheet">
       <h2>${t("theme")}</h2>
-      <div class="section">${t("appearance")}</div>
-      <div class="row">
-        <button type="button" class="chip-h appear" data-appearance="dark">
-          <span class="appear-mark moon" aria-hidden="true"></span>${t("darkMode")}
-        </button>
-        <button type="button" class="chip-h appear" data-appearance="light">
-          <span class="appear-mark sun" aria-hidden="true"></span>${t("lightMode")}
-        </button>
-      </div>
       <div class="section">${t("accent")}</div>
       <div class="accent-row">
         ${accentButtons}
@@ -1550,13 +1538,6 @@ function openThemeSheet() {
     </div>
   `, (root) => {
     paintThemeControls(root);
-    root.querySelectorAll("[data-appearance]").forEach((el) => {
-      el.addEventListener("click", () => {
-        saveSettings({ ...loadSettings(), appearance: el.dataset.appearance });
-        applyTheme(loadSettings());
-        paintThemeControls(root);
-      });
-    });
     root.querySelectorAll("[data-accent]").forEach((el) => {
       el.addEventListener("click", () => {
         saveSettings({ ...loadSettings(), accent: el.dataset.accent });
@@ -1937,5 +1918,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=71").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=72").catch(() => {});
 }

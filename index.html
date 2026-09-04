@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN" data-theme="dark" data-accent="gold">
+<html lang="zh-CN" data-accent="gold">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
@@ -13,28 +13,19 @@
       (function () {
         try {
           var s = JSON.parse(localStorage.getItem("rihou.settings.v1") || "{}");
-          var t = s.appearance === "light" ? "light" : "dark";
-          document.documentElement.dataset.theme = t;
-          document.documentElement.style.colorScheme = t;
           if (s.accent) document.documentElement.dataset.accent = s.accent;
-          if (t === "light") {
-            var m = document.querySelector('meta[name="theme-color"]');
-            if (m) m.setAttribute("content", "#F4EDE4");
-            var b = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-            if (b) b.setAttribute("content", "default");
-          }
         } catch (e) {}
       })();
     </script>
     <link rel="manifest" href="./manifest.webmanifest" />
-    <link rel="icon" href="./icon-192.png?v=71" />
-    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=71" />
-    <link rel="stylesheet" href="./css/app.css?v=71" />
+    <link rel="icon" href="./icon-192.png?v=72" />
+    <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=72" />
+    <link rel="stylesheet" href="./css/app.css?v=72" />
   </head>
   <body>
     <div class="app" id="app"></div>
     <div class="sheet-bg" id="sheet-bg"></div>
-    <script type="module" src="./js/app.js?v=71"></script>
+    <script type="module" src="./js/app.js?v=72"></script>
     <script data-goatcounter="https://rihou.goatcounter.com/count"
             async src="https://gc.zgo.at/count.js"></script>
   </body>

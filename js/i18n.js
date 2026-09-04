@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=71";
-import { loadSettings } from "./store.js?v=71";
+import { formatDuration, kindById } from "./models.js?v=72";
+import { loadSettings } from "./store.js?v=72";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -84,9 +84,6 @@ const STR = {
     emptyChart: "还没有投资记录。记下一笔，曲线就会从这里长出来。",
     settings: "设置",
     theme: "修改主题",
-    appearance: "外观",
-    darkMode: "深色",
-    lightMode: "浅色",
     accent: "强调色",
     accentGold: "琥珀",
     accentBlue: "亮蓝",
@@ -198,9 +195,6 @@ const STR = {
     emptyChart: "No investment yet. Log one, and the curve will grow from here.",
     settings: "Settings",
     theme: "Theme",
-    appearance: "Appearance",
-    darkMode: "Dark",
-    lightMode: "Light",
     accent: "Accent",
     accentGold: "Amber",
     accentBlue: "Blue",

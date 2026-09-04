@@ -15,18 +15,6 @@
 }
 
 html { color-scheme: dark; }
-html[data-theme="light"] {
-  color-scheme: light;
-  --ink: #f4ede4;
-  --paper: #1a2128;
-  --moss: #2f8f68;
-  --mute: #7a736c;
-  --surface: #fffcf8;
-  --chip: #ece6dc;
-  --tabs: #ebe4da;
-  --field: #ffffff;
-  --field-border: #d4ccc0;
-}
 html[data-accent="gold"] { --clay: #e8a87c; }
 html[data-accent="blue"] { --clay: #5b9dff; }
 html[data-accent="red"] { --clay: #c44545; }
@@ -818,24 +806,6 @@ button { cursor: pointer; }
 
 .block.mix { border: 0; }
 
-.chip-h.appear {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-.appear-mark {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-.appear-mark.moon {
-  background: currentColor;
-  box-shadow: inset -3.5px 0 0 0 var(--chip);
-}
-.appear-mark.sun {
-  background: currentColor;
-}
 .accent-row {
   display: flex;
   flex-wrap: wrap;
