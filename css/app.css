@@ -2,14 +2,37 @@
   --ink: #0f1419;
   --paper: #f4ede4;
   --clay: #e8a87c;
+  --on-accent: #0f1419;
   --moss: #7dcea0;
   --mute: #b8b0a6;
   --surface: #1a2128;
+  --chip: #151b21;
+  --tabs: #12181e;
+  --field: #151b21;
+  --field-border: #2a333c;
   --instant: #e07a5f;
   --care: #e8c9a0;
 }
 
 html { color-scheme: dark; }
+html[data-theme="light"] {
+  color-scheme: light;
+  --ink: #f4ede4;
+  --paper: #1a2128;
+  --moss: #2f8f68;
+  --mute: #7a736c;
+  --surface: #fffcf8;
+  --chip: #ece6dc;
+  --tabs: #ebe4da;
+  --field: #ffffff;
+  --field-border: #d4ccc0;
+}
+html[data-accent="gold"] { --clay: #e8a87c; }
+html[data-accent="blue"] { --clay: #5b9dff; }
+html[data-accent="red"] { --clay: #c44545; }
+html[data-accent="teal"] { --clay: #2ec4b6; }
+html[data-accent="orange"] { --clay: #f08a4b; }
+html[data-accent="violet"] { --clay: #b794f6; }
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -72,7 +95,7 @@ button { cursor: pointer; }
 }
 .btn.log-now {
   background: var(--clay);
-  color: var(--ink);
+  color: var(--on-accent);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -115,7 +138,7 @@ button { cursor: pointer; }
   background: rgba(184, 176, 166, 0.14);
   margin: 10px 0 8px;
 }
-.split-bar .invest { background: #f4ede4; }
+.split-bar .invest { background: var(--paper); }
 .split-bar .consume { background: #6a645c; }
 .split-bar .rest { background: rgba(184, 176, 166, 0.16); }
 .split-legend {
@@ -205,8 +228,8 @@ button { cursor: pointer; }
   font-size: 13px;
 }
 .book-chip.on {
-  border-color: #f4ede4;
-  color: #f4ede4;
+  border-color: var(--paper);
+  color: var(--paper);
 }
 .book-chip.add {
   border-style: dashed;
@@ -261,8 +284,8 @@ button { cursor: pointer; }
 .chart-grid { stroke: rgba(184, 176, 166, 0.12); stroke-width: 1; }
 .chart-axis { stroke: rgba(184, 176, 166, 0.22); stroke-width: 1; }
 .chart-today { stroke: rgba(184, 176, 166, 0.5); stroke-width: 1; stroke-dasharray: 2 3; }
-.chart-past { fill: none; stroke: #f4ede4; stroke-width: 1.7; }
-.chart-future { fill: none; stroke: #f4ede4; stroke-width: 1.25; stroke-dasharray: 4 5; }
+.chart-past { fill: none; stroke: var(--paper); stroke-width: 1.7; }
+.chart-future { fill: none; stroke: var(--paper); stroke-width: 1.25; stroke-dasharray: 4 5; }
 .chart-future.low { opacity: 0.22; }
 .chart-future.mid { opacity: 0.72; }
 .chart-future.high { opacity: 0.88; }
@@ -270,7 +293,7 @@ button { cursor: pointer; }
   position: relative;
   height: 16px;
   margin-top: 4px;
-  color: #b8b0a6;
+  color: var(--mute);
   font-size: 11px;
   line-height: 1;
 }
@@ -282,12 +305,12 @@ button { cursor: pointer; }
 .chart-xlab .start { left: 0; }
 .chart-xlab .mid { transform: translateX(-50%); }
 .chart-xlab .end { right: 0; }
-.chart-dot { fill: #f4ede4; }
+.chart-dot { fill: var(--paper); }
 .eval-line {
   margin: 14px 0 0;
   font-size: 14px;
   line-height: 1.7;
-  color: #d4cdc4;
+  color: var(--mute);
 }
 .settings-link {
   width: auto;
@@ -356,7 +379,7 @@ button { cursor: pointer; }
 .block.actual.edge-edit {
   overflow: visible;
   z-index: 7;
-  outline: 1.5px dashed #f4ede4;
+  outline: 1.5px dashed var(--paper);
   outline-offset: 1px;
   touch-action: none;
 }
@@ -379,7 +402,7 @@ button { cursor: pointer; }
   width: 40px;
   height: 4px;
   border-radius: 2px;
-  background: #f4ede4;
+  background: var(--paper);
   box-shadow: 0 0 0 3px rgba(26, 33, 40, 0.55);
 }
 .block .when { opacity: 0.8; font-size: 11px; margin-top: 2px; }
@@ -389,8 +412,8 @@ button { cursor: pointer; }
   left: 70px;
   right: 12px;
   z-index: 6;
-  border: 1.5px dashed rgba(232, 168, 124, 0.9);
-  background: rgba(232, 168, 124, 0.16);
+  border: 1.5px dashed color-mix(in srgb, var(--clay) 90%, transparent);
+  background: color-mix(in srgb, var(--clay) 16%, transparent);
   border-radius: 10px;
   color: var(--clay);
   overflow: visible;
@@ -489,7 +512,7 @@ button { cursor: pointer; }
 
 .chip-col { display: flex; flex-direction: column; gap: 8px; }
 .chip {
-  background: #151b21;
+  background: var(--chip);
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 10px 12px;
@@ -499,7 +522,7 @@ button { cursor: pointer; }
 .chip.on { border-color: var(--moss); color: var(--moss); }
 
 .card {
-  background: #151b21;
+  background: var(--chip);
   border-radius: 14px;
   padding: 12px;
   margin: 8px 0;
@@ -512,7 +535,7 @@ button { cursor: pointer; }
 .week-dot {
   height: 28px;
   border-radius: 8px;
-  background: #151b21;
+  background: var(--chip);
   margin-bottom: 4px;
 }
 .week-dot.on { background: var(--moss); }
@@ -522,7 +545,7 @@ button { cursor: pointer; }
 .tabs {
   flex-shrink: 0;
   display: flex;
-  background: #12181e;
+  background: var(--tabs);
   border-top: 1px solid rgba(184, 176, 166, 0.12);
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -601,7 +624,7 @@ button { cursor: pointer; }
   }
 }
 .gloss-card {
-  background: #1a2128;
+  background: var(--surface);
   width: min(100%, 340px);
   max-height: 82%;
   overflow: auto;
@@ -626,7 +649,7 @@ button { cursor: pointer; }
   text-align: center;
 }
 .sheet {
-  background: #1a2128;
+  background: var(--surface);
   width: 100%;
   max-height: 88%;
   overflow: auto;
@@ -637,7 +660,7 @@ button { cursor: pointer; }
 
 .row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
 .chip-h {
-  background: #151b21;
+  background: var(--chip);
   border: 1px solid transparent;
   border-radius: 20px;
   padding: 8px 12px;
@@ -652,7 +675,7 @@ button { cursor: pointer; }
   opacity: 0.55;
 }
 .mini-card {
-  background: #1a2128;
+  background: var(--surface);
   width: min(100%, 360px);
   max-height: 78%;
   overflow: auto;
@@ -681,7 +704,7 @@ button { cursor: pointer; }
   padding: 0;
 }
 .color-dot.on {
-  border-color: #f4efe8;
+  border-color: var(--paper);
   box-shadow: 0 0 0 2px var(--clay);
 }
 .chip-dot {
@@ -702,8 +725,8 @@ button { cursor: pointer; }
 
 .field {
   width: 100%;
-  background: #151b21;
-  border: 1px solid #2a333c;
+  background: var(--field);
+  border: 1px solid var(--field-border);
   border-radius: 12px;
   padding: 10px 12px;
   outline: none;
@@ -716,7 +739,7 @@ button { cursor: pointer; }
   padding: 12px;
   margin-top: 8px;
 }
-.primary { background: var(--clay); color: var(--ink); font-weight: 600; }
+.primary { background: var(--clay); color: var(--on-accent); font-weight: 600; }
 .ghost { background: transparent; color: var(--mute); }
 .ghost.settings-link {
   width: auto;
@@ -778,8 +801,8 @@ button { cursor: pointer; }
   flex-wrap: wrap;
 }
 .time-controls input[type="time"] {
-  background: #151b21;
-  border: 1px solid #2a333c;
+  background: var(--field);
+  border: 1px solid var(--field-border);
   border-radius: 12px;
   padding: 10px 8px;
   color: var(--paper);
@@ -794,6 +817,54 @@ button { cursor: pointer; }
 }
 
 .block.mix { border: 0; }
+
+.chip-h.appear {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.appear-mark {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.appear-mark.moon {
+  background: currentColor;
+  box-shadow: inset -3.5px 0 0 0 var(--chip);
+}
+.appear-mark.sun {
+  background: currentColor;
+}
+.accent-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 14px;
+  margin: 8px 0 4px;
+}
+.accent-pick {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 0;
+  padding: 4px 2px;
+  color: var(--mute);
+  font-size: 11px;
+  min-width: 44px;
+}
+.accent-pick.on {
+  color: var(--paper);
+}
+.accent-pick.on .color-dot {
+  border-color: var(--paper);
+  box-shadow: 0 0 0 2px var(--clay);
+}
+.accent-pick .color-dot {
+  width: 32px;
+  height: 32px;
+}
 
 .hidden { display: none !important; }
 
