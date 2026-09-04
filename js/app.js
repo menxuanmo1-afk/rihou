@@ -26,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=68";
+} from "./models.js?v=69";
 import {
   loadDay,
   upsertBlock,
@@ -39,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=68";
+} from "./store.js?v=69";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,10 +53,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=68";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=68";
-import { pickEvalLine } from "./lines.js?v=68";
-import { buildAiExport } from "./ai-export.js?v=68";
+} from "./analysis.js?v=69";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=69";
+import { pickEvalLine } from "./lines.js?v=69";
+import { buildAiExport } from "./ai-export.js?v=69";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -293,7 +293,7 @@ function planDraftHtml() {
   const d = state.planDraft;
   if (!d) return "";
   const { top, h } = blockGeom(d.startMin, d.endMin);
-  return `<div class="plan-draft${h < 44 ? " tight" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
+  return `<div class="plan-draft${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
     <div class="handle top" data-handle="start"></div>
     <div class="draft-body">
       <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
@@ -363,6 +363,7 @@ function paintDraft() {
   el.style.top = `${top}px`;
   el.style.height = `${h}px`;
   el.classList.toggle("tight", h < 44);
+  el.classList.toggle("tiny", h < 20);
   const when = el.querySelector(".when");
   if (when) when.textContent = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
 }
@@ -1871,5 +1872,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=68").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=69").catch(() => {});
 }

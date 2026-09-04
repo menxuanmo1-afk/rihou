@@ -399,12 +399,22 @@ button { cursor: pointer; }
   user-select: none;
 }
 .plan-draft .draft-body {
-  padding: 10px 28px 10px 8px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px 28px 2px 8px;
+  box-sizing: border-box;
   pointer-events: none;
+}
+.plan-draft .when {
+  font-size: 11px;
+  line-height: 1.2;
+  white-space: nowrap;
 }
 .plan-draft .draft-title { font-size: 13px; font-weight: 600; }
 .plan-draft .draft-hint { font-size: 11px; opacity: 0.75; margin-top: 2px; }
 .plan-draft.tight .draft-hint { display: none; }
+.plan-draft.tiny .when { display: none; }
 .plan-draft .handle {
   position: absolute;
   left: 0;
