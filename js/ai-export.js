@@ -8,8 +8,8 @@ import {
   kindsForBook,
   listCustomBooks,
   CORE_BOOKS,
-} from "./models.js?v=69";
-import { loadAllDays, loadSettings } from "./store.js?v=69";
+} from "./models.js?v=70";
+import { loadAllDays, loadSettings } from "./store.js?v=70";
 
 const REVIEW_SCIENCE = `作息规律（只用来判断，禁止在给用户的正文里写 A/B/C、「对应 C」、「因为 A」这类编号；必须把道理写成人话，例如「午饭后刷视频，刚吃完血糖升高，再刷会让多巴胺阈值飙升，下午注意力直接废掉」）：
 
@@ -65,7 +65,7 @@ ${REVIEW_SCIENCE}`;
 
 const REVIEW_WEEK = `${REVIEW_SHARED}
 
-这是**本周**（周一至今天）。只准三个大标题，最后加一段鼓励。
+这是**范围里的那一周**（从范围标注的周一到结束日，不一定是日历上的本周）。只准三个大标题，最后加一段鼓励。
 
 ### 1. 实际发生了什么
 开头最多四行数字：投资/消费/其余；各栏小时；睡眠合计（若有）。再写**一句**总述。然后必须用 Markdown 表格逐日扫，不要再写洞察或长评：
@@ -87,7 +87,7 @@ const REVIEW_WEEK = `${REVIEW_SHARED}
 
 const REVIEW_TODAY = `${REVIEW_SHARED}
 
-这是**今日**。只看这一天。一周总量标准（投资 ≥ 消费 3 倍、健康栏一周 <2 小时、一周运动次数）不要拿来硬判今天；睡眠、吃饭、消费时机、深度块仍按当天检查。只准三个大标题，最后加一段鼓励。
+这是**范围里的那一天**（不一定是日历上的今天）。只看这一天。一周总量标准（投资 ≥ 消费 3 倍、健康栏一周 <2 小时、一周运动次数）不要拿来硬判这一天；睡眠、吃饭、消费时机、深度块仍按当天检查。只准三个大标题，最后加一段鼓励。
 
 ### 1. 实际发生了什么
 开头最多三行数字：投资/消费/其余；有的栏；睡眠（若有）。再写**一句**总述。然后必须用 Markdown 表格，不要洞察、不要按时段写成散文：
@@ -213,11 +213,11 @@ function bookList() {
   ];
 }
 
-export function buildAiExport(range) {
+export function buildAiExport(range, focusISO) {
   loadSettings();
-  const today = todayISO();
-  const start = range === "week" ? mondayOf(today) : today;
-  const end = today;
+  const focus = focusISO || todayISO();
+  const start = range === "week" ? mondayOf(focus) : focus;
+  const end = focus;
   const all = loadAllDays();
   const isos = datesIn(start, end);
   const days = {};
@@ -247,9 +247,9 @@ export function buildAiExport(range) {
     minutes: Math.round(bookMinutes(actualRows, book.id)),
   }));
   const byKind = kindMinutes(actualRows);
-  const rangeLabel = range === "week" ? `本周（${start} 周一至 ${end}）` : `今日（${today}）`;
+  const rangeLabel = range === "week" ? `本周（${start} 周一至 ${end}）` : `当日（${end}）`;
   const exportedAt = new Date().toISOString();
-  const filename = range === "week" ? `rihou-week-${start}.md` : `rihou-today-${today}.md`;
+  const filename = range === "week" ? `rihou-week-${start}.md` : `rihou-today-${end}.md`;
 
   const bookSummary = books
     .map((b) => `- ${b.label}：${hoursText(b.minutes)}`)
