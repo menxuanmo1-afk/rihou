@@ -26,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=72";
+} from "./models.js?v=73";
 import {
   loadDay,
   upsertBlock,
@@ -39,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=72";
+} from "./store.js?v=73";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,13 +53,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=72";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=72";
-import { pickEvalLine } from "./lines.js?v=72";
-import { buildAiExport } from "./ai-export.js?v=72";
-import { applyTheme, ACCENTS } from "./theme.js?v=72";
-
-applyTheme(loadSettings());
+} from "./analysis.js?v=73";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=73";
+import { pickEvalLine } from "./lines.js?v=73";
+import { buildAiExport } from "./ai-export.js?v=73";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -852,7 +849,6 @@ function onAction(event) {
   } else if (act === "import") {
     pickFile((text) => {
       importAll(text);
-      applyTheme(loadSettings());
       render();
     });
   }
@@ -1513,42 +1509,6 @@ function bindEditor(root, draft, isEdit) {
   root.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
 
-function paintThemeControls(root) {
-  const current = loadSettings();
-  root.querySelectorAll("[data-accent]").forEach((el) => {
-    el.classList.toggle("on", el.dataset.accent === current.accent);
-  });
-}
-
-function openThemeSheet() {
-  const accentButtons = ACCENTS.map((item) => `
-    <button type="button" class="accent-pick" data-accent="${item.id}" aria-label="${t(item.labelKey)}">
-      <span class="color-dot" style="background:${item.color}"></span>
-      <span>${t(item.labelKey)}</span>
-    </button>
-  `).join("");
-  showSheet(`
-    <div class="sheet">
-      <h2>${t("theme")}</h2>
-      <div class="section">${t("accent")}</div>
-      <div class="accent-row">
-        ${accentButtons}
-      </div>
-      <button class="ghost" data-back>${t("manageBack")}</button>
-    </div>
-  `, (root) => {
-    paintThemeControls(root);
-    root.querySelectorAll("[data-accent]").forEach((el) => {
-      el.addEventListener("click", () => {
-        saveSettings({ ...loadSettings(), accent: el.dataset.accent });
-        applyTheme(loadSettings());
-        paintThemeControls(root);
-      });
-    });
-    root.querySelector("[data-back]")?.addEventListener("click", () => openSettingsSheet());
-  });
-}
-
 function openSettingsSheet() {
   const current = lang();
   showSheet(`
@@ -1558,9 +1518,6 @@ function openSettingsSheet() {
       <div class="row">
         <button type="button" class="chip-h ${current === "zh" ? "on" : ""}" data-lang="zh">${t("langZh")}</button>
         <button type="button" class="chip-h ${current === "en" ? "on" : ""}" data-lang="en">${t("langEn")}</button>
-      </div>
-      <div class="row" style="margin-top:16px">
-        <button type="button" class="btn" data-theme>${t("theme")}</button>
       </div>
       <div class="row" style="margin-top:16px">
         <button type="button" class="btn" data-manage-custom>${t("manageCustom")}</button>
@@ -1578,9 +1535,6 @@ function openSettingsSheet() {
         closeSheet();
         render();
       });
-    });
-    root.querySelector("[data-theme]")?.addEventListener("click", () => {
-      openThemeSheet();
     });
     root.querySelector("[data-manage-custom]")?.addEventListener("click", () => {
       openManageCustomSheet();
@@ -1918,5 +1872,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=72").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=73").catch(() => {});
 }

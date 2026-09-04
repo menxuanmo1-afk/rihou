@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=72";
-import { loadSettings } from "./store.js?v=72";
+import { formatDuration, kindById } from "./models.js?v=73";
+import { loadSettings } from "./store.js?v=73";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -83,14 +83,6 @@ const STR = {
     forkHigh: "2×",
     emptyChart: "还没有投资记录。记下一笔，曲线就会从这里长出来。",
     settings: "设置",
-    theme: "修改主题",
-    accent: "强调色",
-    accentGold: "琥珀",
-    accentBlue: "亮蓝",
-    accentRed: "暗红",
-    accentTeal: "青绿",
-    accentOrange: "橙",
-    accentViolet: "亮紫",
     language: "语言",
     langZh: "中文",
     langEn: "English",
@@ -194,14 +186,6 @@ const STR = {
     forkHigh: "2×",
     emptyChart: "No investment yet. Log one, and the curve will grow from here.",
     settings: "Settings",
-    theme: "Theme",
-    accent: "Accent",
-    accentGold: "Amber",
-    accentBlue: "Blue",
-    accentRed: "Red",
-    accentTeal: "Teal",
-    accentOrange: "Orange",
-    accentViolet: "Violet",
     language: "Language",
     langZh: "中文",
     langEn: "English",

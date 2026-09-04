@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=72";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=73";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -63,7 +63,7 @@ export function removeBlock(day, id) {
 
 function dropUnusedSettings(obj) {
   if (!obj || typeof obj !== "object") return {};
-  const { habits: _h, promptEnabled: _p, lastOffer: _o, appearance: _a, ...rest } = obj;
+  const { habits: _h, promptEnabled: _p, lastOffer: _o, appearance: _a, accent: _c, ...rest } = obj;
   return rest;
 }
 
@@ -74,17 +74,14 @@ export function loadSettings() {
   setCustomKinds(saved.customKinds);
   const customBooks = setCustomBooks(saved.customBooks);
   const customKinds = setCustomKinds(saved.customKinds);
-  const accents = new Set(["gold", "blue", "red", "teal", "orange", "violet"]);
   return {
     lang: "zh",
     customKinds: [],
     customBooks: [],
-    accent: "gold",
     ...saved,
     customKinds,
     customBooks,
     dailyHours: Number.isFinite(daily) ? Math.min(4, Math.max(0.5, daily)) : 1,
-    accent: accents.has(saved.accent) ? saved.accent : "gold",
   };
 }
 

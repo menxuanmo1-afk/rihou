@@ -2,7 +2,6 @@
   --ink: #0f1419;
   --paper: #f4ede4;
   --clay: #e8a87c;
-  --on-accent: #0f1419;
   --moss: #7dcea0;
   --mute: #b8b0a6;
   --surface: #1a2128;
@@ -15,12 +14,6 @@
 }
 
 html { color-scheme: dark; }
-html[data-accent="gold"] { --clay: #e8a87c; }
-html[data-accent="blue"] { --clay: #5b9dff; }
-html[data-accent="red"] { --clay: #c44545; }
-html[data-accent="teal"] { --clay: #2ec4b6; }
-html[data-accent="orange"] { --clay: #f08a4b; }
-html[data-accent="violet"] { --clay: #b794f6; }
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
@@ -83,7 +76,7 @@ button { cursor: pointer; }
 }
 .btn.log-now {
   background: var(--clay);
-  color: var(--on-accent);
+  color: var(--ink);
   font-weight: 650;
   white-space: nowrap;
 }
@@ -727,7 +720,7 @@ button { cursor: pointer; }
   padding: 12px;
   margin-top: 8px;
 }
-.primary { background: var(--clay); color: var(--on-accent); font-weight: 600; }
+.primary { background: var(--clay); color: var(--ink); font-weight: 600; }
 .ghost { background: transparent; color: var(--mute); }
 .ghost.settings-link {
   width: auto;
@@ -805,36 +798,6 @@ button { cursor: pointer; }
 }
 
 .block.mix { border: 0; }
-
-.accent-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 14px;
-  margin: 8px 0 4px;
-}
-.accent-pick {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
-  background: none;
-  border: 0;
-  padding: 4px 2px;
-  color: var(--mute);
-  font-size: 11px;
-  min-width: 44px;
-}
-.accent-pick.on {
-  color: var(--paper);
-}
-.accent-pick.on .color-dot {
-  border-color: var(--paper);
-  box-shadow: 0 0 0 2px var(--clay);
-}
-.accent-pick .color-dot {
-  width: 32px;
-  height: 32px;
-}
 
 .hidden { display: none !important; }
 
