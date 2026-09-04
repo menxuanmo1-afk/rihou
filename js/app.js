@@ -26,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=67";
+} from "./models.js?v=68";
 import {
   loadDay,
   upsertBlock,
@@ -39,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=67";
+} from "./store.js?v=68";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,10 +53,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=67";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=67";
-import { pickEvalLine } from "./lines.js?v=67";
-import { buildAiExport } from "./ai-export.js?v=67";
+} from "./analysis.js?v=68";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=68";
+import { pickEvalLine } from "./lines.js?v=68";
+import { buildAiExport } from "./ai-export.js?v=68";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -486,7 +486,7 @@ function openPlanFromDraft() {
   if (!d) return;
   openRecordSheet(
     { startMin: d.startMin, endMin: d.endMin },
-    { id: d.id, kinds: [], title: d.title || "" },
+    { id: d.id, kinds: [], title: d.title || "", fromEl: document.getElementById("plan-draft") },
   );
 }
 
@@ -1290,7 +1290,7 @@ function openRecordSheet(range, extra = {}) {
     overnight,
   };
   if (!draft.overnight && draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
-  showSheet(recordHtml(draft), (root) => bindRecord(root, draft));
+  showSheet(recordHtml(draft), (root) => bindRecord(root, draft), { fromEl: extra.fromEl });
 }
 
 function recordHtml(draft) {
@@ -1441,7 +1441,9 @@ function openEditor(block) {
     endMin: block.endMin,
   };
   const isEdit = state.day.blocks.some((b) => b.id === block.id);
-  showSheet(editorHtml(draft, isEdit), (root) => bindEditor(root, draft, isEdit));
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(block.id)}"]`)
+    || document.getElementById("plan-draft");
+  showSheet(editorHtml(draft, isEdit), (root) => bindEditor(root, draft, isEdit), { fromEl });
 }
 
 function editorHtml(draft, isEdit) {
@@ -1554,9 +1556,9 @@ function openAiAnalysisSheet() {
     .filter(Boolean)
     .map((p) => `<p>${escapeHtml(p)}</p>`)
     .join("");
-  const bg = document.getElementById("sheet-bg");
-  bg.className = "sheet-bg show gloss";
-  bg.innerHTML = `
+  presentOverlay({
+    mode: "gloss",
+    html: `
     <div class="gloss-card">
       <h2>${t("aiAnalysis")}</h2>
       ${hint}
@@ -1566,51 +1568,150 @@ function openAiAnalysisSheet() {
       </div>
       <button type="button" class="ghost" data-close>${t("close")}</button>
     </div>
-  `;
-  bg.onclick = (event) => {
-    if (event.target === bg) closeSheet();
-  };
-  bg.querySelectorAll("[data-ai-range]").forEach((el) => {
-    el.addEventListener("click", () => downloadAiExport(el.dataset.aiRange));
+  `,
+    bind: (bg) => {
+      bg.querySelectorAll("[data-ai-range]").forEach((el) => {
+        el.addEventListener("click", () => downloadAiExport(el.dataset.aiRange));
+      });
+      bg.querySelector("[data-close]").addEventListener("click", closeSheet);
+    },
   });
-  bg.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
 
 function openGloss(key) {
   const allowed = ["principal", "todayInvest", "totalInvest", "valuation", "totalValuation", "price"];
   const gloss = allowed.includes(key) ? key : "principal";
-  const bg = document.getElementById("sheet-bg");
-  bg.className = "sheet-bg show gloss";
-  bg.innerHTML = `
+  presentOverlay({
+    mode: "gloss",
+    html: `
     <div class="gloss-card">
       <h2>${t(gloss === "price" ? "price" : gloss)}</h2>
       <p>${t(`gloss.${gloss}`)}</p>
       <button type="button" class="ghost" data-close>${t("close")}</button>
     </div>
-  `;
-  bg.onclick = (event) => {
-    if (event.target === bg) closeSheet();
-  };
-  bg.querySelector("[data-close]").addEventListener("click", closeSheet);
+  `,
+    bind: (bg) => {
+      bg.querySelector("[data-close]").addEventListener("click", closeSheet);
+    },
+  });
 }
 
-function showSheet(html, bind, opts = {}) {
+let sheetTimer = 0;
+let sheetOrigin = null;
+
+function reduceMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function sheetPanel(bg) {
+  return bg.querySelector(".sheet, .gloss-card, .mini-card");
+}
+
+function zoomDelta(src, dst) {
+  return {
+    sx: Math.max(0.06, src.width / Math.max(1, dst.width)),
+    sy: Math.max(0.06, src.height / Math.max(1, dst.height)),
+    dx: src.left + src.width / 2 - (dst.left + dst.width / 2),
+    dy: src.top + src.height / 2 - (dst.top + dst.height / 2),
+  };
+}
+
+function playZoomFrom(sourceEl, panel) {
+  if (reduceMotion() || !sourceEl?.isConnected || !panel) return;
+  const src = sourceEl.getBoundingClientRect();
+  const dst = panel.getBoundingClientRect();
+  if (src.width < 2 || src.height < 2 || dst.width < 2) return;
+  const { sx, sy, dx, dy } = zoomDelta(src, dst);
+  panel.style.transition = "none";
+  panel.style.transformOrigin = "center center";
+  panel.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  panel.style.opacity = "0.92";
+  void panel.offsetWidth;
+  requestAnimationFrame(() => {
+    panel.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease";
+    panel.style.transform = "none";
+    panel.style.opacity = "1";
+  });
+}
+
+function playZoomToRect(rect, panel) {
+  if (reduceMotion() || !panel || !rect || rect.width < 2) return;
+  const dst = panel.getBoundingClientRect();
+  if (dst.width < 2) return;
+  const { sx, sy, dx, dy } = zoomDelta(rect, dst);
+  panel.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease";
+  panel.style.transformOrigin = "center center";
+  panel.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  panel.style.opacity = "0.4";
+}
+
+function presentOverlay({ mode = "", html, bind, onDismiss, fromEl }) {
   const bg = document.getElementById("sheet-bg");
-  bg.className = opts.mini ? "sheet-bg show mini" : "sheet-bg show";
-  bg.innerHTML = html;
+  clearTimeout(sheetTimer);
+  const replacing = bg.classList.contains("show") && !bg.classList.contains("hiding");
+  const zoomFrom = fromEl && fromEl.isConnected && !mode;
+  sheetOrigin = zoomFrom ? { el: fromEl, id: fromEl.dataset?.id || "" } : null;
+  const extras = ["sheet-bg"];
+  if (mode) extras.push(mode);
+  if (zoomFrom) extras.push("from-source");
   bg.onclick = (event) => {
     if (event.target === bg) {
-      if (typeof opts.onDismiss === "function") opts.onDismiss();
+      if (typeof onDismiss === "function") onDismiss();
       else closeSheet();
     }
   };
+  bg.innerHTML = html;
   bind(bg);
+  if (replacing || reduceMotion()) {
+    bg.className = extras.concat("show").join(" ");
+    return;
+  }
+  bg.className = extras.join(" ");
+  void bg.offsetWidth;
+  requestAnimationFrame(() => {
+    bg.classList.add("show");
+    const panel = sheetPanel(bg);
+    if (zoomFrom && fromEl.isConnected && panel) playZoomFrom(fromEl, panel);
+  });
+}
+
+function showSheet(html, bind, opts = {}) {
+  presentOverlay({
+    mode: opts.mini ? "mini" : "",
+    html,
+    bind,
+    onDismiss: opts.onDismiss,
+    fromEl: opts.fromEl,
+  });
 }
 
 function closeSheet() {
   const bg = document.getElementById("sheet-bg");
-  bg.className = "sheet-bg";
-  bg.innerHTML = "";
+  if (!bg.classList.contains("show") && !bg.classList.contains("hiding")) {
+    bg.className = "sheet-bg";
+    bg.innerHTML = "";
+    sheetOrigin = null;
+    return;
+  }
+  if (bg.classList.contains("hiding")) return;
+  const panel = sheetPanel(bg);
+  const fromSource = bg.classList.contains("from-source");
+  if (fromSource && panel && !reduceMotion()) {
+    const el = (sheetOrigin?.id && document.querySelector(`.block[data-id="${CSS.escape(sheetOrigin.id)}"]`))
+      || sheetOrigin?.el;
+    const rect = el?.getBoundingClientRect?.();
+    if (rect && rect.width > 2) playZoomToRect(rect, panel);
+  }
+  bg.classList.add("hiding");
+  bg.classList.remove("show");
+  const ms = reduceMotion() ? 0 : fromSource ? 260 : 240;
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => {
+    bg.className = "sheet-bg";
+    bg.innerHTML = "";
+    bg.onclick = null;
+    sheetOrigin = null;
+  }, ms);
 }
 
 function escapeHtml(value) {
@@ -1770,5 +1871,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=67").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=68").catch(() => {});
 }

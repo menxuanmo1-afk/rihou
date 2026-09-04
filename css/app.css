@@ -530,16 +530,65 @@ button { cursor: pointer; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  display: none;
+  display: flex;
   align-items: flex-end;
   z-index: 20;
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.24s;
 }
-.sheet-bg.show { display: flex; }
+.sheet-bg.show {
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+  transition: opacity 0.18s ease, visibility 0s;
+}
+.sheet-bg.hiding {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease, visibility 0s linear 0.24s;
+}
 .sheet-bg.gloss,
 .sheet-bg.mini {
   align-items: center;
   justify-content: center;
   padding: 24px;
+}
+.sheet-bg:not(.from-source) .sheet {
+  transform: translate3d(0, 110%, 0);
+  transition: transform 0.24s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.sheet-bg.show:not(.from-source):not(.hiding) .sheet {
+  transform: none;
+}
+.sheet-bg.hiding:not(.from-source) .sheet {
+  transform: translate3d(0, 110%, 0);
+}
+.sheet-bg.gloss .gloss-card,
+.sheet-bg.mini .mini-card {
+  transform: translate3d(0, 10px, 0) scale(0.94);
+  opacity: 0;
+  transition: transform 0.22s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease;
+}
+.sheet-bg.show.gloss:not(.hiding) .gloss-card,
+.sheet-bg.show.mini:not(.hiding) .mini-card {
+  transform: none;
+  opacity: 1;
+}
+.sheet-bg.hiding.gloss .gloss-card,
+.sheet-bg.hiding.mini .mini-card {
+  transform: translate3d(0, 8px, 0) scale(0.96);
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .sheet-bg,
+  .sheet-bg .sheet,
+  .sheet-bg .gloss-card,
+  .sheet-bg .mini-card {
+    transition: none !important;
+  }
 }
 .gloss-card {
   background: #1a2128;
