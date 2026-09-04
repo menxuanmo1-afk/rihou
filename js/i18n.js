@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=66";
-import { loadSettings } from "./store.js?v=66";
+import { formatDuration, kindById } from "./models.js?v=67";
+import { loadSettings } from "./store.js?v=67";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -39,7 +39,7 @@ const STR = {
     logNow: "记到现在",
     today: "今天",
     thatDay: "这一天",
-    hint: "长按空白处再向下拉，画出一段实际记录。",
+    hint: "长按空白处再向下拉，画出一段实际记录。长按色块上下边缘可调时间，点旁边空白完成。",
     invest: "投资",
     consume: "消费",
     rest: "其余",
@@ -142,7 +142,7 @@ const STR = {
     logNow: "Log to now",
     today: "Today",
     thatDay: "That day",
-    hint: "Long-press empty space and drag down to log what you actually did.",
+    hint: "Long-press empty space and drag down to log what you actually did. Long-press a block’s top or bottom edge to adjust time; tap empty space to finish.",
     invest: "Invest",
     consume: "Spend",
     rest: "Rest",

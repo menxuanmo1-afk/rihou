@@ -26,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=66";
+} from "./models.js?v=67";
 import {
   loadDay,
   upsertBlock,
@@ -39,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=66";
+} from "./store.js?v=67";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,10 +53,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=66";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=66";
-import { pickEvalLine } from "./lines.js?v=66";
-import { buildAiExport } from "./ai-export.js?v=66";
+} from "./analysis.js?v=67";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=67";
+import { pickEvalLine } from "./lines.js?v=67";
+import { buildAiExport } from "./ai-export.js?v=67";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -68,6 +68,7 @@ const state = {
   tab: "time",
   book: "all",
   planDraft: null,
+  edgeEdit: null,
   slide: "",
 };
 
@@ -231,10 +232,13 @@ function timelineHtml() {
 }
 
 function blockHtml(block) {
-  const visStart = Math.max(block.startMin, START_HOUR * 60);
-  const visEnd = Math.min(block.endMin, END_HOUR * 60);
+  const editing = state.edgeEdit?.id === block.id;
+  const startMin = editing ? state.edgeEdit.startMin : block.startMin;
+  const endMin = editing ? state.edgeEdit.endMin : block.endMin;
+  const visStart = Math.max(startMin, START_HOUR * 60);
+  const visEnd = Math.min(endMin, END_HOUR * 60);
   if (visEnd <= visStart) return "";
-  const { top, h } = blockGeom(block.startMin, block.endMin);
+  const { top, h } = blockGeom(startMin, endMin);
   const colors = blockColors(block);
   const mixed = colors.length > 1;
   const name = liveBlockLabel(block);
@@ -245,8 +249,12 @@ function blockHtml(block) {
     `background:${gradientCss(colors)}`,
     `color:${ink}`,
   ].join(";");
-  return `<div class="block actual${mixed ? " mix" : ""}" data-id="${block.id}" style="${style}">
-        ${name}${h > 28 ? `<div class="when">${minutesToHm(block.startMin)}–${minutesToHm(block.endMin)}</div>` : ""}
+  const handles = editing
+    ? `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`
+    : "";
+  return `<div class="block actual${mixed ? " mix" : ""}${editing ? " edge-edit" : ""}" data-id="${block.id}" style="${style}">
+        ${name}${h > 28 ? `<div class="when">${minutesToHm(startMin)}–${minutesToHm(endMin)}</div>` : ""}
+        ${handles}
       </div>`;
 }
 
@@ -362,6 +370,115 @@ function paintDraft() {
 function clearPlanDraft() {
   state.planDraft = null;
   document.getElementById("plan-draft")?.remove();
+}
+
+const EDGE_HIT_PX = 22;
+
+function edgeFromClientY(blockEl, clientY) {
+  const r = blockEl.getBoundingClientRect();
+  if (r.height <= 0) return null;
+  if (r.height <= EDGE_HIT_PX * 2) {
+    return clientY < r.top + r.height / 2 ? "start" : "end";
+  }
+  if (clientY - r.top <= EDGE_HIT_PX) return "start";
+  if (r.bottom - clientY <= EDGE_HIT_PX) return "end";
+  return null;
+}
+
+function blockResizeClip(block) {
+  const loBound = START_HOUR * 60;
+  const hiBound = recordableUntil();
+  let lo = loBound;
+  let hi = hiBound;
+  for (const b of state.day.blocks || []) {
+    if (b.isPlan || b.id === block.id) continue;
+    if (b.endMin <= block.startMin) lo = Math.max(lo, b.endMin);
+    else if (b.startMin >= block.endMin) hi = Math.min(hi, b.startMin);
+  }
+  return { lo, hi };
+}
+
+function beginEdgeEdit(block) {
+  clearPlanDraft();
+  const clip = blockResizeClip(block);
+  state.edgeEdit = {
+    id: block.id,
+    startMin: block.startMin,
+    endMin: block.endMin,
+    origStartMin: block.startMin,
+    origEndMin: block.endMin,
+    clipStart: clip.lo,
+    clipEnd: clip.hi,
+  };
+  const el = document.querySelector(`.block[data-id="${block.id}"]`);
+  if (!el) return;
+  el.classList.add("edge-edit");
+  if (!el.querySelector("[data-handle]")) {
+    el.insertAdjacentHTML(
+      "beforeend",
+      `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`,
+    );
+  }
+}
+
+function setEdgeEditEdge(which, minutes) {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const t = snapPlanMin(minutes);
+  const lo = d.clipStart ?? START_HOUR * 60;
+  const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
+  const minLen = 1;
+  if (which === "start") {
+    d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
+  } else {
+    d.endMin = Math.min(hi, Math.max(t, d.startMin + minLen));
+  }
+}
+
+function paintEdgeEdit() {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const el = document.querySelector(`.block[data-id="${d.id}"]`);
+  if (!el) return;
+  const { top, h } = blockGeom(d.startMin, d.endMin);
+  el.style.top = `${top}px`;
+  el.style.height = `${h}px`;
+  const when = el.querySelector(".when");
+  const label = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
+  if (when) when.textContent = label;
+  else if (h > 28) {
+    const div = document.createElement("div");
+    div.className = "when";
+    div.textContent = label;
+    el.appendChild(div);
+  }
+}
+
+function commitEdgeEdit() {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const dirty = d.startMin !== d.origStartMin || d.endMin !== d.origEndMin;
+  state.edgeEdit = null;
+  if (!dirty) {
+    const el = document.querySelector(`.block[data-id="${d.id}"]`);
+    if (el) {
+      el.classList.remove("edge-edit");
+      el.querySelectorAll("[data-handle]").forEach((h) => h.remove());
+    }
+    return;
+  }
+  currentDay();
+  const block = state.day.blocks.find((b) => b.id === d.id);
+  if (!block || block.isPlan) {
+    render();
+    return;
+  }
+  state.day = upsertBlock(state.day, {
+    ...block,
+    startMin: d.startMin,
+    endMin: d.endMin,
+  });
+  render();
 }
 
 function openPlanFromDraft() {
@@ -503,6 +620,13 @@ function bindTimeline(timeline) {
       event.preventDefault();
       return;
     }
+    if (state.edgeEdit) {
+      if (event.target.closest("[data-handle]")) return;
+      if (event.target.closest(`.block[data-id="${state.edgeEdit.id}"]`)) return;
+      commitEdgeEdit();
+      event.preventDefault();
+      return;
+    }
     if (event.target.closest("[data-draft-dismiss]") || event.target.closest("[data-handle]")) return;
     if (event.target.closest("#plan-draft")) {
       openPlanFromDraft();
@@ -537,7 +661,7 @@ function onTimelinePointerDown(event) {
     return;
   }
   const handle = event.target.closest("[data-handle]");
-  if (handle && state.planDraft) {
+  if (handle && (state.planDraft || state.edgeEdit)) {
     event.preventDefault();
     gesture.kind = handle.dataset.handle === "start" ? "resize-start" : "resize-end";
     gesture.pointerId = event.pointerId;
@@ -547,7 +671,52 @@ function onTimelinePointerDown(event) {
     timeline.setPointerCapture(event.pointerId);
     return;
   }
-  if (event.target.closest("#plan-draft") || event.target.closest("[data-id]")) return;
+  if (event.target.closest("#plan-draft")) return;
+
+  if (state.edgeEdit) {
+    if (event.target.closest(`.block[data-id="${state.edgeEdit.id}"]`)) return;
+    commitEdgeEdit();
+    armSuppressClick();
+    return;
+  }
+
+  const blockEl = event.target.closest("[data-id]");
+  if (blockEl) {
+    const found = state.day.blocks.find((b) => b.id === blockEl.dataset.id);
+    if (!found || found.isPlan) return;
+    const which = edgeFromClientY(blockEl, event.clientY);
+    if (!which) return;
+    event.preventDefault();
+    gesture.pointerId = event.pointerId;
+    gesture.originMin = minutesFromClientY(event.clientY);
+    gesture.startX = event.clientX;
+    gesture.startY = event.clientY;
+    gesture.lastY = event.clientY;
+    gesture.kind = "press-edge";
+    gesture.edgeWhich = which;
+    gesture.edgeId = found.id;
+    gesture.timer = window.setTimeout(() => {
+      gesture.timer = 0;
+      if (gesture.kind !== "press-edge" || gesture.pointerId !== event.pointerId) return;
+      const block = state.day.blocks.find((b) => b.id === gesture.edgeId);
+      if (!block || block.isPlan) {
+        resetGesture();
+        return;
+      }
+      beginEdgeEdit(block);
+      armSuppressClick();
+      gesture.kind = gesture.edgeWhich === "start" ? "resize-start" : "resize-end";
+      timeline.classList.add("drawing");
+      bindWindowGesture();
+      try {
+        timeline.setPointerCapture(event.pointerId);
+      } catch {
+        /* Safari may ignore capture before move */
+      }
+      navigator.vibrate?.(12);
+    }, LONG_PRESS_MS);
+    return;
+  }
 
   const originMin = minutesFromClientY(event.clientY);
   if (originMin >= recordableUntil()) return;
@@ -598,7 +767,7 @@ function onTimelinePointerDown(event) {
 function onTimelinePointerMove(event) {
   if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
   gesture.lastY = event.clientY;
-  if (gesture.kind === "press") {
+  if (gesture.kind === "press" || gesture.kind === "press-edge") {
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
     if (Math.hypot(dx, dy) > PRESS_MOVE_PX) resetGesture();
@@ -607,6 +776,16 @@ function onTimelinePointerMove(event) {
   if (gesture.kind === "stretch") {
     setDraftRange(gesture.originMin, minutesFromClientY(event.clientY));
     paintDraft();
+    return;
+  }
+  if (gesture.kind === "resize-start" && state.edgeEdit) {
+    setEdgeEditEdge("start", minutesFromClientY(event.clientY));
+    paintEdgeEdit();
+    return;
+  }
+  if (gesture.kind === "resize-end" && state.edgeEdit) {
+    setEdgeEditEdge("end", minutesFromClientY(event.clientY));
+    paintEdgeEdit();
     return;
   }
   if (gesture.kind === "resize-start" && state.planDraft) {
@@ -622,13 +801,14 @@ function onTimelinePointerMove(event) {
 
 function onTimelinePointerUp(event) {
   if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
-  if (gesture.kind === "press") {
+  if (gesture.kind === "press" || gesture.kind === "press-edge") {
     resetGesture();
     return;
   }
   if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
     armSuppressClick();
-    paintDraft();
+    if (state.planDraft) paintDraft();
+    if (state.edgeEdit) paintEdgeEdit();
     resetGesture();
   }
 }
@@ -645,9 +825,11 @@ function onAction(event) {
   } else if (act === "log-now") {
     openRecordSheet(logNowRange());
   } else if (act === "tab-time") {
+    commitEdgeEdit();
     state.tab = "time";
     render();
   } else if (act === "tab-achieve") {
+    commitEdgeEdit();
     state.tab = "achieve";
     render();
   } else if (act === "book") {
@@ -673,6 +855,7 @@ function onAction(event) {
 
 function goDate(iso, dir) {
   if (iso === state.date) return;
+  commitEdgeEdit();
   state.date = iso;
   state.slide = dir || "";
   clearPlanDraft();
@@ -704,7 +887,7 @@ function bindDaySwipe(stage) {
 function onDaySwipeDown(event) {
   if (sheetOpen()) return;
   if (event.button && event.button !== 0) return;
-  if (event.target.closest("button, input, textarea, .book-row, .sheet")) return;
+  if (event.target.closest("button, input, textarea, .book-row, .sheet, [data-handle], .edge-edit")) return;
   daySwipe.pointerId = event.pointerId;
   daySwipe.startX = event.clientX;
   daySwipe.startY = event.clientY;
@@ -714,7 +897,7 @@ function onDaySwipeDown(event) {
 
 function onDaySwipeMove(event) {
   if (daySwipe.pointerId !== event.pointerId) return;
-  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end" || gesture.kind === "press-edge") {
     resetDaySwipe(document.getElementById("day-stage"));
     return;
   }
@@ -1095,6 +1278,7 @@ function openDeleteConfirm(label, onConfirm, onCancel) {
 }
 
 function openRecordSheet(range, extra = {}) {
+  commitEdgeEdit();
   const overnight = Boolean(range.overnight);
   const draft = {
     id: extra.id || uid(),
@@ -1526,6 +1710,7 @@ function saveLoggedDraft(draft) {
 let offerLockUntil = 0;
 
 function offerLogNowOnOpen() {
+  if (state.edgeEdit) return;
   const now = Date.now();
   if (now < offerLockUntil) return;
   if (document.getElementById("sheet-bg")?.classList.contains("show")) return;
@@ -1585,5 +1770,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=66").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=67").catch(() => {});
 }

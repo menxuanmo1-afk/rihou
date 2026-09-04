@@ -353,6 +353,35 @@ button { cursor: pointer; }
   right: 12px;
   z-index: 4;
 }
+.block.actual.edge-edit {
+  overflow: visible;
+  z-index: 7;
+  outline: 1.5px dashed #f4ede4;
+  outline-offset: 1px;
+  touch-action: none;
+}
+.block.edge-edit .handle {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+  touch-action: none;
+  cursor: ns-resize;
+}
+.block.edge-edit .handle.top { top: -11px; }
+.block.edge-edit .handle.bottom { bottom: -11px; }
+.block.edge-edit .handle::after {
+  content: "";
+  width: 40px;
+  height: 4px;
+  border-radius: 2px;
+  background: #f4ede4;
+  box-shadow: 0 0 0 3px rgba(26, 33, 40, 0.55);
+}
 .block .when { opacity: 0.8; font-size: 11px; margin-top: 2px; }
 
 .plan-draft {
