@@ -16,6 +16,7 @@ import {
   nowMinutes,
   actualAtMinute,
   emptySpan,
+  overnightSpanMin,
   KINDS,
   listCustomKinds,
   CUSTOM_MAX,
@@ -25,7 +26,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=64";
+} from "./models.js?v=66";
 import {
   loadDay,
   upsertBlock,
@@ -38,7 +39,7 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=64";
+} from "./store.js?v=66";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -52,10 +53,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=64";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=64";
-import { pickEvalLine } from "./lines.js?v=64";
-import { buildAiExport } from "./ai-export.js?v=64";
+} from "./analysis.js?v=66";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=66";
+import { pickEvalLine } from "./lines.js?v=66";
+import { buildAiExport } from "./ai-export.js?v=66";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1094,15 +1095,17 @@ function openDeleteConfirm(label, onConfirm, onCancel) {
 }
 
 function openRecordSheet(range, extra = {}) {
+  const overnight = Boolean(range.overnight);
   const draft = {
     id: extra.id || uid(),
     isPlan: false,
     kinds: extra.kinds ? [...extra.kinds] : [],
     title: extra.title || "",
     startMin: range.startMin,
-    endMin: Math.max(range.startMin + 1, range.endMin),
+    endMin: overnight ? Math.max(0, range.endMin) : Math.max(range.startMin + 1, range.endMin),
+    overnight,
   };
-  if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+  if (!draft.overnight && draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
   showSheet(recordHtml(draft), (root) => bindRecord(root, draft));
 }
 
@@ -1111,10 +1114,11 @@ function recordHtml(draft) {
     ? `<div class="mix-preview" id="mix-box" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
        <p class="muted" id="mix-hint">${draft.kinds.length === 1 ? t("mixOne") : t("mixMany")}</p>`
     : `<div class="mix-preview" id="mix-box" style="display:none"></div><p class="muted" id="mix-hint">${t("mixEmpty")}</p>`;
+  const crossed = draft.overnight || lastActualEnd(state.day) != null;
 
   return `
     <div class="sheet">
-      <h2>${lastActualEnd(state.day) == null ? t("logTitle") : t("sinceLast")}</h2>
+      <h2>${crossed ? t("sinceLast") : t("logTitle")}</h2>
       <p class="muted">${t("logHint")}</p>
       ${timeFields(draft)}
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
@@ -1126,10 +1130,21 @@ function recordHtml(draft) {
   `;
 }
 
+function spanLabel(draft) {
+  if (draft.overnight) {
+    return t("overnightSpan", {
+      start: minutesToHm(draft.startMin),
+      end: minutesToHm(draft.endMin),
+      dur: formatDurationI18n(overnightSpanMin(draft.startMin, draft.endMin)),
+    });
+  }
+  return `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
+}
+
 function timeFields(draft) {
   return `
     <div class="time-field">
-      <span>${t("start")}</span>
+      <span>${draft.overnight ? t("startLastNight") : t("start")}</span>
       <div class="time-controls">
         <button class="btn" data-nudge="start,-5">−5</button>
         <button class="btn" data-nudge="start,-1">−1</button>
@@ -1149,28 +1164,30 @@ function timeFields(draft) {
         <button class="btn" data-now>${t("now")}</button>
       </div>
     </div>
-    <p class="muted" id="span-lab">${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(draft.endMin - draft.startMin)}</p>
+    <p class="muted" id="span-lab">${spanLabel(draft)}</p>
   `;
 }
 
 function bindTimeFields(root, draft, onChange) {
+  const clampSameDay = () => {
+    if (draft.overnight) return;
+    if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+  };
   const sync = () => {
     root.querySelector("#start-time").value = hmInputValue(draft.startMin);
     root.querySelector("#end-time").value = hmInputValue(draft.endMin);
     const lab = root.querySelector("#span-lab");
-    if (lab) {
-      lab.textContent = `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
-    }
+    if (lab) lab.textContent = spanLabel(draft);
     onChange?.();
   };
   root.querySelector("#start-time").addEventListener("change", (e) => {
     draft.startMin = parseHm(e.target.value);
-    if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+    clampSameDay();
     sync();
   });
   root.querySelector("#end-time").addEventListener("change", (e) => {
     draft.endMin = parseHm(e.target.value);
-    if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+    clampSameDay();
     sync();
   });
   root.querySelectorAll("[data-nudge]").forEach((el) => {
@@ -1178,13 +1195,13 @@ function bindTimeFields(root, draft, onChange) {
       const [which, delta] = el.dataset.nudge.split(",");
       const key = which === "start" ? "startMin" : "endMin";
       draft[key] = Math.max(0, Math.min(24 * 60, draft[key] + Number(delta)));
-      if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+      clampSameDay();
       sync();
     });
   });
   root.querySelector("[data-now]")?.addEventListener("click", () => {
     draft.endMin = nowMinutes();
-    if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+    clampSameDay();
     sync();
   });
 }
@@ -1222,16 +1239,7 @@ function bindRecord(root, draft) {
       return;
     }
     draft.title = root.querySelector("#title").value.trim();
-    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
-    state.day = upsertBlock(state.day, {
-      id: draft.id,
-      startMin: draft.startMin,
-      endMin: draft.endMin,
-      title: draft.title,
-      kinds: draft.kinds,
-      kind: draft.kinds[0],
-      isPlan: false,
-    });
+    saveLoggedDraft(draft);
     if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
     render();
@@ -1460,14 +1468,59 @@ function pickFile(onText) {
 
 function logNowRange() {
   currentDay();
-  let range = gapFromLastToNow(state.day);
-  if (range.endMin <= range.startMin) {
+  const yesterday = loadDay(addDays(state.date, -1));
+  let range = gapFromLastToNow(state.day, new Date(), yesterday);
+  if (!range.overnight && range.endMin <= range.startMin) {
     range = {
       startMin: Math.max(START_HOUR * 60, range.endMin - 1),
       endMin: Math.max(range.endMin, START_HOUR * 60 + 1),
+      overnight: false,
     };
   }
   return range;
+}
+
+function rangeSpanMin(range) {
+  if (range.overnight) return overnightSpanMin(range.startMin, range.endMin);
+  return Math.max(0, range.endMin - range.startMin);
+}
+
+function saveLoggedDraft(draft) {
+  const payload = {
+    title: draft.title,
+    kinds: draft.kinds,
+    kind: draft.kinds[0],
+    isPlan: false,
+  };
+  if (draft.overnight) {
+    const yISO = addDays(state.date, -1);
+    if (24 * 60 - draft.startMin >= 1) {
+      upsertBlock(loadDay(yISO), {
+        ...payload,
+        id: uid(),
+        startMin: draft.startMin,
+        endMin: 24 * 60,
+      });
+    }
+    if (draft.endMin >= 1) {
+      state.day = upsertBlock(state.day, {
+        ...payload,
+        id: draft.id,
+        startMin: 0,
+        endMin: draft.endMin,
+      });
+    } else {
+      currentDay();
+    }
+    return;
+  }
+  if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+  state.day = upsertBlock(state.day, {
+    ...payload,
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+  });
 }
 
 let offerLockUntil = 0;
@@ -1479,10 +1532,10 @@ function offerLogNowOnOpen() {
   offerLockUntil = now + 1000;
   if (state.date !== todayISO()) state.date = todayISO();
   currentDay();
-  const gap = gapFromLastToNow(state.day);
-  if (gap.endMin - gap.startMin < 1) return;
+  const range = logNowRange();
+  if (rangeSpanMin(range) < 1) return;
   render();
-  openRecordSheet(gap);
+  openRecordSheet(range);
 }
 
 function pinFrame() {
@@ -1532,5 +1585,5 @@ requestAnimationFrame(() => {
 });
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=65").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=66").catch(() => {});
 }

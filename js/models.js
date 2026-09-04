@@ -228,13 +228,31 @@ export function nowMinutes(d = new Date()) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-/** 上次已经发生的实际记录结束点 → 现在。忽略还没到的色块。没有上次则从 0:00 起。 */
-export function gapFromLastToNow(day, now = new Date()) {
-  const endMin = nowMinutes(now);
+function lastActualEndAtOrBefore(day, endMin) {
   const actuals = (day.blocks || []).filter((b) => !b.isPlan && b.endMin <= endMin);
-  const last = actuals.length === 0 ? null : Math.max(...actuals.map((b) => b.endMin));
-  const startMin = last == null ? 0 : last;
-  return { startMin, endMin };
+  if (actuals.length === 0) return null;
+  return Math.max(...actuals.map((b) => b.endMin));
+}
+
+/** 上次已经发生的实际记录结束点 → 现在。忽略还没到的色块。
+ *  今天还没有记录时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
+ *  昨天也没有记录，则从今天 0:00 起。 */
+export function gapFromLastToNow(day, now = new Date(), yesterdayDay = null) {
+  const endMin = nowMinutes(now);
+  const last = lastActualEndAtOrBefore(day, endMin);
+  if (last != null) return { startMin: last, endMin, overnight: false };
+  const yActuals = (yesterdayDay?.blocks || []).filter((b) => !b.isPlan);
+  const yLast = yActuals.length === 0 ? null : Math.max(...yActuals.map((b) => b.endMin));
+  if (yLast == null || yLast >= 24 * 60) {
+    return { startMin: 0, endMin, overnight: false };
+  }
+  return { startMin: yLast, endMin, overnight: true };
+}
+
+export function overnightSpanMin(startMin, endMin) {
+  const start = Number(startMin) || 0;
+  const end = Number(endMin) || 0;
+  return Math.max(0, 24 * 60 - start) + Math.max(0, end);
 }
 
 export function uid() {

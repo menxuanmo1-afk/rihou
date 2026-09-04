@@ -8,8 +8,8 @@ import {
   kindsForBook,
   listCustomBooks,
   CORE_BOOKS,
-} from "./models.js?v=64";
-import { loadAllDays, loadSettings } from "./store.js?v=64";
+} from "./models.js?v=66";
+import { loadAllDays, loadSettings } from "./store.js?v=66";
 
 const REVIEW_SCIENCE = `作息规律（只用来判断，禁止在给用户的正文里写 A/B/C、「对应 C」、「因为 A」这类编号；必须把道理写成人话，例如「午饭后刷视频，刚吃完血糖升高，再刷会让多巴胺阈值飙升，下午注意力直接废掉」）：
 

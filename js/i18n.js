@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=64";
-import { loadSettings } from "./store.js?v=64";
+import { formatDuration, kindById } from "./models.js?v=66";
+import { loadSettings } from "./store.js?v=66";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -107,6 +107,8 @@ const STR = {
     note: "备注（可空）",
     start: "开始",
     end: "结束",
+    startLastNight: "昨晚开始",
+    overnightSpan: "昨晚 {start} – 今 {end} · {dur}",
     now: "此刻",
     pickOne: "先选至少一件事",
     mixOne: "整段都是这件事。",
@@ -208,6 +210,8 @@ const STR = {
     note: "Note (optional)",
     start: "Start",
     end: "End",
+    startLastNight: "Last night",
+    overnightSpan: "Last night {start} – today {end} · {dur}",
     now: "Now",
     pickOne: "Pick at least one",
     mixOne: "This whole stretch is that.",
