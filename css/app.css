@@ -806,7 +806,7 @@ button { cursor: pointer; }
 .time-pair {
   display: flex;
   align-items: flex-end;
-  gap: 10px;
+  gap: 8px;
   margin: 10px 0 4px;
 }
 .time-field {
@@ -814,6 +814,9 @@ button { cursor: pointer; }
   flex-direction: column;
   gap: 6px;
   flex: 0 0 auto;
+}
+.time-field:nth-child(2) {
+  margin-left: auto;
 }
 .time-field > span {
   color: var(--mute);
@@ -828,8 +831,8 @@ button { cursor: pointer; }
   flex: 0 0 auto;
   padding: 6px 6px;
 }
-.time-controls .btn.time-now {
-  margin-left: 2px;
+.time-pair > .btn.time-now {
+  flex: 0 0 auto;
   font-size: 13px;
   padding: 6px 8px;
 }
