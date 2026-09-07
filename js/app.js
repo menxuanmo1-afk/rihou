@@ -3,8 +3,6 @@ import {
   uid,
   kindById,
   minutesToHm,
-  parseHm,
-  hmInputValue,
   todayISO,
   addDays,
   dateTitle,
@@ -29,7 +27,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=85";
+} from "./models.js?v=86";
 import {
   loadDay,
   upsertBlock,
@@ -47,7 +45,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=85";
+} from "./store.js?v=86";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -61,10 +59,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=85";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=85";
-import { pickEvalLine } from "./lines.js?v=85";
-import { buildAiExport } from "./ai-export.js?v=85";
+} from "./analysis.js?v=86";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=86";
+import { pickEvalLine } from "./lines.js?v=86";
+import { buildAiExport } from "./ai-export.js?v=86";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -489,15 +487,29 @@ function clipBoundsForDraft(draft) {
 }
 
 function tryAssignTime(draft, patch) {
-  const prevStart = draft.startMin;
-  const prevEnd = draft.endMin;
   const clip = clipBoundsForDraft(draft);
-  const start = Math.max(0, Math.min(24 * 60, patch.startMin != null ? patch.startMin : prevStart));
-  const end = Math.max(0, Math.min(24 * 60, patch.endMin != null ? patch.endMin : prevEnd));
-  const ok = draft.overnight
-    ? start >= clip.lo && end <= clip.hi
-    : start >= clip.lo && end <= clip.hi && end > start;
-  if (!ok) return false;
+  let start = patch.startMin != null ? Number(patch.startMin) : draft.startMin;
+  let end = patch.endMin != null ? Number(patch.endMin) : draft.endMin;
+  start = Math.max(0, Math.min(24 * 60, start));
+  end = Math.max(0, Math.min(24 * 60, end));
+  if (draft.overnight) {
+    draft.startMin = Math.max(clip.lo, Math.min(24 * 60, start));
+    draft.endMin = Math.min(clip.hi, Math.max(0, end));
+    return true;
+  }
+  const lo = clip.lo;
+  const hi = Math.max(lo + 1, clip.hi);
+  if (patch.startMin != null && patch.endMin == null) {
+    start = Math.max(lo, Math.min(start, draft.endMin - 1, hi - 1));
+    end = draft.endMin;
+  } else if (patch.endMin != null && patch.startMin == null) {
+    end = Math.min(hi, Math.max(end, draft.startMin + 1, lo + 1));
+    start = draft.startMin;
+  } else {
+    start = Math.max(lo, Math.min(start, hi - 1));
+    end = Math.min(hi, Math.max(end, start + 1));
+  }
+  if (end <= start) end = Math.min(hi, start + 1);
   draft.startMin = start;
   draft.endMin = end;
   return true;
@@ -1806,7 +1818,7 @@ function timeFields(draft, { nowOn = null } = {}) {
         <span>${draft.overnight ? t("startLastNight") : t("start")}</span>
         <div class="time-controls">
           <button type="button" class="btn" data-nudge="start,-5">−5</button>
-          <input type="time" id="start-time" step="300" value="${hmInputValue(draft.startMin)}" />
+          ${timeBoxHtml("start")}
           <button type="button" class="btn" data-nudge="start,5">+5</button>
           ${startNow}
         </div>
@@ -1815,7 +1827,7 @@ function timeFields(draft, { nowOn = null } = {}) {
         <span>${t("end")}</span>
         <div class="time-controls">
           <button type="button" class="btn" data-nudge="end,-5">−5</button>
-          <input type="time" id="end-time" step="300" value="${hmInputValue(draft.endMin)}" />
+          ${timeBoxHtml("end")}
           <button type="button" class="btn" data-nudge="end,5">+5</button>
         </div>
       </div>
@@ -1825,22 +1837,131 @@ function timeFields(draft, { nowOn = null } = {}) {
   `;
 }
 
+function timeBoxHtml(which) {
+  return `<div class="time-box">
+    <select id="${which}-h" aria-label="时"></select>
+    <span class="time-colon">:</span>
+    <select id="${which}-m" aria-label="分"></select>
+  </div>`;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
+}
+
+function allowedRange(draft, which) {
+  const clip = clipBoundsForDraft(draft);
+  if (draft.overnight) {
+    return which === "start"
+      ? { lo: clip.lo, hi: 24 * 60 }
+      : { lo: 0, hi: clip.hi };
+  }
+  if (which === "start") {
+    return { lo: clip.lo, hi: Math.min(clip.hi - 1, draft.endMin - 1) };
+  }
+  return { lo: Math.max(clip.lo + 1, draft.startMin + 1), hi: clip.hi };
+}
+
+function hoursInRange(lo, hi) {
+  const minH = Math.floor(Math.max(0, lo) / 60);
+  const maxH = hi >= 24 * 60 ? 24 : Math.floor(Math.max(lo, hi) / 60);
+  const hours = [];
+  for (let h = minH; h <= maxH; h++) hours.push(h);
+  return hours.length ? hours : [minH];
+}
+
+function minuteSpan(hour, lo, hi) {
+  if (hour === 24) return { minM: 0, maxM: 0, wrap: false };
+  const h0 = hour * 60;
+  const h1 = h0 + 59;
+  const segLo = Math.max(lo, h0);
+  const segHi = Math.min(hi, h1);
+  const minM = Math.max(0, Math.min(59, segLo - h0));
+  const maxM = Math.max(minM, Math.min(59, segHi - h0));
+  const loHour = Math.floor(lo / 60);
+  const hiHour = hi >= 24 * 60 ? 24 : Math.floor(hi / 60);
+  const wrap = hour !== loHour && hour !== hiHour;
+  return { minM, maxM, wrap };
+}
+
+function fillMinuteSelect(select, hour, lo, hi, minute) {
+  const { minM, maxM, wrap } = minuteSpan(hour, lo, hi);
+  let m = hour === 24 ? 0 : Math.max(minM, Math.min(maxM, minute));
+  const values = [];
+  if (wrap) {
+    for (let i = 0; i < 60; i++) values.push(i);
+  } else {
+    for (let i = minM; i <= maxM; i++) values.push(i);
+  }
+  if (wrap) {
+    const copies = [...values, ...values, ...values];
+    select.innerHTML = copies.map((n, idx) => (
+      `<option value="${n}">${pad2(n)}</option>`
+    )).join("");
+    select.selectedIndex = 60 + m;
+  } else {
+    select.innerHTML = values.map((n) => (
+      `<option value="${n}" ${n === m ? "selected" : ""}>${pad2(n)}</option>`
+    )).join("");
+  }
+}
+
+function fillHourSelect(select, lo, hi, minutes) {
+  const hours = hoursInRange(lo, hi);
+  let h = minutes >= 24 * 60 ? 24 : Math.floor(minutes / 60);
+  if (!hours.includes(h)) h = hours[0];
+  select.innerHTML = hours.map((hr) => (
+    `<option value="${hr}" ${hr === h ? "selected" : ""}>${pad2(hr)}</option>`
+  )).join("");
+  return h;
+}
+
+function readTimeBox(root, which) {
+  const hour = Number(root.querySelector(`#${which}-h`)?.value);
+  const minute = Number(root.querySelector(`#${which}-m`)?.value);
+  if (hour === 24) return 24 * 60;
+  return Math.max(0, Math.min(24 * 60, hour * 60 + minute));
+}
+
+function paintTimeBoxes(root, draft) {
+  for (const which of ["start", "end"]) {
+    const range = allowedRange(draft, which);
+    const minutes = which === "start" ? draft.startMin : draft.endMin;
+    const hourEl = root.querySelector(`#${which}-h`);
+    const minEl = root.querySelector(`#${which}-m`);
+    if (!hourEl || !minEl) continue;
+    const hour = fillHourSelect(hourEl, range.lo, range.hi, minutes);
+    const minute = minutes >= 24 * 60 ? 0 : minutes % 60;
+    fillMinuteSelect(minEl, hour, range.lo, range.hi, minute);
+  }
+}
+
 function bindTimeFields(root, draft, onChange) {
   const sync = () => {
-    root.querySelector("#start-time").value = hmInputValue(draft.startMin);
-    root.querySelector("#end-time").value = hmInputValue(draft.endMin);
+    paintTimeBoxes(root, draft);
     const lab = root.querySelector("#span-lab");
     if (lab) lab.textContent = spanLabel(draft);
     onChange?.();
   };
-  root.querySelector("#start-time").addEventListener("change", (e) => {
-    tryAssignTime(draft, { startMin: parseHm(e.target.value) });
+  paintTimeBoxes(root, draft);
+  const onHour = (which) => {
+    const range = allowedRange(draft, which);
+    const hour = Number(root.querySelector(`#${which}-h`).value);
+    const minute = Number(root.querySelector(`#${which}-m`).value);
+    fillMinuteSelect(root.querySelector(`#${which}-m`), hour, range.lo, range.hi, minute);
+    const next = readTimeBox(root, which);
+    tryAssignTime(draft, which === "start" ? { startMin: next } : { endMin: next });
     sync();
-  });
-  root.querySelector("#end-time").addEventListener("change", (e) => {
-    tryAssignTime(draft, { endMin: parseHm(e.target.value) });
+  };
+  const onMinute = (which) => {
+    const next = readTimeBox(root, which);
+    tryAssignTime(draft, which === "start" ? { startMin: next } : { endMin: next });
     sync();
-  });
+  };
+  root.querySelector("#start-h")?.addEventListener("change", () => onHour("start"));
+  root.querySelector("#end-h")?.addEventListener("change", () => onHour("end"));
+  root.querySelector("#start-m")?.addEventListener("change", () => onMinute("start"));
+  root.querySelector("#end-m")?.addEventListener("change", () => onMinute("end"));
   root.querySelectorAll("[data-nudge]").forEach((el) => {
     el.addEventListener("click", () => {
       const [which, delta] = el.dataset.nudge.split(",");
@@ -2351,5 +2472,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=85").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=86").catch(() => {});
 }

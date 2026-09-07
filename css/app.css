@@ -837,28 +837,38 @@ button { cursor: pointer; }
   font-size: 13px;
   padding: 6px 8px;
 }
-.time-controls input[type="time"] {
+.time-box {
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
-  width: 4.2em;
-  min-width: 0;
   background: var(--field);
   border: 1px solid var(--field-border);
   border-radius: 12px;
-  padding: 8px 2px;
+  padding: 4px 4px;
+  color: var(--paper);
+}
+.time-box select {
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  border: 0;
   color: var(--paper);
   font-size: 16px;
+  line-height: 1.2;
+  padding: 6px 0;
   text-align: center;
+  text-align-last: center;
   color-scheme: dark;
 }
-.time-controls input[type="time"]::-webkit-calendar-picker-indicator {
-  display: none;
+.time-box #start-h,
+.time-box #end-h,
+.time-box #start-m,
+.time-box #end-m {
+  width: 2.15em;
 }
-.time-controls input[type="time"]::-webkit-datetime-edit,
-.time-controls input[type="time"]::-webkit-datetime-edit-fields-wrapper,
-.time-controls input[type="time"]::-webkit-datetime-edit-hour-field,
-.time-controls input[type="time"]::-webkit-datetime-edit-minute-field,
-.time-controls input[type="time"]::-webkit-datetime-edit-ampm-field {
-  padding: 0;
+.time-colon {
+  opacity: 0.7;
+  padding: 0 1px;
 }
 
 .block.mix { border: 0; }
