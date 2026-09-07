@@ -16,7 +16,9 @@ import {
   nowMinutes,
   actualAtMinute,
   emptySpan,
+  emptyPlanSpan,
   overnightSpanMin,
+  weekdayOfIso,
   KINDS,
   listCustomKinds,
   CUSTOM_MAX,
@@ -26,10 +28,11 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=73";
+} from "./models.js?v=74";
 import {
   loadDay,
   upsertBlock,
+  upsertPlan,
   removeBlock,
   loadSettings,
   saveSettings,
@@ -39,7 +42,11 @@ import {
   loadCustomKinds,
   saveCustomKinds,
   saveCustomBooks,
-} from "./store.js?v=73";
+  loadPlanSeries,
+  savePlanSeries,
+  skipPlanOccurrence,
+  clearFuturePlanInstances,
+} from "./store.js?v=74";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -53,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=73";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=73";
-import { pickEvalLine } from "./lines.js?v=73";
-import { buildAiExport } from "./ai-export.js?v=73";
+} from "./analysis.js?v=74";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=74";
+import { pickEvalLine } from "./lines.js?v=74";
+import { buildAiExport } from "./ai-export.js?v=74";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -216,10 +223,15 @@ function timelineHtml() {
     return `<div class="hour-row" data-hour="${hour}"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span></div>`;
   }).join("");
 
-  const blocks = (state.day.blocks || [])
-    .filter((block) => !block.isPlan && block.endMin > block.startMin)
-    .map((block) => blockHtml(block))
-    .join("");
+  const actuals = (state.day.blocks || []).filter((b) => !b.isPlan);
+  const blocks = (state.day.blocks || []).flatMap((block) => {
+    if (block.endMin <= block.startMin) return [];
+    if (!block.isPlan) return [blockHtml(block, false)];
+    return splitPlanAgainstActuals(block, actuals).map((seg) => {
+      const slice = { ...block, startMin: seg.start, endMin: seg.end };
+      return blockHtml(slice, seg.covered, block);
+    });
+  }).join("");
 
   return `<div class="timeline" id="timeline">
     <div class="track" id="track" style="height:${height}px">
@@ -231,29 +243,64 @@ function timelineHtml() {
   </div>`;
 }
 
-function blockHtml(block) {
-  const editing = state.edgeEdit?.id === block.id;
+function splitPlanAgainstActuals(plan, actuals) {
+  let segs = [{ start: plan.startMin, end: plan.endMin, covered: false }];
+  for (const actual of actuals) {
+    const next = [];
+    for (const seg of segs) {
+      const lo = Math.max(seg.start, actual.startMin);
+      const hi = Math.min(seg.end, actual.endMin);
+      if (lo >= hi) {
+        next.push(seg);
+        continue;
+      }
+      if (seg.start < lo) next.push({ start: seg.start, end: lo, covered: seg.covered });
+      next.push({ start: lo, end: hi, covered: true });
+      if (seg.end > hi) next.push({ start: hi, end: seg.end, covered: seg.covered });
+    }
+    segs = next.filter((seg) => seg.end > seg.start);
+  }
+  return segs;
+}
+
+function planIsDue(block) {
+  if (!block?.isPlan) return false;
+  const today = todayISO();
+  if (state.date < today) return true;
+  if (state.date > today) return false;
+  return nowMinutes() >= block.startMin;
+}
+
+function blockHtml(block, covered = false, source = block) {
+  const editing = !block.isPlan && state.edgeEdit?.id === source.id;
   const startMin = editing ? state.edgeEdit.startMin : block.startMin;
   const endMin = editing ? state.edgeEdit.endMin : block.endMin;
   const visStart = Math.max(startMin, START_HOUR * 60);
   const visEnd = Math.min(endMin, END_HOUR * 60);
   if (visEnd <= visStart) return "";
   const { top, h } = blockGeom(startMin, endMin);
-  const colors = blockColors(block);
-  const mixed = colors.length > 1;
-  const name = liveBlockLabel(block);
+  const colors = blockColors(source);
+  const mixed = colors.length > 1 && !source.isPlan;
+  const name = liveBlockLabel(source);
+  const label = source.isPlan ? `${t("plan")} · ${name}` : name;
   const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
+  const bg = source.isPlan ? `${colors[0]}22` : gradientCss(colors);
+  const due = source.isPlan && planIsDue(source);
   const style = [
     `top:${top}px`,
     `height:${h}px`,
-    `background:${gradientCss(colors)}`,
-    `color:${ink}`,
-  ].join(";");
+    covered ? "" : `background:${bg}`,
+    `color:${source.isPlan ? colors[0] : ink}`,
+    source.isPlan ? `border-color:${colors[0]}` : "",
+  ].filter(Boolean).join(";");
   const handles = editing
     ? `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`
     : "";
-  return `<div class="block actual${mixed ? " mix" : ""}${editing ? " edge-edit" : ""}" data-id="${block.id}" style="${style}">
-        ${name}${h > 28 ? `<div class="when">${minutesToHm(startMin)}–${minutesToHm(endMin)}</div>` : ""}
+  const inner = covered
+    ? ""
+    : `${label}${h > 28 ? `<div class="when">${minutesToHm(source.startMin)}–${minutesToHm(source.endMin)}</div>` : ""}`;
+  return `<div class="block ${source.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${covered ? " covered" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}" data-id="${source.id}" style="${style}">
+        ${inner}
         ${handles}
       </div>`;
 }
@@ -266,9 +313,7 @@ function blockGeom(startMin, endMin) {
   return { top, h };
 }
 
-function snapPlanMin(minutes) {
-  const lo = START_HOUR * 60;
-  const hi = recordableUntil();
+function snapMin(minutes, lo, hi) {
   const clamped = Math.max(lo, Math.min(hi, minutes));
   if (clamped >= hi) return hi;
   const snapped = Math.round(clamped / PLAN_SNAP) * PLAN_SNAP;
@@ -282,11 +327,33 @@ function recordableUntil() {
   return Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, nowMinutes()));
 }
 
-function minutesFromClientY(clientY) {
+function planFromMin() {
+  const today = todayISO();
+  if (state.date < today) return END_HOUR * 60;
+  if (state.date > today) return START_HOUR * 60;
+  return Math.min(END_HOUR * 60, nowMinutes());
+}
+
+function planUntilMin() {
+  return state.date < todayISO() ? START_HOUR * 60 : END_HOUR * 60;
+}
+
+function draftBounds(isPlan) {
+  return isPlan
+    ? { lo: planFromMin(), hi: planUntilMin() }
+    : { lo: START_HOUR * 60, hi: recordableUntil() };
+}
+
+function rawMinutesFromClientY(clientY) {
   const track = document.getElementById("track");
   if (!track) return START_HOUR * 60;
   const y = clientY - track.getBoundingClientRect().top;
-  return snapPlanMin(START_HOUR * 60 + (y / HOUR_H) * 60);
+  return START_HOUR * 60 + (y / HOUR_H) * 60;
+}
+
+function minutesFromClientY(clientY, lo, hi) {
+  const bounds = lo == null ? draftBounds(Boolean(state.planDraft?.isPlan)) : { lo, hi };
+  return snapMin(rawMinutesFromClientY(clientY), bounds.lo, bounds.hi);
 }
 
 function planDraftHtml() {
@@ -296,8 +363,9 @@ function planDraftHtml() {
   return `<div class="plan-draft${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
     <div class="handle top" data-handle="start"></div>
     <div class="draft-body">
+      ${d.isPlan ? `<div class="draft-title">${t("plan")}</div>` : ""}
       <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
-      <div class="draft-hint">${t("draftHint")}</div>
+      <div class="draft-hint">${d.isPlan ? t("planDraftHint") : t("draftHint")}</div>
     </div>
     <button type="button" class="draft-x" data-draft-dismiss aria-label="取消">×</button>
     <div class="handle bottom" data-handle="end"></div>
@@ -305,18 +373,19 @@ function planDraftHtml() {
 }
 
 function draftClip() {
-  const cap = recordableUntil();
+  const isPlan = Boolean(state.planDraft?.isPlan);
+  const { lo: defLo, hi: defHi } = draftBounds(isPlan);
   return {
-    lo: state.planDraft?.clipStart ?? gesture.clipStart ?? START_HOUR * 60,
-    hi: Math.min(state.planDraft?.clipEnd ?? gesture.clipEnd ?? cap, cap),
+    lo: state.planDraft?.clipStart ?? gesture.clipStart ?? defLo,
+    hi: Math.min(state.planDraft?.clipEnd ?? gesture.clipEnd ?? defHi, defHi),
   };
 }
 
-function setDraftRange(startMin, endMin) {
-  let a = snapPlanMin(startMin);
-  let b = snapPlanMin(endMin);
-  if (b < a) [a, b] = [b, a];
+function setDraftRange(startMin, endMin, isPlan = Boolean(state.planDraft?.isPlan)) {
   const { lo, hi } = draftClip();
+  let a = snapMin(startMin, lo, hi);
+  let b = snapMin(endMin, lo, hi);
+  if (b < a) [a, b] = [b, a];
   a = Math.max(lo, Math.min(a, hi));
   b = Math.max(lo, Math.min(b, hi));
   if (b < a) [a, b] = [b, a];
@@ -326,7 +395,7 @@ function setDraftRange(startMin, endMin) {
   if (b - a < 1) return;
   state.planDraft = {
     id: state.planDraft?.id || uid(),
-    isPlan: false,
+    isPlan: Boolean(isPlan),
     kinds: state.planDraft?.kinds || [],
     title: state.planDraft?.title || "",
     startMin: a,
@@ -339,9 +408,10 @@ function setDraftRange(startMin, endMin) {
 function setDraftEdge(which, minutes) {
   const d = state.planDraft;
   if (!d) return;
-  const t = snapPlanMin(minutes);
-  const lo = d.clipStart ?? START_HOUR * 60;
-  const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
+  const { lo: defLo, hi: defHi } = draftBounds(d.isPlan);
+  const lo = d.clipStart ?? defLo;
+  const hi = Math.min(d.clipEnd ?? defHi, defHi);
+  const t = snapMin(minutes, lo, hi);
   const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
   if (which === "start") {
     d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
@@ -366,6 +436,8 @@ function paintDraft() {
   el.classList.toggle("tiny", h < 20);
   const when = el.querySelector(".when");
   if (when) when.textContent = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
+  const hint = el.querySelector(".draft-hint");
+  if (hint) hint.textContent = d.isPlan ? t("planDraftHint") : t("draftHint");
 }
 
 function clearPlanDraft() {
@@ -425,9 +497,9 @@ function beginEdgeEdit(block) {
 function setEdgeEditEdge(which, minutes) {
   const d = state.edgeEdit;
   if (!d) return;
-  const t = snapPlanMin(minutes);
   const lo = d.clipStart ?? START_HOUR * 60;
   const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
+  const t = snapMin(minutes, lo, hi);
   const minLen = 1;
   if (which === "start") {
     d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
@@ -485,6 +557,17 @@ function commitEdgeEdit() {
 function openPlanFromDraft() {
   const d = state.planDraft;
   if (!d) return;
+  if (d.isPlan) {
+    openPlanEditor({
+      id: d.id,
+      isPlan: true,
+      kinds: [...(d.kinds || [])],
+      title: d.title || "",
+      startMin: d.startMin,
+      endMin: d.endMin,
+    }, false);
+    return;
+  }
   openRecordSheet(
     { startMin: d.startMin, endMin: d.endMin },
     { id: d.id, kinds: [], title: d.title || "", fromEl: document.getElementById("plan-draft") },
@@ -637,6 +720,10 @@ function bindTimeline(timeline) {
     if (block) {
       const found = state.day.blocks.find((b) => b.id === block.dataset.id);
       if (found && !found.isPlan) openEditor(found);
+      else if (found?.isPlan) {
+        if (planIsDue(found)) openPlanResolve(found);
+        else openPlanEditor(found, true);
+      }
     }
   });
 
@@ -719,38 +806,54 @@ function onTimelinePointerDown(event) {
     return;
   }
 
-  const originMin = minutesFromClientY(event.clientY);
-  if (originMin >= recordableUntil()) return;
+  const originRaw = rawMinutesFromClientY(event.clientY);
+  const makingPlan = originRaw >= planFromMin() && planFromMin() < planUntilMin();
+  const makingActual = originRaw < recordableUntil();
+  if (!makingPlan && !makingActual) return;
+  const asPlan = makingPlan && !makingActual;
+  const bounds = draftBounds(asPlan);
+  const originMin = snapMin(originRaw, bounds.lo, bounds.hi);
+  if (originMin < bounds.lo || originMin >= bounds.hi) return;
   gesture.pointerId = event.pointerId;
   gesture.originMin = originMin;
   gesture.startX = event.clientX;
   gesture.startY = event.clientY;
   gesture.lastY = event.clientY;
   gesture.kind = "press";
+  gesture.asPlan = asPlan;
   gesture.timer = window.setTimeout(() => {
     gesture.timer = 0;
     if (gesture.kind !== "press" || gesture.pointerId !== event.pointerId) return;
     gesture.kind = "stretch";
     armSuppressClick();
-    const hit = actualAtMinute(state.day.blocks, gesture.originMin);
-    if (hit) {
-      resetGesture();
-      openEditor(hit);
-      return;
+    const asPlanNow = Boolean(gesture.asPlan);
+    if (!asPlanNow) {
+      const hit = actualAtMinute(state.day.blocks, gesture.originMin);
+      if (hit) {
+        resetGesture();
+        openEditor(hit);
+        return;
+      }
     }
-    const span = emptySpan(
-      state.day.blocks,
-      gesture.originMin,
-      state.planDraft?.id,
-      START_HOUR * 60,
-      recordableUntil(),
-    );
+    const span = asPlanNow
+      ? emptyPlanSpan(state.day.blocks, gesture.originMin, state.planDraft?.id, planFromMin(), planUntilMin())
+      : emptySpan(state.day.blocks, gesture.originMin, state.planDraft?.id, START_HOUR * 60, recordableUntil());
     if (!span || span.endMin - span.startMin < 1) {
       resetGesture();
       return;
     }
     gesture.clipStart = span.startMin;
     gesture.clipEnd = span.endMin;
+    state.planDraft = {
+      id: uid(),
+      isPlan: asPlanNow,
+      kinds: [],
+      title: "",
+      startMin: gesture.originMin,
+      endMin: gesture.originMin,
+      clipStart: span.startMin,
+      clipEnd: span.endMin,
+    };
     timeline.classList.add("drawing");
     bindWindowGesture();
     try {
@@ -759,7 +862,7 @@ function onTimelinePointerDown(event) {
       /* Safari may ignore capture before move */
     }
     const nowMin = minutesFromClientY(gesture.lastY);
-    setDraftRange(gesture.originMin, nowMin === gesture.originMin ? gesture.originMin + PLAN_MIN : nowMin);
+    setDraftRange(gesture.originMin, nowMin === gesture.originMin ? gesture.originMin + PLAN_MIN : nowMin, asPlanNow);
     paintDraft();
     navigator.vibrate?.(12);
   }, LONG_PRESS_MS);
@@ -1276,6 +1379,310 @@ function openDeleteConfirm(label, onConfirm, onCancel) {
     root.querySelector("[data-cancel]")?.addEventListener("click", onCancel);
     root.querySelector("[data-ok]")?.addEventListener("click", onConfirm);
   }, { mini: true, onDismiss: onCancel });
+}
+
+function seriesFor(block) {
+  if (!block?.seriesId) return null;
+  return loadPlanSeries().find((s) => s.id === block.seriesId) || null;
+}
+
+function weekdayChips(selected) {
+  const on = new Set((selected || []).map(Number));
+  return [0, 1, 2, 3, 4, 5, 6].map((d) => (
+    `<button type="button" class="chip-h ${on.has(d) ? "on" : ""}" data-wd="${d}">${t(`wd${d}`)}</button>`
+  )).join("");
+}
+
+function openPlanEditor(block, isEdit) {
+  commitEdgeEdit();
+  const series = seriesFor(block);
+  const draft = {
+    id: block.id || uid(),
+    kinds: [...blockKinds(block)],
+    title: block.title || "",
+    startMin: block.startMin,
+    endMin: block.endMin,
+    seriesId: block.seriesId || null,
+    freq: series?.freq || "none",
+    weekdays: series?.weekdays?.length ? [...series.weekdays] : [weekdayOfIso(state.date)],
+    until: series?.until || "",
+    scope: "this",
+  };
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(draft.id)}"]`)
+    || document.getElementById("plan-draft");
+  showSheet(planEditorHtml(draft, isEdit), (root) => bindPlanEditor(root, draft, isEdit), { fromEl });
+}
+
+function planEditorHtml(draft, isEdit) {
+  const preview = draft.kinds.length
+    ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>`
+    : "";
+  return `
+    <div class="sheet">
+      <h2>${isEdit ? t("editBlock") : t("addPlan")}</h2>
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
+      ${preview}
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
+      ${timeFields(draft)}
+      <div class="section">${t("planRepeat")}</div>
+      <div class="row">
+        <button type="button" class="chip-h ${draft.freq === "none" ? "on" : ""}" data-freq="none">${t("planRepeatNone")}</button>
+        <button type="button" class="chip-h ${draft.freq === "daily" ? "on" : ""}" data-freq="daily">${t("planRepeatDaily")}</button>
+        <button type="button" class="chip-h ${draft.freq === "weekly" ? "on" : ""}" data-freq="weekly">${t("planRepeatWeekly")}</button>
+      </div>
+      ${draft.freq === "weekly" ? `<div class="row" id="wd-row">${weekdayChips(draft.weekdays)}</div>` : ""}
+      ${draft.freq !== "none" ? `<input class="field" id="until" type="date" value="${escapeAttr(draft.until || "")}" aria-label="${escapeAttr(t("planUntil"))}" />
+        <p class="muted">${t("planUntil")}</p>` : ""}
+      ${isEdit && draft.seriesId ? `<div class="row">
+        <button type="button" class="chip-h ${draft.scope === "this" ? "on" : ""}" data-scope="this">${t("planThisOnly")}</button>
+        <button type="button" class="chip-h ${draft.scope === "future" ? "on" : ""}" data-scope="future">${t("planAllFuture")}</button>
+      </div>` : ""}
+      <button class="primary" data-save>${t("save")}</button>
+      ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
+      ${isEdit && draft.seriesId ? `<button class="ghost" data-stop>${t("planStopRepeat")}</button>` : ""}
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function bindPlanEditor(root, draft, isEdit) {
+  const reopen = () => showSheet(planEditorHtml(draft, isEdit), (r) => bindPlanEditor(r, draft, isEdit));
+  const refresh = () => {
+    const titleEl = root.querySelector("#title");
+    if (titleEl) draft.title = titleEl.value;
+    const untilEl = root.querySelector("#until");
+    if (untilEl) draft.until = untilEl.value;
+    reopen();
+  };
+  bindTimeFields(root, draft);
+  bindKindRow(root, draft, refresh, true, reopen);
+  root.querySelectorAll("[data-freq]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft.freq = el.dataset.freq;
+      refresh();
+    });
+  });
+  root.querySelectorAll("[data-wd]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const day = Number(el.dataset.wd);
+      if (draft.weekdays.includes(day)) {
+        draft.weekdays = draft.weekdays.filter((d) => d !== day);
+        if (draft.weekdays.length === 0) draft.weekdays = [day];
+      } else {
+        draft.weekdays = [...draft.weekdays, day];
+      }
+      refresh();
+    });
+  });
+  root.querySelectorAll("[data-scope]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft.scope = el.dataset.scope;
+      refresh();
+    });
+  });
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    draft.title = root.querySelector("#title")?.value.trim() || "";
+    draft.until = root.querySelector("#until")?.value || "";
+    if (draft.kinds.length === 0) {
+      root.querySelector("[data-save]").textContent = t("pickOne");
+      return;
+    }
+    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    savePlanDraft(draft, isEdit);
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-delete]")?.addEventListener("click", () => {
+    deletePlanOccurrence(draft, draft.scope === "future");
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-stop]")?.addEventListener("click", () => {
+    stopPlanSeries(draft.seriesId, state.date);
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function savePlanDraft(draft, isEdit) {
+  const payload = {
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    title: draft.title,
+    kinds: draft.kinds,
+    kind: draft.kinds[0],
+  };
+  const repeating = draft.freq === "daily" || draft.freq === "weekly";
+  if (isEdit && draft.seriesId && draft.scope === "this") {
+    state.day = upsertPlan(state.day, { ...payload, seriesId: draft.seriesId });
+    return;
+  }
+  if (!repeating) {
+    if (isEdit && draft.seriesId && draft.scope === "future") {
+      stopPlanSeries(draft.seriesId, addDays(state.date, 1));
+    }
+    state.day = upsertPlan(state.day, { ...payload, seriesId: null });
+    return;
+  }
+  const prev = draft.seriesId ? loadPlanSeries().find((s) => s.id === draft.seriesId) : null;
+  const seriesId = isEdit && draft.seriesId && draft.scope === "future" ? draft.seriesId : uid();
+  if (isEdit && draft.seriesId && draft.scope === "future") {
+    clearFuturePlanInstances(draft.seriesId, state.date);
+  }
+  const series = {
+    id: seriesId,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    kinds: draft.kinds,
+    title: draft.title,
+    freq: draft.freq,
+    weekdays: draft.freq === "weekly" ? draft.weekdays : [],
+    startDate: prev?.startDate || state.date,
+    until: draft.until || null,
+  };
+  savePlanSeries([...loadPlanSeries().filter((s) => s.id !== series.id), series]);
+  state.day = upsertPlan(state.day, { ...payload, seriesId: series.id });
+}
+
+function deletePlanOccurrence(draft, allFuture) {
+  if (allFuture && draft.seriesId) {
+    clearFuturePlanInstances(draft.seriesId, state.date);
+    savePlanSeries(loadPlanSeries().filter((s) => s.id !== draft.seriesId));
+    currentDay();
+    return;
+  }
+  if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+  state.day = removeBlock(state.day, draft.id);
+}
+
+function stopPlanSeries(seriesId, fromIso) {
+  if (!seriesId) return;
+  const list = loadPlanSeries().map((s) => {
+    if (s.id !== seriesId) return s;
+    const until = addDays(fromIso, -1);
+    if (until < s.startDate) return null;
+    return { ...s, until };
+  }).filter(Boolean);
+  savePlanSeries(list);
+  clearFuturePlanInstances(seriesId, fromIso);
+}
+
+function openPlanResolve(block) {
+  commitEdgeEdit();
+  const draft = {
+    id: block.id,
+    kinds: [...blockKinds(block)],
+    title: block.title || "",
+    startMin: block.startMin,
+    endMin: Math.min(block.endMin, nowMinutes() || block.endMin),
+    plannedStart: block.startMin,
+    plannedEnd: block.endMin,
+    seriesId: block.seriesId || null,
+    action: "done",
+    moveDate: state.date,
+  };
+  if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(block.id)}"]`);
+  showSheet(planResolveHtml(draft), (root) => bindPlanResolve(root, draft), { fromEl });
+}
+
+function planResolveHtml(draft) {
+  const name = liveBlockLabel(draft);
+  return `
+    <div class="sheet">
+      <h2>${t("planDue")}</h2>
+      <p>${escapeHtml(`${t("plan")} · ${name}`)}</p>
+      <p class="muted">${minutesToHm(draft.plannedStart)}–${minutesToHm(draft.plannedEnd)}</p>
+      <div class="row">
+        <button type="button" class="chip-h ${draft.action === "done" ? "on" : ""}" data-action="done">${t("planDone")}</button>
+        <button type="button" class="chip-h ${draft.action === "miss" ? "on" : ""}" data-action="miss">${t("planMiss")}</button>
+        <button type="button" class="chip-h ${draft.action === "postpone" ? "on" : ""}" data-action="postpone">${t("planPostpone")}</button>
+      </div>
+      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft)}` : ""}
+      ${draft.action === "miss" ? `<p class="muted">${t("planMissHint")}</p>` : ""}
+      ${draft.action === "postpone" ? `<p class="muted">${t("planPostponeHint")}</p>
+        <label class="muted">${t("planMoveDate")}</label>
+        <input class="field" id="move-date" type="date" value="${escapeAttr(draft.moveDate)}" />
+        ${timeFields(draft)}` : ""}
+      <button class="primary" data-save>${t("save")}</button>
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function bindPlanResolve(root, draft) {
+  const reopen = () => showSheet(planResolveHtml(draft), (r) => bindPlanResolve(r, draft));
+  root.querySelectorAll("[data-action]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft.action = el.dataset.action;
+      if (draft.action === "done") {
+        draft.startMin = draft.plannedStart;
+        draft.endMin = Math.min(draft.plannedEnd, Math.max(nowMinutes(), draft.plannedStart + 1));
+      }
+      reopen();
+    });
+  });
+  if (draft.action === "done" || draft.action === "postpone") bindTimeFields(root, draft);
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    if (draft.action === "postpone") {
+      draft.moveDate = root.querySelector("#move-date")?.value || state.date;
+    }
+    resolvePlan(draft);
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function resolvePlan(draft) {
+  currentDay();
+  if (draft.action === "miss") {
+    if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+    state.day = removeBlock(state.day, draft.id);
+    return;
+  }
+  if (draft.action === "postpone") {
+    const toIso = draft.moveDate || state.date;
+    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    if (toIso === state.date) {
+      state.day = upsertPlan(state.day, {
+        id: draft.id,
+        startMin: draft.startMin,
+        endMin: draft.endMin,
+        kinds: draft.kinds,
+        title: draft.title,
+        seriesId: draft.seriesId,
+      });
+      return;
+    }
+    if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+    state.day = removeBlock(state.day, draft.id);
+    upsertPlan(loadDay(toIso), {
+      id: uid(),
+      startMin: draft.startMin,
+      endMin: draft.endMin,
+      kinds: draft.kinds,
+      title: draft.title,
+      seriesId: draft.seriesId,
+    });
+    return;
+  }
+  if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+  state.day = removeBlock(state.day, draft.id);
+  state.day = upsertBlock(state.day, {
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    kinds: draft.kinds,
+    title: draft.title,
+    kind: draft.kinds[0],
+    fromSeriesId: draft.seriesId || null,
+    isPlan: false,
+  });
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -1862,6 +2269,21 @@ window.addEventListener("pageshow", () => {
   offerLogNowOnOpen();
 });
 
+function syncNowLine() {
+  if (state.tab !== "time" && !window.matchMedia("(min-width: 900px)").matches) return;
+  const isToday = state.date === todayISO();
+  const nowMin = nowMinutes();
+  const line = document.querySelector(".now-line");
+  if (line && isToday) {
+    line.style.top = `${((nowMin - START_HOUR * 60) / 60) * HOUR_H}px`;
+  }
+  document.querySelectorAll(".block.plan[data-id]").forEach((el) => {
+    const found = state.day.blocks.find((b) => b.id === el.dataset.id);
+    if (!found) return;
+    el.classList.toggle("due", planIsDue(found));
+  });
+}
+
 render();
 pinFrame();
 requestAnimationFrame(() => {
@@ -1870,7 +2292,8 @@ requestAnimationFrame(() => {
   pinFrame();
   offerLogNowOnOpen();
 });
+window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=73").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=74").catch(() => {});
 }

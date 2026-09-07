@@ -235,12 +235,17 @@ function lastActualEndAtOrBefore(day, endMin) {
 }
 
 /** 上次已经发生的实际记录结束点 → 现在。忽略还没到的色块。
+ *  若有已经过完、但还没点完成的计划，从那段计划的下沿开始（不要把计划时段算进「记到现在」）。
  *  今天还没有记录时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
  *  昨天也没有记录，则从今天 0:00 起。 */
 export function gapFromLastToNow(day, now = new Date(), yesterdayDay = null) {
   const endMin = nowMinutes(now);
   const last = lastActualEndAtOrBefore(day, endMin);
-  if (last != null) return { startMin: last, endMin, overnight: false };
+  const passedPlans = (day.blocks || []).filter((b) => b.isPlan && b.endMin <= endMin && b.endMin > b.startMin);
+  const lastPlanEnd = passedPlans.length ? Math.max(...passedPlans.map((b) => b.endMin)) : null;
+  let start = last;
+  if (lastPlanEnd != null) start = start == null ? lastPlanEnd : Math.max(start, lastPlanEnd);
+  if (start != null) return { startMin: start, endMin, overnight: false };
   const yActuals = (yesterdayDay?.blocks || []).filter((b) => !b.isPlan);
   const yLast = yActuals.length === 0 ? null : Math.max(...yActuals.map((b) => b.endMin));
   if (yLast == null || yLast >= 24 * 60) {
@@ -290,6 +295,47 @@ export function emptySpan(blocks, origin, exceptId, loBound, hiBound) {
   }
   if (hi - lo < 1) return null;
   return { startMin: lo, endMin: hi };
+}
+
+export function emptyPlanSpan(blocks, origin, exceptId, loBound, hiBound) {
+  if (origin < loBound || origin >= hiBound) return null;
+  let lo = loBound;
+  let hi = hiBound;
+  for (const b of blocks || []) {
+    if (!b.isPlan || b.id === exceptId) continue;
+    if (b.endMin <= origin) lo = Math.max(lo, b.endMin);
+    else if (b.startMin >= origin) hi = Math.min(hi, b.startMin);
+    else return null;
+  }
+  if (hi - lo < 1) return null;
+  return { startMin: lo, endMin: hi };
+}
+
+export function weekdayOfIso(iso) {
+  const [y, m, d] = String(iso).split("-").map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+export const PLAN_HORIZON_DAYS = 16 * 7;
+
+export function planOccursOn(series, iso) {
+  if (!series || !iso) return false;
+  const start = String(series.startDate || "");
+  if (start && iso < start) return false;
+  const until = series.until ? String(series.until) : "";
+  const horizon = start ? addDays(start, PLAN_HORIZON_DAYS) : iso;
+  const cap = until && until < horizon ? until : horizon;
+  if (iso > cap) return false;
+  const freq = series.freq || "none";
+  if (freq === "none") return iso === start;
+  if (freq === "daily") return true;
+  if (freq === "weekly") {
+    const days = Array.isArray(series.weekdays) && series.weekdays.length
+      ? series.weekdays.map(Number)
+      : [weekdayOfIso(start || iso)];
+    return days.includes(weekdayOfIso(iso));
+  }
+  return false;
 }
 
 function subtractRange(block, cutStart, cutEnd) {

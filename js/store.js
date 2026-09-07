@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks } from "./models.js?v=73";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "./models.js?v=74";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -23,8 +23,8 @@ function blocksOnly(day) {
 export function loadDay(date) {
   const all = readJson(DAYS, {});
   const saved = all[date];
-  if (!saved) return emptyDay(date);
-  return { date, ...blocksOnly(saved) };
+  const day = saved ? { date, ...blocksOnly(saved) } : emptyDay(date);
+  return hydrateDayPlans(date, day);
 }
 
 export function saveDay(day) {
@@ -46,10 +46,36 @@ export function upsertBlock(day, block) {
     ...rest,
     kinds,
     kind: kinds[0],
+    isPlan: false,
   };
   const next = {
     ...day,
     blocks: insertExclusive(day.blocks, normalized),
+  };
+  saveDay(next);
+  return next;
+}
+
+export function upsertPlan(day, block) {
+  const kinds = Array.isArray(block.kinds) && block.kinds.length > 0
+    ? block.kinds
+    : [block.kind || "OTHER"];
+  const start = Math.min(Number(block.startMin), Number(block.endMin));
+  const end = Math.max(Number(block.startMin), Number(block.endMin));
+  if (end - start < 1) return day;
+  const plan = {
+    id: block.id || uid(),
+    isPlan: true,
+    startMin: start,
+    endMin: end,
+    kinds,
+    kind: kinds[0],
+    title: String(block.title || ""),
+    seriesId: block.seriesId || null,
+  };
+  const next = {
+    ...day,
+    blocks: [...(day.blocks || []).filter((b) => b.id !== plan.id), plan],
   };
   saveDay(next);
   return next;
@@ -112,9 +138,79 @@ export function loadAllDays() {
   const all = readJson(DAYS, {});
   const out = {};
   for (const [iso, day] of Object.entries(all)) {
-    out[iso] = blocksOnly(day);
+    out[iso] = hydrateDayPlans(iso, { date: iso, ...blocksOnly(day) });
   }
   return out;
+}
+
+function normalizePlanSeries(list) {
+  if (!Array.isArray(list)) return [];
+  return list.filter((s) => s && s.id && Array.isArray(s.kinds) && s.kinds.length);
+}
+
+function planSkipMap() {
+  const raw = loadSettings().planSkip;
+  return raw && typeof raw === "object" ? { ...raw } : {};
+}
+
+export function loadPlanSeries() {
+  return normalizePlanSeries(loadSettings().planSeries);
+}
+
+export function savePlanSeries(list) {
+  saveSettings({ ...loadSettings(), planSeries: normalizePlanSeries(list) });
+}
+
+export function skipPlanOccurrence(seriesId, iso) {
+  if (!seriesId || !iso) return;
+  const skip = planSkipMap();
+  skip[`${seriesId}:${iso}`] = true;
+  saveSettings({ ...loadSettings(), planSkip: skip });
+}
+
+export function clearFuturePlanInstances(seriesId, fromIso) {
+  if (!seriesId) return;
+  const all = readJson(DAYS, {});
+  let changed = false;
+  for (const [iso, day] of Object.entries(all)) {
+    if (iso < fromIso) continue;
+    const blocks = Array.isArray(day?.blocks) ? day.blocks : [];
+    const next = blocks.filter((b) => !(b.isPlan && b.seriesId === seriesId));
+    if (next.length !== blocks.length) {
+      all[iso] = { blocks: foldExclusive(next) };
+      changed = true;
+    }
+  }
+  if (changed) writeJson(DAYS, all);
+}
+
+function hydrateDayPlans(iso, day) {
+  const series = loadPlanSeries();
+  if (!series.length) return day;
+  const skip = planSkipMap();
+  const claimed = new Set();
+  for (const b of day.blocks || []) {
+    if (b.seriesId) claimed.add(b.seriesId);
+    if (b.fromSeriesId) claimed.add(b.fromSeriesId);
+  }
+  const extra = [];
+  for (const s of series) {
+    if (!planOccursOn(s, iso)) continue;
+    if (skip[`${s.id}:${iso}`]) continue;
+    if (claimed.has(s.id)) continue;
+    extra.push({
+      id: `${s.id}-${iso}`,
+      isPlan: true,
+      seriesId: s.id,
+      startMin: Number(s.startMin) || 0,
+      endMin: Number(s.endMin) || 0,
+      kinds: [...s.kinds],
+      kind: s.kinds[0],
+      title: String(s.title || ""),
+    });
+  }
+  if (!extra.length) return day;
+  return { ...day, blocks: [...day.blocks, ...extra] };
 }
 
 export function earliestDate() {
