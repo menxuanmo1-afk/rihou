@@ -360,19 +360,10 @@ button { cursor: pointer; }
 .block.plan {
   left: 70px;
   right: 12px;
-  z-index: 2;
+  z-index: 5;
   border: 1px solid;
   background: transparent;
   font-weight: 500;
-}
-.block.plan.covered {
-  left: 8px;
-  width: 62px;
-  right: auto;
-  padding: 0;
-  opacity: 0.38;
-  background: transparent;
-  z-index: 1;
 }
 @keyframes plan-breathe {
   0%, 100% { filter: brightness(1); box-shadow: none; }
@@ -381,11 +372,11 @@ button { cursor: pointer; }
     box-shadow: 0 0 12px color-mix(in srgb, currentColor 42%, transparent);
   }
 }
-.block.plan.due:not(.covered) {
+.block.plan.due {
   animation: plan-breathe 3.4s ease-in-out infinite;
 }
 @media (prefers-reduced-motion: reduce) {
-  .block.plan.due:not(.covered) {
+  .block.plan.due {
     animation: none;
   }
 }

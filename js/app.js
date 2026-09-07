@@ -29,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=88";
+} from "./models.js?v=89";
 import {
   loadDay,
   upsertBlock,
@@ -47,7 +47,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=88";
+} from "./store.js?v=89";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -61,10 +61,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=88";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=88";
-import { pickEvalLine } from "./lines.js?v=88";
-import { buildAiExport } from "./ai-export.js?v=88";
+} from "./analysis.js?v=89";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=89";
+import { pickEvalLine } from "./lines.js?v=89";
+import { buildAiExport } from "./ai-export.js?v=89";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -224,14 +224,9 @@ function timelineHtml() {
     return `<div class="hour-row" data-hour="${hour}"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span></div>`;
   }).join("");
 
-  const actuals = (state.day.blocks || []).filter((b) => !b.isPlan);
   const blocks = (state.day.blocks || []).flatMap((block) => {
     if (block.endMin <= block.startMin) return [];
-    if (!block.isPlan) return [blockHtml(block, false)];
-    return splitPlanAgainstActuals(block, actuals).map((seg) => {
-      const slice = { ...block, startMin: seg.start, endMin: seg.end };
-      return blockHtml(slice, seg.covered, block);
-    });
+    return [blockHtml(block)];
   }).join("");
 
   return `<div class="timeline" id="timeline">
@@ -244,26 +239,6 @@ function timelineHtml() {
   </div>`;
 }
 
-function splitPlanAgainstActuals(plan, actuals) {
-  let segs = [{ start: plan.startMin, end: plan.endMin, covered: false }];
-  for (const actual of actuals) {
-    const next = [];
-    for (const seg of segs) {
-      const lo = Math.max(seg.start, actual.startMin);
-      const hi = Math.min(seg.end, actual.endMin);
-      if (lo >= hi) {
-        next.push(seg);
-        continue;
-      }
-      if (seg.start < lo) next.push({ start: seg.start, end: lo, covered: seg.covered });
-      next.push({ start: lo, end: hi, covered: true });
-      if (seg.end > hi) next.push({ start: hi, end: seg.end, covered: seg.covered });
-    }
-    segs = next.filter((seg) => seg.end > seg.start);
-  }
-  return segs;
-}
-
 function planIsDue(block) {
   if (!block?.isPlan) return false;
   const today = todayISO();
@@ -272,35 +247,33 @@ function planIsDue(block) {
   return nowMinutes() >= block.startMin;
 }
 
-function blockHtml(block, covered = false, source = block) {
-  const editing = !block.isPlan && state.edgeEdit?.id === source.id;
+function blockHtml(block) {
+  const editing = !block.isPlan && state.edgeEdit?.id === block.id;
   const startMin = editing ? state.edgeEdit.startMin : block.startMin;
   const endMin = editing ? state.edgeEdit.endMin : block.endMin;
   const visStart = Math.max(startMin, START_HOUR * 60);
   const visEnd = Math.min(endMin, END_HOUR * 60);
   if (visEnd <= visStart) return "";
   const { top, h } = blockGeom(startMin, endMin);
-  const colors = blockColors(source);
-  const mixed = colors.length > 1 && !source.isPlan;
-  const name = liveBlockLabel(source);
-  const label = source.isPlan ? `${t("plan")} · ${name}` : name;
+  const colors = blockColors(block);
+  const mixed = colors.length > 1 && !block.isPlan;
+  const name = liveBlockLabel(block);
+  const label = block.isPlan ? `${t("plan")} · ${name}` : name;
   const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
-  const bg = source.isPlan ? `${colors[0]}22` : gradientCss(colors);
-  const due = source.isPlan && planIsDue(source);
+  const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
+  const due = block.isPlan && planIsDue(block);
   const style = [
     `top:${top}px`,
     `height:${h}px`,
-    covered ? "" : `background:${bg}`,
-    `color:${source.isPlan ? colors[0] : ink}`,
-    source.isPlan ? `border-color:${colors[0]}` : "",
+    `background:${bg}`,
+    `color:${block.isPlan ? colors[0] : ink}`,
+    block.isPlan ? `border-color:${colors[0]}` : "",
   ].filter(Boolean).join(";");
   const handles = editing
     ? `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`
     : "";
-  const inner = covered
-    ? ""
-    : `${label}${h > 28 ? `<div class="when">${minutesToHm(source.startMin)}–${minutesToHm(source.endMin)}</div>` : ""}`;
-  return `<div class="block ${source.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${covered ? " covered" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}" data-id="${source.id}" style="${style}">
+  const inner = `${label}${h > 28 ? `<div class="when">${minutesToHm(block.startMin)}–${minutesToHm(block.endMin)}</div>` : ""}`;
+  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}" data-id="${block.id}" style="${style}">
         ${inner}
         ${handles}
       </div>`;
@@ -461,31 +434,27 @@ function edgeFromClientY(blockEl, clientY) {
 
 function blockResizeClip(block) {
   const { lo: loBound, hi: hiBound } = draftBounds(false);
-  return timeEditClip(state.day.blocks, block, { loBound, hiBound, walls: "actual" });
-}
-
-function timeWallsFor(draft) {
-  return draft.clipWalls || (draft.isPlan ? "all" : "actual");
+  return timeEditClip(state.day.blocks, block, { loBound, hiBound, walls: "all" });
 }
 
 function clipBoundsForDraft(draft) {
-  const walls = timeWallsFor(draft);
+  const asPlan = Boolean(draft.isPlan) || draft.action === "postpone";
   if (draft.overnight) {
     const yesterday = loadDay(addDays(state.date, -1));
     const startClip = timeEditClip(yesterday.blocks, {
       id: draft.id,
       startMin: draft.startMin,
       endMin: 24 * 60,
-    }, { loBound: 0, hiBound: 24 * 60, walls: "actual" });
+    }, { loBound: 0, hiBound: 24 * 60, walls: "all" });
     const endClip = timeEditClip(state.day.blocks, {
       id: draft.id,
       startMin: 0,
       endMin: draft.endMin,
-    }, { loBound: 0, hiBound: recordableUntil(), walls: "actual" });
+    }, { loBound: 0, hiBound: recordableUntil(), walls: "all" });
     return { lo: startClip.lo, hi: endClip.hi, overnight: true };
   }
-  const { lo: loBound, hi: hiBound } = draftBounds(walls === "all");
-  return { ...timeEditClip(state.day.blocks, draft, { loBound, hiBound, walls }), overnight: false };
+  const { lo: loBound, hi: hiBound } = draftBounds(asPlan);
+  return { ...timeEditClip(state.day.blocks, draft, { loBound, hiBound, walls: "all" }), overnight: false };
 }
 
 function tryAssignTime(draft, patch) {
@@ -500,7 +469,8 @@ function tryAssignTime(draft, patch) {
     return true;
   }
   const lo = clip.lo;
-  const hi = Math.max(lo + 1, clip.hi);
+  const hi = clip.hi;
+  if (hi <= lo) return false;
   if (patch.startMin != null && patch.endMin == null) {
     start = Math.max(lo, Math.min(start, draft.endMin - 1, hi - 1));
     end = draft.endMin;
@@ -512,6 +482,7 @@ function tryAssignTime(draft, patch) {
     end = Math.min(hi, Math.max(end, start + 1));
   }
   if (end <= start) end = Math.min(hi, start + 1);
+  if (end <= start) return false;
   draft.startMin = start;
   draft.endMin = end;
   return true;
@@ -524,6 +495,7 @@ function snapDraftToClip(draft) {
     draft.endMin = Math.min(clip.hi, Math.max(0, draft.endMin));
     return;
   }
+  if (clip.hi <= clip.lo) return;
   draft.startMin = Math.max(clip.lo, Math.min(draft.startMin, clip.hi - 1));
   draft.endMin = Math.min(clip.hi, Math.max(draft.endMin, draft.startMin + 1));
 }
@@ -1655,7 +1627,6 @@ function openPlanResolve(block) {
     plannedEnd: block.endMin,
     seriesId: block.seriesId || null,
     action: "done",
-    clipWalls: "actual",
     moveDate: state.date,
   };
   if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
@@ -1692,7 +1663,6 @@ function bindPlanResolve(root, draft) {
   root.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", () => {
       draft.action = el.dataset.action;
-      draft.clipWalls = draft.action === "postpone" ? "all" : "actual";
       if (draft.action === "done") {
         draft.startMin = draft.plannedStart;
         draft.endMin = Math.min(draft.plannedEnd, Math.max(nowMinutes(), draft.plannedStart + 1));
@@ -1762,17 +1732,26 @@ function resolvePlan(draft) {
 function openRecordSheet(range, extra = {}) {
   commitEdgeEdit();
   const overnight = Boolean(range.overnight);
+  const id = extra.id || uid();
+  let startMin = range.startMin;
+  let endMin = overnight ? Math.max(0, range.endMin) : range.endMin;
+  if (!overnight && endMin <= startMin) {
+    const probeEnd = startMin + 1;
+    const blocked = (state.day.blocks || []).some(
+      (b) => b.id !== id && b.startMin < probeEnd && b.endMin > startMin,
+    );
+    if (!blocked) endMin = probeEnd;
+  }
   const draft = {
-    id: extra.id || uid(),
+    id,
     isPlan: false,
-    clipWalls: "actual",
+    clipWalls: "all",
     kinds: extra.kinds ? [...extra.kinds] : [],
     title: extra.title || "",
-    startMin: range.startMin,
-    endMin: overnight ? Math.max(0, range.endMin) : Math.max(range.startMin + 1, range.endMin),
+    startMin,
+    endMin,
     overnight,
   };
-  if (!draft.overnight && draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
   showSheet(recordHtml(draft), (root) => bindRecord(root, draft), { fromEl: extra.fromEl });
 }
 
@@ -1937,7 +1916,7 @@ function openEditor(block) {
   const draft = {
     id: block.id,
     isPlan: Boolean(block.isPlan),
-    clipWalls: block.isPlan ? "all" : "actual",
+    clipWalls: "all",
     kinds: [...blockKinds(block)],
     title: block.title || "",
     startMin: block.startMin,
@@ -2259,11 +2238,14 @@ function logNowRange() {
   const yesterday = loadDay(addDays(state.date, -1));
   let range = gapFromLastToNow(state.day, new Date(), yesterday);
   if (!range.overnight && range.endMin <= range.startMin) {
-    range = {
-      startMin: Math.max(START_HOUR * 60, range.endMin - 1),
-      endMin: Math.max(range.endMin, START_HOUR * 60 + 1),
-      overnight: false,
-    };
+    const endMin = Math.max(range.endMin, START_HOUR * 60 + 1);
+    const startMin = Math.max(START_HOUR * 60, endMin - 1);
+    const blocked = (state.day.blocks || []).some(
+      (b) => b.startMin < endMin && b.endMin > startMin,
+    );
+    if (!blocked) {
+      range = { startMin, endMin, overnight: false };
+    }
   }
   return range;
 }
@@ -2303,7 +2285,7 @@ function saveLoggedDraft(draft) {
     }
     return;
   }
-  if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+  if (draft.endMin <= draft.startMin) return;
   state.day = upsertBlock(state.day, {
     ...payload,
     id: draft.id,
@@ -2391,5 +2373,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=88").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=89").catch(() => {});
 }

@@ -228,30 +228,33 @@ export function nowMinutes(d = new Date()) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-function lastActualEndAtOrBefore(day, endMin) {
-  const actuals = (day.blocks || []).filter((b) => !b.isPlan && b.endMin <= endMin);
-  if (actuals.length === 0) return null;
-  return Math.max(...actuals.map((b) => b.endMin));
+function lastOccupiedEndAtOrBefore(day, endMin) {
+  const hits = (day?.blocks || []).filter((b) => b.endMin <= endMin && b.endMin > b.startMin);
+  if (!hits.length) return null;
+  return Math.max(...hits.map((b) => b.endMin));
 }
 
-/** 上次已经发生的实际记录结束点 → 现在。忽略还没到的色块。
- *  若有已经过完、但还没点完成的计划，从那段计划的下沿开始（不要把计划时段算进「记到现在」）。
- *  今天还没有记录时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
+function coveringPlanAt(day, minute) {
+  return (day.blocks || []).find(
+    (b) => b.isPlan && b.startMin <= minute && minute < b.endMin,
+  ) || null;
+}
+
+/** 上次占用结束点（实际记录或计划）→ 现在。计划占着的时段不能记成实际记录。
+ *  若现在还在一段计划里，只记到这段计划的上沿。
+ *  今天还没有占用时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
  *  昨天也没有记录，则从今天 0:00 起。 */
 export function gapFromLastToNow(day, now = new Date(), yesterdayDay = null) {
-  const endMin = nowMinutes(now);
-  const last = lastActualEndAtOrBefore(day, endMin);
-  const passedPlans = (day.blocks || []).filter((b) => b.isPlan && b.endMin <= endMin && b.endMin > b.startMin);
-  const lastPlanEnd = passedPlans.length ? Math.max(...passedPlans.map((b) => b.endMin)) : null;
-  let start = last;
-  if (lastPlanEnd != null) start = start == null ? lastPlanEnd : Math.max(start, lastPlanEnd);
-  if (start != null) return { startMin: start, endMin, overnight: false };
-  const yActuals = (yesterdayDay?.blocks || []).filter((b) => !b.isPlan);
-  const yLast = yActuals.length === 0 ? null : Math.max(...yActuals.map((b) => b.endMin));
+  const nowMin = nowMinutes(now);
+  const covering = coveringPlanAt(day, nowMin);
+  const cap = covering ? covering.startMin : nowMin;
+  const last = lastOccupiedEndAtOrBefore(day, cap);
+  if (last != null) return { startMin: last, endMin: cap, overnight: false };
+  const yLast = lastOccupiedEndAtOrBefore(yesterdayDay, 24 * 60);
   if (yLast == null || yLast >= 24 * 60) {
-    return { startMin: 0, endMin, overnight: false };
+    return { startMin: 0, endMin: cap, overnight: false };
   }
-  return { startMin: yLast, endMin, overnight: true };
+  return { startMin: yLast, endMin: cap, overnight: true };
 }
 
 export function overnightSpanMin(startMin, endMin) {
@@ -284,11 +287,10 @@ export function actualAtMinute(blocks, minute, exceptId) {
 
 export function emptySpan(blocks, origin, exceptId, loBound, hiBound) {
   if (origin < loBound || origin >= hiBound) return null;
-  if (actualAtMinute(blocks, origin, exceptId)) return null;
   let lo = loBound;
   let hi = hiBound;
   for (const b of blocks || []) {
-    if (b.isPlan || b.id === exceptId) continue;
+    if (b.id === exceptId) continue;
     if (b.endMin <= origin) lo = Math.max(lo, b.endMin);
     else if (b.startMin >= origin) hi = Math.min(hi, b.startMin);
     else return null;
@@ -298,17 +300,7 @@ export function emptySpan(blocks, origin, exceptId, loBound, hiBound) {
 }
 
 export function emptyPlanSpan(blocks, origin, exceptId, loBound, hiBound) {
-  if (origin < loBound || origin >= hiBound) return null;
-  let lo = loBound;
-  let hi = hiBound;
-  for (const b of blocks || []) {
-    if (!b.isPlan || b.id === exceptId) continue;
-    if (b.endMin <= origin) lo = Math.max(lo, b.endMin);
-    else if (b.startMin >= origin) hi = Math.min(hi, b.startMin);
-    else return null;
-  }
-  if (hi - lo < 1) return null;
-  return { startMin: lo, endMin: hi };
+  return emptySpan(blocks, origin, exceptId, loBound, hiBound);
 }
 
 /** Neighbor walls for editing a span. `walls`: "actual" | "plan" | "all". */
@@ -324,6 +316,8 @@ export function timeEditClip(blocks, draft, { loBound = 0, hiBound = 24 * 60, wa
     if (walls === "plan" && !b.isPlan) continue;
     if (b.endMin <= start) lo = Math.max(lo, b.endMin);
     else if (b.startMin >= end) hi = Math.min(hi, b.startMin);
+    else if (start < b.startMin) hi = Math.min(hi, b.startMin);
+    else lo = Math.max(lo, b.endMin);
   }
   return { lo, hi };
 }
@@ -369,7 +363,8 @@ function subtractRange(block, cutStart, cutEnd) {
   return pieces.filter((p) => p.endMin - p.startMin >= 1);
 }
 
-/** Place an actual block so each minute belongs to at most one record. Later block wins the overlap. */
+/** Place an actual block so each minute belongs to at most one record. Later block wins the overlap.
+ *  Plans keep their minutes; an actual cannot take a plan's time. */
 export function insertExclusive(blocks, incoming) {
   const start = Math.min(Number(incoming.startMin), Number(incoming.endMin));
   const end = Math.max(Number(incoming.startMin), Number(incoming.endMin));
