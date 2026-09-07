@@ -831,6 +831,7 @@ button { cursor: pointer; }
   flex: 0 0 auto;
   padding: 6px 6px;
 }
+.time-controls .btn.time-now,
 .time-pair > .btn.time-now {
   flex: 0 0 auto;
   font-size: 13px;

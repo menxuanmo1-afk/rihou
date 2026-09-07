@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=83";
+} from "./models.js?v=84";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=83";
+} from "./store.js?v=84";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=83";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=83";
-import { pickEvalLine } from "./lines.js?v=83";
-import { buildAiExport } from "./ai-export.js?v=83";
+} from "./analysis.js?v=84";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=84";
+import { pickEvalLine } from "./lines.js?v=84";
+import { buildAiExport } from "./ai-export.js?v=84";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1440,7 +1440,7 @@ function planEditorHtml(draft, isEdit) {
       <h2>${isEdit ? t("editBlock") : t("addPlan")}</h2>
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
-      ${timeFields(draft)}
+      ${timeFields(draft, { nowOn: "start" })}
       <div class="section">${t("planRepeat")}</div>
       <div class="row">
         <button type="button" class="chip-h ${draft.freq === "none" ? "on" : ""}" data-freq="none">${t("planRepeatNone")}</button>
@@ -1614,12 +1614,12 @@ function planResolveHtml(draft) {
         <button type="button" class="chip-h ${draft.action === "miss" ? "on" : ""}" data-action="miss">${t("planMiss")}</button>
         <button type="button" class="chip-h ${draft.action === "postpone" ? "on" : ""}" data-action="postpone">${t("planPostpone")}</button>
       </div>
-      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft, { showNow: true })}` : ""}
+      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft, { nowOn: "end" })}` : ""}
       ${draft.action === "miss" ? `<p class="muted">${t("planMissHint")}</p>` : ""}
       ${draft.action === "postpone" ? `<p class="muted">${t("planPostponeHint")}</p>
         <label class="muted">${t("planMoveDate")}</label>
         <input class="field" id="move-date" type="date" value="${escapeAttr(draft.moveDate)}" />
-        ${timeFields(draft)}` : ""}
+        ${timeFields(draft, { nowOn: "start" })}` : ""}
       <button class="primary" data-save>${t("save")}</button>
       <button class="ghost" data-close>${t("cancel")}</button>
     </div>
@@ -1723,7 +1723,7 @@ function recordHtml(draft) {
     <div class="sheet">
       <h2>${crossed ? t("sinceLast") : t("logTitle")}</h2>
       <p class="muted">${t("logHint")}</p>
-      ${timeFields(draft, { showNow: true })}
+      ${timeFields(draft, { nowOn: "end" })}
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       <p class="muted" id="mix-hint">${hint}</p>
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
@@ -1744,9 +1744,12 @@ function spanLabel(draft) {
   return `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
 }
 
-function timeFields(draft, { showNow = false } = {}) {
-  const nowBtn = showNow
-    ? `<button type="button" class="btn time-now" data-now>${t("now")}</button>`
+function timeFields(draft, { nowOn = null } = {}) {
+  const startNow = nowOn === "start"
+    ? `<button type="button" class="btn time-now" data-now="start">${t("now")}</button>`
+    : "";
+  const endNow = nowOn === "end"
+    ? `<button type="button" class="btn time-now" data-now="end">${t("now")}</button>`
     : "";
   return `
     <div class="time-pair">
@@ -1756,6 +1759,7 @@ function timeFields(draft, { showNow = false } = {}) {
           <button type="button" class="btn" data-nudge="start,-5">−5</button>
           <input type="time" id="start-time" step="300" value="${hmInputValue(draft.startMin)}" />
           <button type="button" class="btn" data-nudge="start,5">+5</button>
+          ${startNow}
         </div>
       </div>
       <div class="time-field">
@@ -1766,7 +1770,7 @@ function timeFields(draft, { showNow = false } = {}) {
           <button type="button" class="btn" data-nudge="end,5">+5</button>
         </div>
       </div>
-      ${nowBtn}
+      ${endNow}
     </div>
     <p class="muted" id="span-lab">${spanLabel(draft)}</p>
   `;
@@ -1803,10 +1807,14 @@ function bindTimeFields(root, draft, onChange) {
       sync();
     });
   });
-  root.querySelector("[data-now]")?.addEventListener("click", () => {
-    draft.endMin = nowMinutes();
-    clampSameDay();
-    sync();
+  root.querySelectorAll("[data-now]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const now = nowMinutes();
+      if (el.dataset.now === "start") draft.startMin = now;
+      else draft.endMin = now;
+      clampSameDay();
+      sync();
+    });
   });
 }
 
@@ -1869,7 +1877,7 @@ function editorHtml(draft, isEdit) {
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       ${mixHint}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
-      ${timeFields(draft, { showNow: !draft.isPlan })}
+      ${timeFields(draft, { nowOn: draft.isPlan ? "start" : "end" })}
       <button class="primary" data-save>${t("save")}</button>
       ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
       <button class="ghost" data-close>${t("cancel")}</button>
@@ -2299,5 +2307,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=83").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=84").catch(() => {});
 }

@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "./models.js?v=83";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "./models.js?v=84";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
