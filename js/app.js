@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=74";
+} from "./models.js?v=75";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=74";
+} from "./store.js?v=75";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=74";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=74";
-import { pickEvalLine } from "./lines.js?v=74";
-import { buildAiExport } from "./ai-export.js?v=74";
+} from "./analysis.js?v=75";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=75";
+import { pickEvalLine } from "./lines.js?v=75";
+import { buildAiExport } from "./ai-export.js?v=75";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1431,8 +1431,6 @@ function planEditorHtml(draft, isEdit) {
         <button type="button" class="chip-h ${draft.freq === "weekly" ? "on" : ""}" data-freq="weekly">${t("planRepeatWeekly")}</button>
       </div>
       ${draft.freq === "weekly" ? `<div class="row" id="wd-row">${weekdayChips(draft.weekdays)}</div>` : ""}
-      ${draft.freq !== "none" ? `<input class="field" id="until" type="date" value="${escapeAttr(draft.until || "")}" aria-label="${escapeAttr(t("planUntil"))}" />
-        <p class="muted">${t("planUntil")}</p>` : ""}
       ${isEdit && draft.seriesId ? `<div class="row">
         <button type="button" class="chip-h ${draft.scope === "this" ? "on" : ""}" data-scope="this">${t("planThisOnly")}</button>
         <button type="button" class="chip-h ${draft.scope === "future" ? "on" : ""}" data-scope="future">${t("planAllFuture")}</button>
@@ -1450,8 +1448,6 @@ function bindPlanEditor(root, draft, isEdit) {
   const refresh = () => {
     const titleEl = root.querySelector("#title");
     if (titleEl) draft.title = titleEl.value;
-    const untilEl = root.querySelector("#until");
-    if (untilEl) draft.until = untilEl.value;
     reopen();
   };
   bindTimeFields(root, draft);
@@ -1482,7 +1478,6 @@ function bindPlanEditor(root, draft, isEdit) {
   });
   root.querySelector("[data-save]").addEventListener("click", () => {
     draft.title = root.querySelector("#title")?.value.trim() || "";
-    draft.until = root.querySelector("#until")?.value || "";
     if (draft.kinds.length === 0) {
       root.querySelector("[data-save]").textContent = t("pickOne");
       return;
@@ -2295,5 +2290,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=74").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=75").catch(() => {});
 }

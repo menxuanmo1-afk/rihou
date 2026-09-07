@@ -741,8 +741,11 @@ button { cursor: pointer; }
   border-radius: 12px;
   padding: 10px 12px;
   outline: none;
-  color: var(--ink);
+  color: var(--paper);
   color-scheme: dark;
+}
+.field::placeholder {
+  color: var(--mute);
 }
 
 .primary, .ghost, .danger {
