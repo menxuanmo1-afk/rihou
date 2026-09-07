@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=77";
+} from "./models.js?v=78";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=77";
+} from "./store.js?v=78";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=77";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=77";
-import { pickEvalLine } from "./lines.js?v=77";
-import { buildAiExport } from "./ai-export.js?v=77";
+} from "./analysis.js?v=78";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=78";
+import { pickEvalLine } from "./lines.js?v=78";
+import { buildAiExport } from "./ai-export.js?v=78";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1597,7 +1597,7 @@ function planResolveHtml(draft) {
         <button type="button" class="chip-h ${draft.action === "miss" ? "on" : ""}" data-action="miss">${t("planMiss")}</button>
         <button type="button" class="chip-h ${draft.action === "postpone" ? "on" : ""}" data-action="postpone">${t("planPostpone")}</button>
       </div>
-      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft)}` : ""}
+      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft, { showNow: true })}` : ""}
       ${draft.action === "miss" ? `<p class="muted">${t("planMissHint")}</p>` : ""}
       ${draft.action === "postpone" ? `<p class="muted">${t("planPostponeHint")}</p>
         <label class="muted">${t("planMoveDate")}</label>
@@ -1706,7 +1706,7 @@ function recordHtml(draft) {
     <div class="sheet">
       <h2>${crossed ? t("sinceLast") : t("logTitle")}</h2>
       <p class="muted">${t("logHint")}</p>
-      ${timeFields(draft)}
+      ${timeFields(draft, { showNow: true })}
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       <p class="muted" id="mix-hint">${hint}</p>
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
@@ -1727,27 +1727,27 @@ function spanLabel(draft) {
   return `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
 }
 
-function timeFields(draft) {
+function timeFields(draft, { showNow = false } = {}) {
+  const nowBtn = showNow
+    ? `<button type="button" class="btn time-now" data-now>${t("now")}</button>`
+    : "";
   return `
-    <div class="time-field">
-      <span>${draft.overnight ? t("startLastNight") : t("start")}</span>
-      <div class="time-controls">
-        <button class="btn" data-nudge="start,-5">−5</button>
-        <button class="btn" data-nudge="start,-1">−1</button>
-        <input type="time" id="start-time" value="${hmInputValue(draft.startMin)}" />
-        <button class="btn" data-nudge="start,1">+1</button>
-        <button class="btn" data-nudge="start,5">+5</button>
+    <div class="time-pair">
+      <div class="time-field">
+        <span>${draft.overnight ? t("startLastNight") : t("start")}</span>
+        <div class="time-controls">
+          <button type="button" class="btn" data-nudge="start,-5">−5</button>
+          <input type="time" id="start-time" step="300" value="${hmInputValue(draft.startMin)}" />
+          <button type="button" class="btn" data-nudge="start,5">+5</button>
+        </div>
       </div>
-    </div>
-    <div class="time-field">
-      <span>${t("end")}</span>
-      <div class="time-controls">
-        <button class="btn" data-nudge="end,-5">−5</button>
-        <button class="btn" data-nudge="end,-1">−1</button>
-        <input type="time" id="end-time" value="${hmInputValue(draft.endMin)}" />
-        <button class="btn" data-nudge="end,1">+1</button>
-        <button class="btn" data-nudge="end,5">+5</button>
-        <button class="btn" data-now>${t("now")}</button>
+      <div class="time-field">
+        <span>${t("end")}${nowBtn}</span>
+        <div class="time-controls">
+          <button type="button" class="btn" data-nudge="end,-5">−5</button>
+          <input type="time" id="end-time" step="300" value="${hmInputValue(draft.endMin)}" />
+          <button type="button" class="btn" data-nudge="end,5">+5</button>
+        </div>
       </div>
     </div>
     <p class="muted" id="span-lab">${spanLabel(draft)}</p>
@@ -1851,7 +1851,7 @@ function editorHtml(draft, isEdit) {
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
       ${mixHint}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
-      ${timeFields(draft)}
+      ${timeFields(draft, { showNow: !draft.isPlan })}
       <button class="primary" data-save>${t("save")}</button>
       ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
       <button class="ghost" data-close>${t("cancel")}</button>
@@ -2281,5 +2281,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=77").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=78").catch(() => {});
 }

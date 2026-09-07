@@ -803,27 +803,50 @@ button { cursor: pointer; }
   font-size: 13px;
 }
 
+.time-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 12px;
+  margin: 10px 0 4px;
+}
 .time-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  margin: 10px 0;
+  min-width: 0;
 }
-.time-field > span { color: var(--mute); font-size: 13px; }
+.time-field > span {
+  color: var(--mute);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 28px;
+}
+.time-field .btn.time-now {
+  padding: 4px 8px;
+  font-size: 12px;
+}
 .time-controls {
   display: flex;
   align-items: center;
-  gap: 6px;
-  flex-wrap: wrap;
+  gap: 4px;
+}
+.time-controls .btn {
+  flex: 0 0 auto;
+  padding: 6px 8px;
 }
 .time-controls input[type="time"] {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
   background: var(--field);
   border: 1px solid var(--field-border);
   border-radius: 12px;
-  padding: 10px 8px;
+  padding: 10px 4px;
   color: var(--paper);
   font-size: 16px;
-  min-width: 118px;
 }
 
 .block.mix { border: 0; }
