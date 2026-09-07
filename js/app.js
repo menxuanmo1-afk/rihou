@@ -29,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=91";
+} from "./models.js?v=92";
 import {
   loadDay,
   upsertBlock,
@@ -47,7 +47,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=91";
+} from "./store.js?v=92";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -61,10 +61,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=91";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=91";
-import { pickEvalLine } from "./lines.js?v=91";
-import { buildAiExport } from "./ai-export.js?v=91";
+} from "./analysis.js?v=92";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=92";
+import { pickEvalLine } from "./lines.js?v=92";
+import { buildAiExport } from "./ai-export.js?v=92";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -2410,5 +2410,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=91").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=92").catch(() => {});
 }
