@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=76";
+} from "./models.js?v=77";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=76";
+} from "./store.js?v=77";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=76";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=76";
-import { pickEvalLine } from "./lines.js?v=76";
-import { buildAiExport } from "./ai-export.js?v=76";
+} from "./analysis.js?v=77";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=77";
+import { pickEvalLine } from "./lines.js?v=77";
+import { buildAiExport } from "./ai-export.js?v=77";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1418,14 +1418,10 @@ function openPlanEditor(block, isEdit) {
 }
 
 function planEditorHtml(draft, isEdit) {
-  const preview = draft.kinds.length
-    ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>`
-    : "";
   return `
     <div class="sheet">
       <h2>${isEdit ? t("editBlock") : t("addPlan")}</h2>
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
-      ${preview}
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
       ${timeFields(draft)}
       <div class="section">${t("planRepeat")}</div>
@@ -1701,10 +1697,9 @@ function openRecordSheet(range, extra = {}) {
 }
 
 function recordHtml(draft) {
-  const preview = draft.kinds.length
-    ? `<div class="mix-preview" id="mix-box" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
-       <p class="muted" id="mix-hint">${draft.kinds.length === 1 ? t("mixOne") : t("mixMany")}</p>`
-    : `<div class="mix-preview" id="mix-box" style="display:none"></div><p class="muted" id="mix-hint">${t("mixEmpty")}</p>`;
+  const hint = draft.kinds.length === 0
+    ? t("mixEmpty")
+    : draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
   const crossed = draft.overnight || lastActualEnd(state.day) != null;
 
   return `
@@ -1713,7 +1708,7 @@ function recordHtml(draft) {
       <p class="muted">${t("logHint")}</p>
       ${timeFields(draft)}
       <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
-      ${preview}
+      <p class="muted" id="mix-hint">${hint}</p>
       <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
       <button class="primary" data-save>${t("save")}</button>
       <button class="ghost" data-close>${t("cancel")}</button>
@@ -1801,17 +1796,10 @@ function bindRecord(root, draft) {
   bindTimeFields(root, draft);
 
   const updateMix = () => {
-    const box = root.querySelector("#mix-box");
     const hint = root.querySelector("#mix-hint");
-    if (!box || !hint) return;
-    if (draft.kinds.length === 0) {
-      box.style.display = "none";
-      hint.textContent = t("mixEmpty");
-      return;
-    }
-    box.style.display = "block";
-    box.style.background = gradientCss(draft.kinds.map((id) => kindById(id).color));
-    hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
+    if (!hint) return;
+    if (draft.kinds.length === 0) hint.textContent = t("mixEmpty");
+    else hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
   };
 
   const reopen = () => showSheet(recordHtml(draft), (r) => bindRecord(r, draft));
@@ -1855,8 +1843,7 @@ function openEditor(block) {
 
 function editorHtml(draft, isEdit) {
   const mixHint = draft.kinds.length > 1
-    ? `<div class="mix-preview" style="background:${gradientCss(draft.kinds.map((id) => kindById(id).color))}"></div>
-       <p class="muted">${t("mixEdit")}</p>`
+    ? `<p class="muted">${t("mixEdit")}</p>`
     : "";
   return `
     <div class="sheet">
@@ -2294,5 +2281,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=76").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=77").catch(() => {});
 }

@@ -826,12 +826,6 @@ button { cursor: pointer; }
   min-width: 118px;
 }
 
-.mix-preview {
-  height: 28px;
-  border-radius: 10px;
-  margin: 8px 0 4px;
-}
-
 .block.mix { border: 0; }
 
 .hidden { display: none !important; }
