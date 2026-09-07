@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=82";
-import { loadSettings } from "./store.js?v=82";
+import { formatDuration, kindById } from "./models.js?v=83";
+import { loadSettings } from "./store.js?v=83";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -147,9 +147,8 @@ const STR = {
     planRepeatDaily: "每天",
     planRepeatWeekly: "每周",
     planUntil: "循环到（可空，空白大约一学期）",
-    planThisOnly: "只改这一次",
-    planAllFuture: "以后都改",
-    planStopRepeat: "从这次起不再循环",
+    planScopeThis: "这次",
+    planScopeAll: "所有",
     planDraftHint: "点一下写成计划",
     planMoveDate: "挪到哪一天",
     wd0: "日",
@@ -274,9 +273,8 @@ const STR = {
     planRepeatDaily: "Daily",
     planRepeatWeekly: "Weekly",
     planUntil: "Repeat until (optional, blank ≈ a semester)",
-    planThisOnly: "This time only",
-    planAllFuture: "This and future",
-    planStopRepeat: "Stop repeating from here",
+    planScopeThis: "This time",
+    planScopeAll: "All",
     planDraftHint: "Tap to write the plan",
     planMoveDate: "Move to which day",
     wd0: "Su",

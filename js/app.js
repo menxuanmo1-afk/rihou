@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=82";
+} from "./models.js?v=83";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=82";
+} from "./store.js?v=83";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=82";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=82";
-import { pickEvalLine } from "./lines.js?v=82";
-import { buildAiExport } from "./ai-export.js?v=82";
+} from "./analysis.js?v=83";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=83";
+import { pickEvalLine } from "./lines.js?v=83";
+import { buildAiExport } from "./ai-export.js?v=83";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1385,6 +1385,23 @@ function openDeleteConfirm(label, onConfirm, onCancel) {
   }, { mini: true, onDismiss: onCancel });
 }
 
+function openPlanScopePick(action, onPick, onCancel) {
+  const title = action === "delete" ? t("deleteBlock") : t("save");
+  const allClass = action === "delete" ? "danger" : "primary";
+  showSheet(`
+    <div class="mini-card">
+      <h2>${title}</h2>
+      <button type="button" class="primary" data-scope="this">${t("planScopeThis")}</button>
+      <button type="button" class="${allClass}" data-scope="future">${t("planScopeAll")}</button>
+      <button type="button" class="ghost" data-cancel>${t("cancel")}</button>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-scope=\"this\"]")?.addEventListener("click", () => onPick("this"));
+    root.querySelector("[data-scope=\"future\"]")?.addEventListener("click", () => onPick("future"));
+    root.querySelector("[data-cancel]")?.addEventListener("click", onCancel);
+  }, { mini: true, onDismiss: onCancel });
+}
+
 function seriesFor(block) {
   if (!block?.seriesId) return null;
   return loadPlanSeries().find((s) => s.id === block.seriesId) || null;
@@ -1431,13 +1448,8 @@ function planEditorHtml(draft, isEdit) {
         <button type="button" class="chip-h ${draft.freq === "weekly" ? "on" : ""}" data-freq="weekly">${t("planRepeatWeekly")}</button>
       </div>
       ${draft.freq === "weekly" ? `<div class="row" id="wd-row">${weekdayChips(draft.weekdays)}</div>` : ""}
-      ${isEdit && draft.seriesId ? `<div class="row">
-        <button type="button" class="chip-h ${draft.scope === "this" ? "on" : ""}" data-scope="this">${t("planThisOnly")}</button>
-        <button type="button" class="chip-h ${draft.scope === "future" ? "on" : ""}" data-scope="future">${t("planAllFuture")}</button>
-      </div>` : ""}
       <button class="primary" data-save>${t("save")}</button>
       ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
-      ${isEdit && draft.seriesId ? `<button class="ghost" data-stop>${t("planStopRepeat")}</button>` : ""}
       <button class="ghost" data-close>${t("cancel")}</button>
     </div>
   `;
@@ -1470,12 +1482,19 @@ function bindPlanEditor(root, draft, isEdit) {
       refresh();
     });
   });
-  root.querySelectorAll("[data-scope]").forEach((el) => {
-    el.addEventListener("click", () => {
-      draft.scope = el.dataset.scope;
-      refresh();
-    });
-  });
+  const finish = (scope) => {
+    draft.scope = scope;
+    savePlanDraft(draft, isEdit);
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  };
+  const finishDelete = (scope) => {
+    deletePlanOccurrence(draft, scope === "future");
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  };
   root.querySelector("[data-save]").addEventListener("click", () => {
     draft.title = root.querySelector("#title")?.value.trim() || "";
     if (draft.kinds.length === 0) {
@@ -1483,21 +1502,19 @@ function bindPlanEditor(root, draft, isEdit) {
       return;
     }
     if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
-    savePlanDraft(draft, isEdit);
-    if (state.planDraft?.id === draft.id) state.planDraft = null;
-    closeSheet();
-    render();
+    if (isEdit && draft.seriesId) {
+      openPlanScopePick("save", finish, reopen);
+      return;
+    }
+    finish("this");
   });
   root.querySelector("[data-delete]")?.addEventListener("click", () => {
-    deletePlanOccurrence(draft, draft.scope === "future");
-    if (state.planDraft?.id === draft.id) state.planDraft = null;
-    closeSheet();
-    render();
-  });
-  root.querySelector("[data-stop]")?.addEventListener("click", () => {
-    stopPlanSeries(draft.seriesId, state.date);
-    closeSheet();
-    render();
+    draft.title = root.querySelector("#title")?.value.trim() || "";
+    if (isEdit && draft.seriesId) {
+      openPlanScopePick("delete", finishDelete, reopen);
+      return;
+    }
+    finishDelete("this");
   });
   root.querySelector("[data-close]").addEventListener("click", closeSheet);
 }
@@ -2282,5 +2299,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=82").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=83").catch(() => {});
 }
