@@ -29,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=90";
+} from "./models.js?v=91";
 import {
   loadDay,
   upsertBlock,
@@ -47,7 +47,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=90";
+} from "./store.js?v=91";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -61,10 +61,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=90";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=90";
-import { pickEvalLine } from "./lines.js?v=90";
-import { buildAiExport } from "./ai-export.js?v=90";
+} from "./analysis.js?v=91";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=91";
+import { pickEvalLine } from "./lines.js?v=91";
+import { buildAiExport } from "./ai-export.js?v=91";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1028,7 +1028,11 @@ function sheetOpen() {
 }
 
 function daySwipeBlocked() {
-  return Boolean(state.planDraft || state.edgeEdit || gesture.kind);
+  return Boolean(
+    state.planDraft
+    || state.edgeEdit
+    || (gesture.kind && gesture.kind !== "press" && gesture.kind !== "press-edge"),
+  );
 }
 
 function resetDaySwipe(stage) {
@@ -1047,6 +1051,11 @@ function bindDaySwipe(stage) {
   stage.addEventListener("pointermove", onDaySwipeMove);
   stage.addEventListener("pointerup", onDaySwipeUp);
   stage.addEventListener("pointercancel", onDaySwipeUp);
+  stage.addEventListener("touchmove", onDaySwipeTouchMove, { passive: false });
+}
+
+function onDaySwipeTouchMove(event) {
+  if (daySwipe.axis === "x") event.preventDefault();
 }
 
 function onDaySwipeDown(event) {
@@ -1478,7 +1487,7 @@ function openPlanEditor(block, isEdit) {
     id: block.id || uid(),
     isPlan: true,
     clipWalls: "all",
-    kinds: [...blockKinds(block)],
+    kinds: Array.isArray(block.kinds) ? [...block.kinds] : blockKinds(block),
     title: block.title || "",
     startMin: block.startMin,
     endMin: block.endMin,
@@ -1522,7 +1531,7 @@ function bindPlanEditor(root, draft, isEdit) {
     reopen();
   };
   bindTimeFields(root, draft);
-  bindKindRow(root, draft, refresh, true, reopen);
+  bindKindRow(root, draft, refresh, isEdit, reopen);
   root.querySelectorAll("[data-freq]").forEach((el) => {
     el.addEventListener("click", () => {
       draft.freq = el.dataset.freq;
@@ -2401,5 +2410,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=90").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=91").catch(() => {});
 }
