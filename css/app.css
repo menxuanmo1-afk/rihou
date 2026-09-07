@@ -375,8 +375,11 @@ button { cursor: pointer; }
   z-index: 1;
 }
 @keyframes plan-breathe {
-  0%, 100% { opacity: 0.52; filter: brightness(1); }
-  50% { opacity: 0.86; filter: brightness(1.08); }
+  0%, 100% { filter: brightness(1); box-shadow: none; }
+  50% {
+    filter: brightness(1.28);
+    box-shadow: 0 0 12px color-mix(in srgb, currentColor 42%, transparent);
+  }
 }
 .block.plan.due:not(.covered) {
   animation: plan-breathe 3.4s ease-in-out infinite;
@@ -384,7 +387,6 @@ button { cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   .block.plan.due:not(.covered) {
     animation: none;
-    opacity: 0.82;
   }
 }
 .block.actual.edge-edit {
