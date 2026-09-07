@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=78";
+} from "./models.js?v=80";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=78";
+} from "./store.js?v=80";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=78";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=78";
-import { pickEvalLine } from "./lines.js?v=78";
-import { buildAiExport } from "./ai-export.js?v=78";
+} from "./analysis.js?v=80";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=80";
+import { pickEvalLine } from "./lines.js?v=80";
+import { buildAiExport } from "./ai-export.js?v=80";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -1742,11 +1742,12 @@ function timeFields(draft, { showNow = false } = {}) {
         </div>
       </div>
       <div class="time-field">
-        <span>${t("end")}${nowBtn}</span>
+        <span>${t("end")}</span>
         <div class="time-controls">
           <button type="button" class="btn" data-nudge="end,-5">−5</button>
           <input type="time" id="end-time" step="300" value="${hmInputValue(draft.endMin)}" />
           <button type="button" class="btn" data-nudge="end,5">+5</button>
+          ${nowBtn}
         </div>
       </div>
     </div>
@@ -2281,5 +2282,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=78").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=80").catch(() => {});
 }

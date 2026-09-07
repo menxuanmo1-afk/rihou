@@ -804,29 +804,20 @@ button { cursor: pointer; }
 }
 
 .time-pair {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px 12px;
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
   margin: 10px 0 4px;
 }
 .time-field {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-width: 0;
+  flex: 0 0 auto;
 }
 .time-field > span {
   color: var(--mute);
   font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  min-height: 28px;
-}
-.time-field .btn.time-now {
-  padding: 4px 8px;
-  font-size: 12px;
 }
 .time-controls {
   display: flex;
@@ -835,18 +826,35 @@ button { cursor: pointer; }
 }
 .time-controls .btn {
   flex: 0 0 auto;
+  padding: 6px 6px;
+}
+.time-controls .btn.time-now {
+  margin-left: 2px;
+  font-size: 13px;
   padding: 6px 8px;
 }
 .time-controls input[type="time"] {
-  flex: 1;
+  flex: 0 0 auto;
+  width: 4.2em;
   min-width: 0;
-  width: 100%;
   background: var(--field);
   border: 1px solid var(--field-border);
   border-radius: 12px;
-  padding: 10px 4px;
+  padding: 8px 2px;
   color: var(--paper);
   font-size: 16px;
+  text-align: center;
+  color-scheme: dark;
+}
+.time-controls input[type="time"]::-webkit-calendar-picker-indicator {
+  display: none;
+}
+.time-controls input[type="time"]::-webkit-datetime-edit,
+.time-controls input[type="time"]::-webkit-datetime-edit-fields-wrapper,
+.time-controls input[type="time"]::-webkit-datetime-edit-hour-field,
+.time-controls input[type="time"]::-webkit-datetime-edit-minute-field,
+.time-controls input[type="time"]::-webkit-datetime-edit-ampm-field {
+  padding: 0;
 }
 
 .block.mix { border: 0; }
