@@ -29,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=89";
+} from "./models.js?v=90";
 import {
   loadDay,
   upsertBlock,
@@ -47,7 +47,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=89";
+} from "./store.js?v=90";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -61,10 +61,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=89";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=89";
-import { pickEvalLine } from "./lines.js?v=89";
-import { buildAiExport } from "./ai-export.js?v=89";
+} from "./analysis.js?v=90";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=90";
+import { pickEvalLine } from "./lines.js?v=90";
+import { buildAiExport } from "./ai-export.js?v=90";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -335,6 +335,7 @@ function planDraftHtml() {
   if (!d) return "";
   const { top, h } = blockGeom(d.startMin, d.endMin);
   return `<div class="plan-draft${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
+    <div class="draft-hit" data-draft-open></div>
     <div class="handle top" data-handle="start"></div>
     <div class="draft-body">
       ${d.isPlan ? `<div class="draft-title">${t("plan")}</div>` : ""}
@@ -742,6 +743,7 @@ function bindTimeline(timeline) {
     }
     if (event.target.closest("[data-draft-dismiss]") || event.target.closest("[data-handle]")) return;
     if (event.target.closest("#plan-draft")) {
+      event.preventDefault();
       openPlanFromDraft();
       return;
     }
@@ -788,7 +790,21 @@ function onTimelinePointerDown(event) {
     timeline.setPointerCapture(event.pointerId);
     return;
   }
-  if (event.target.closest("#plan-draft")) return;
+  if (event.target.closest("#plan-draft")) {
+    event.preventDefault();
+    gesture.kind = "draft-tap";
+    gesture.pointerId = event.pointerId;
+    gesture.startX = event.clientX;
+    gesture.startY = event.clientY;
+    gesture.lastY = event.clientY;
+    bindWindowGesture();
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture before move */
+    }
+    return;
+  }
 
   if (state.edgeEdit) {
     if (event.target.closest(`.block[data-id="${state.edgeEdit.id}"]`)) return;
@@ -906,6 +922,12 @@ function onTimelinePointerMove(event) {
     if (Math.hypot(dx, dy) > PRESS_MOVE_PX) resetGesture();
     return;
   }
+  if (gesture.kind === "draft-tap") {
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (Math.hypot(dx, dy) > PRESS_MOVE_PX) gesture.kind = "draft-hold";
+    return;
+  }
   if (gesture.kind === "stretch") {
     setDraftRange(gesture.originMin, minutesFromClientY(event.clientY));
     paintDraft();
@@ -934,8 +956,14 @@ function onTimelinePointerMove(event) {
 
 function onTimelinePointerUp(event) {
   if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
-  if (gesture.kind === "press" || gesture.kind === "press-edge") {
+  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "draft-hold") {
     resetGesture();
+    return;
+  }
+  if (gesture.kind === "draft-tap") {
+    resetGesture();
+    armSuppressClick();
+    openPlanFromDraft();
     return;
   }
   if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
@@ -2373,5 +2401,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=89").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=90").catch(() => {});
 }

@@ -425,6 +425,17 @@ button { cursor: pointer; }
   -webkit-user-select: none;
   user-select: none;
 }
+.plan-draft .draft-hit {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  height: 100%;
+  min-height: 44px;
+  z-index: 1;
+  cursor: pointer;
+}
 .plan-draft .draft-body {
   height: 100%;
   min-height: 0;
@@ -444,8 +455,9 @@ button { cursor: pointer; }
 .plan-draft.tiny .when { display: none; }
 .plan-draft .handle {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: 50%;
+  width: 56px;
+  margin-left: -28px;
   height: 22px;
   display: flex;
   align-items: center;
@@ -456,6 +468,12 @@ button { cursor: pointer; }
 }
 .plan-draft .handle.top { top: -11px; }
 .plan-draft .handle.bottom { bottom: -11px; }
+.plan-draft.tight .handle.top { top: -22px; }
+.plan-draft.tight .handle.bottom { bottom: -22px; }
+.plan-draft.tight .draft-x {
+  top: -16px;
+  right: 0;
+}
 .plan-draft .handle::after {
   content: "";
   width: 40px;
