@@ -28,7 +28,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=75";
+} from "./models.js?v=76";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +46,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=75";
+} from "./store.js?v=76";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +60,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=75";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=75";
-import { pickEvalLine } from "./lines.js?v=75";
-import { buildAiExport } from "./ai-export.js?v=75";
+} from "./analysis.js?v=76";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=76";
+import { pickEvalLine } from "./lines.js?v=76";
+import { buildAiExport } from "./ai-export.js?v=76";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -970,6 +970,10 @@ function sheetOpen() {
   return document.getElementById("sheet-bg")?.classList.contains("show");
 }
 
+function daySwipeBlocked() {
+  return Boolean(state.planDraft || state.edgeEdit || gesture.kind);
+}
+
 function resetDaySwipe(stage) {
   daySwipe.pointerId = null;
   daySwipe.axis = null;
@@ -989,9 +993,9 @@ function bindDaySwipe(stage) {
 }
 
 function onDaySwipeDown(event) {
-  if (sheetOpen()) return;
+  if (sheetOpen() || daySwipeBlocked()) return;
   if (event.button && event.button !== 0) return;
-  if (event.target.closest("button, input, textarea, .book-row, .sheet, [data-handle], .edge-edit")) return;
+  if (event.target.closest("button, input, textarea, .book-row, .sheet, [data-handle], .edge-edit, #plan-draft")) return;
   daySwipe.pointerId = event.pointerId;
   daySwipe.startX = event.clientX;
   daySwipe.startY = event.clientY;
@@ -1001,7 +1005,7 @@ function onDaySwipeDown(event) {
 
 function onDaySwipeMove(event) {
   if (daySwipe.pointerId !== event.pointerId) return;
-  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end" || gesture.kind === "press-edge") {
+  if (daySwipeBlocked()) {
     resetDaySwipe(document.getElementById("day-stage"));
     return;
   }
@@ -2290,5 +2294,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=75").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=76").catch(() => {});
 }
