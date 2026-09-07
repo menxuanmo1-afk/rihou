@@ -17,6 +17,7 @@ import {
   actualAtMinute,
   emptySpan,
   emptyPlanSpan,
+  timeEditClip,
   overnightSpanMin,
   weekdayOfIso,
   KINDS,
@@ -28,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=84";
+} from "./models.js?v=85";
 import {
   loadDay,
   upsertBlock,
@@ -46,7 +47,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=84";
+} from "./store.js?v=85";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -60,10 +61,10 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=84";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=84";
-import { pickEvalLine } from "./lines.js?v=84";
-import { buildAiExport } from "./ai-export.js?v=84";
+} from "./analysis.js?v=85";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=85";
+import { pickEvalLine } from "./lines.js?v=85";
+import { buildAiExport } from "./ai-export.js?v=85";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -459,16 +460,58 @@ function edgeFromClientY(blockEl, clientY) {
 }
 
 function blockResizeClip(block) {
-  const loBound = START_HOUR * 60;
-  const hiBound = recordableUntil();
-  let lo = loBound;
-  let hi = hiBound;
-  for (const b of state.day.blocks || []) {
-    if (b.isPlan || b.id === block.id) continue;
-    if (b.endMin <= block.startMin) lo = Math.max(lo, b.endMin);
-    else if (b.startMin >= block.endMin) hi = Math.min(hi, b.startMin);
+  const { lo: loBound, hi: hiBound } = draftBounds(false);
+  return timeEditClip(state.day.blocks, block, { loBound, hiBound, walls: "actual" });
+}
+
+function timeWallsFor(draft) {
+  return draft.clipWalls || (draft.isPlan ? "all" : "actual");
+}
+
+function clipBoundsForDraft(draft) {
+  const walls = timeWallsFor(draft);
+  if (draft.overnight) {
+    const yesterday = loadDay(addDays(state.date, -1));
+    const startClip = timeEditClip(yesterday.blocks, {
+      id: draft.id,
+      startMin: draft.startMin,
+      endMin: 24 * 60,
+    }, { loBound: 0, hiBound: 24 * 60, walls: "actual" });
+    const endClip = timeEditClip(state.day.blocks, {
+      id: draft.id,
+      startMin: 0,
+      endMin: draft.endMin,
+    }, { loBound: 0, hiBound: recordableUntil(), walls: "actual" });
+    return { lo: startClip.lo, hi: endClip.hi, overnight: true };
   }
-  return { lo, hi };
+  const { lo: loBound, hi: hiBound } = draftBounds(walls === "all");
+  return { ...timeEditClip(state.day.blocks, draft, { loBound, hiBound, walls }), overnight: false };
+}
+
+function tryAssignTime(draft, patch) {
+  const prevStart = draft.startMin;
+  const prevEnd = draft.endMin;
+  const clip = clipBoundsForDraft(draft);
+  const start = Math.max(0, Math.min(24 * 60, patch.startMin != null ? patch.startMin : prevStart));
+  const end = Math.max(0, Math.min(24 * 60, patch.endMin != null ? patch.endMin : prevEnd));
+  const ok = draft.overnight
+    ? start >= clip.lo && end <= clip.hi
+    : start >= clip.lo && end <= clip.hi && end > start;
+  if (!ok) return false;
+  draft.startMin = start;
+  draft.endMin = end;
+  return true;
+}
+
+function snapDraftToClip(draft) {
+  const clip = clipBoundsForDraft(draft);
+  if (draft.overnight) {
+    draft.startMin = Math.max(clip.lo, Math.min(24 * 60, draft.startMin));
+    draft.endMin = Math.min(clip.hi, Math.max(0, draft.endMin));
+    return;
+  }
+  draft.startMin = Math.max(clip.lo, Math.min(draft.startMin, clip.hi - 1));
+  draft.endMin = Math.min(clip.hi, Math.max(draft.endMin, draft.startMin + 1));
 }
 
 function beginEdgeEdit(block) {
@@ -1419,6 +1462,8 @@ function openPlanEditor(block, isEdit) {
   const series = seriesFor(block);
   const draft = {
     id: block.id || uid(),
+    isPlan: true,
+    clipWalls: "all",
     kinds: [...blockKinds(block)],
     title: block.title || "",
     startMin: block.startMin,
@@ -1520,6 +1565,7 @@ function bindPlanEditor(root, draft, isEdit) {
 }
 
 function savePlanDraft(draft, isEdit) {
+  snapDraftToClip(draft);
   const payload = {
     id: draft.id,
     startMin: draft.startMin,
@@ -1595,6 +1641,7 @@ function openPlanResolve(block) {
     plannedEnd: block.endMin,
     seriesId: block.seriesId || null,
     action: "done",
+    clipWalls: "actual",
     moveDate: state.date,
   };
   if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
@@ -1631,6 +1678,7 @@ function bindPlanResolve(root, draft) {
   root.querySelectorAll("[data-action]").forEach((el) => {
     el.addEventListener("click", () => {
       draft.action = el.dataset.action;
+      draft.clipWalls = draft.action === "postpone" ? "all" : "actual";
       if (draft.action === "done") {
         draft.startMin = draft.plannedStart;
         draft.endMin = Math.min(draft.plannedEnd, Math.max(nowMinutes(), draft.plannedStart + 1));
@@ -1659,7 +1707,7 @@ function resolvePlan(draft) {
   }
   if (draft.action === "postpone") {
     const toIso = draft.moveDate || state.date;
-    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    snapDraftToClip(draft);
     if (toIso === state.date) {
       state.day = upsertPlan(state.day, {
         id: draft.id,
@@ -1683,7 +1731,7 @@ function resolvePlan(draft) {
     });
     return;
   }
-  if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+  snapDraftToClip(draft);
   state.day = removeBlock(state.day, draft.id);
   state.day = upsertBlock(state.day, {
     id: draft.id,
@@ -1703,6 +1751,7 @@ function openRecordSheet(range, extra = {}) {
   const draft = {
     id: extra.id || uid(),
     isPlan: false,
+    clipWalls: "actual",
     kinds: extra.kinds ? [...extra.kinds] : [],
     title: extra.title || "",
     startMin: range.startMin,
@@ -1777,10 +1826,6 @@ function timeFields(draft, { nowOn = null } = {}) {
 }
 
 function bindTimeFields(root, draft, onChange) {
-  const clampSameDay = () => {
-    if (draft.overnight) return;
-    if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
-  };
   const sync = () => {
     root.querySelector("#start-time").value = hmInputValue(draft.startMin);
     root.querySelector("#end-time").value = hmInputValue(draft.endMin);
@@ -1789,30 +1834,26 @@ function bindTimeFields(root, draft, onChange) {
     onChange?.();
   };
   root.querySelector("#start-time").addEventListener("change", (e) => {
-    draft.startMin = parseHm(e.target.value);
-    clampSameDay();
+    tryAssignTime(draft, { startMin: parseHm(e.target.value) });
     sync();
   });
   root.querySelector("#end-time").addEventListener("change", (e) => {
-    draft.endMin = parseHm(e.target.value);
-    clampSameDay();
+    tryAssignTime(draft, { endMin: parseHm(e.target.value) });
     sync();
   });
   root.querySelectorAll("[data-nudge]").forEach((el) => {
     el.addEventListener("click", () => {
       const [which, delta] = el.dataset.nudge.split(",");
       const key = which === "start" ? "startMin" : "endMin";
-      draft[key] = Math.max(0, Math.min(24 * 60, draft[key] + Number(delta)));
-      clampSameDay();
+      tryAssignTime(draft, { [key]: draft[key] + Number(delta) });
       sync();
     });
   });
   root.querySelectorAll("[data-now]").forEach((el) => {
     el.addEventListener("click", () => {
       const now = nowMinutes();
-      if (el.dataset.now === "start") draft.startMin = now;
-      else draft.endMin = now;
-      clampSameDay();
+      if (el.dataset.now === "start") tryAssignTime(draft, { startMin: now });
+      else tryAssignTime(draft, { endMin: now });
       sync();
     });
   });
@@ -1856,6 +1897,7 @@ function openEditor(block) {
   const draft = {
     id: block.id,
     isPlan: Boolean(block.isPlan),
+    clipWalls: block.isPlan ? "all" : "actual",
     kinds: [...blockKinds(block)],
     title: block.title || "",
     startMin: block.startMin,
@@ -1903,6 +1945,7 @@ function bindEditor(root, draft, isEdit) {
     draft.title = root.querySelector("#title").value.trim();
     if (draft.kinds.length === 0) draft.kinds = ["OTHER"];
     if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    snapDraftToClip(draft);
     state.day = upsertBlock(state.day, {
       id: draft.id,
       startMin: draft.startMin,
@@ -2191,6 +2234,7 @@ function rangeSpanMin(range) {
 }
 
 function saveLoggedDraft(draft) {
+  snapDraftToClip(draft);
   const payload = {
     title: draft.title,
     kinds: draft.kinds,
@@ -2307,5 +2351,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=84").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=85").catch(() => {});
 }

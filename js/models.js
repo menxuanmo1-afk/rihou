@@ -311,6 +311,23 @@ export function emptyPlanSpan(blocks, origin, exceptId, loBound, hiBound) {
   return { startMin: lo, endMin: hi };
 }
 
+/** Neighbor walls for editing a span. `walls`: "actual" | "plan" | "all". */
+export function timeEditClip(blocks, draft, { loBound = 0, hiBound = 24 * 60, walls = "actual" } = {}) {
+  let lo = loBound;
+  let hi = hiBound;
+  const exceptId = draft?.id;
+  const start = Number(draft?.startMin) || 0;
+  const end = Number(draft?.endMin) || 0;
+  for (const b of blocks || []) {
+    if (!b || b.id === exceptId) continue;
+    if (walls === "actual" && b.isPlan) continue;
+    if (walls === "plan" && !b.isPlan) continue;
+    if (b.endMin <= start) lo = Math.max(lo, b.endMin);
+    else if (b.startMin >= end) hi = Math.min(hi, b.startMin);
+  }
+  return { lo, hi };
+}
+
 export function weekdayOfIso(iso) {
   const [y, m, d] = String(iso).split("-").map(Number);
   return new Date(y, m - 1, d).getDay();
