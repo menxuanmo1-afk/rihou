@@ -2,3 +2,9 @@
 .idea
 .vscode
 *.log
+node_modules
+www
+ios/App/Pods
+ios/App/build
+ios/DerivedData
+*.xcuserstate

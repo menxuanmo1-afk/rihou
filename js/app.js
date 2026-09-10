@@ -29,7 +29,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=92";
+} from "./models.js?v=93";
 import {
   loadDay,
   upsertBlock,
@@ -47,24 +47,17 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=92";
+} from "./store.js?v=93";
 import {
-  ASSET_BOOKS,
   BASE_PRICE,
   buildPortfolio,
   bookAt,
-  assetChartHtml,
-  formatMoney,
-  formatPrice,
   formatHours,
   formatRemain,
   remainingMinutes,
-  bookEval,
-  minutesByBucket,
-} from "./analysis.js?v=92";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=92";
-import { pickEvalLine } from "./lines.js?v=92";
-import { buildAiExport } from "./ai-export.js?v=92";
+} from "./analysis.js?v=93";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=93";
+import { buildAiExport } from "./ai-export.js?v=93";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -655,64 +648,9 @@ function luminance(hex) {
   return 0.299 * r + 0.587 * g + 0.114 * b;
 }
 
-function achieveHtml(r) {
-  const L = lang();
-  const book = r.books?.[state.book] || r.books?.all;
-  if (!book) return `<p class="muted">${t("evalEmpty")}</p>`;
-  const snap = bookAt(book, state.date);
-  const isToday = state.date === todayISO();
-  const investLabel = isToday ? t("todayInvest") : t("thatDayInvest");
-  const chips = [
-    ...ASSET_BOOKS.map((item) => {
-      const on = item.id === book.id ? "on" : "";
-      return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${item.id}">${bookLabel(item.id)}</button>`;
-    }),
-    ...listCustomBooks().map((item) => {
-      const on = item.id === book.id ? "on" : "";
-      return `<button type="button" class="book-chip ${on}" data-act="book" data-book="${escapeAttr(item.id)}">${escapeAttr(item.label)}</button>`;
-    }),
-    `<button type="button" class="book-chip add" data-act="add-book">${t("customKind")}</button>`,
-  ].join("");
-  const valueKey = book.id === "all" ? "totalValuation" : "valuation";
-  const price = formatPrice(snap.price);
-  const buckets = minutesByBucket(state.day?.blocks);
-  const evalLine = pickEvalLine({
-    mood: bookEval(book, r),
-    bookId: book.id,
-    hour: new Date().getHours(),
-    todayH: Number(snap.dayH || 0),
-    consumeH: (buckets.consume || 0) / 60,
-    isToday,
-    dateISO: state.date,
-    lang: L,
-    price,
-  });
-  const hero = isToday
-    ? `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="principal">${t("principal")}</button>
-    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="principal">${formatRemain(r.remainingMin, L)}</button>`
-    : `<button type="button" class="muted asset-kicker gloss-hit" data-act="gloss" data-gloss="todayInvest">${investLabel}</button>
-    <button type="button" class="asset-num gloss-hit" data-act="gloss" data-gloss="todayInvest">${formatHours(snap.dayH, L)}</button>`;
-  const investTicker = `<button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="todayInvest">
-        <div class="lab">${investLabel}</div>
-        <div class="val">${formatHours(snap.dayH, L)}</div>
-      </button>`;
+function achieveHtml(_r) {
   return `
-    ${hero}
-    <div class="tickers${isToday ? "" : " pair"}">
-      ${isToday ? investTicker : ""}
-      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="totalInvest">
-        <div class="lab">${t("totalInvest")}</div>
-        <div class="val">${formatHours(snap.totalH, L)}</div>
-      </button>
-      <button type="button" class="ticker gloss-hit" data-act="gloss" data-gloss="${valueKey}">
-        <div class="lab">${t(valueKey)}</div>
-        <div class="val">${formatMoney(snap.value)}</div>
-        <div class="ratio-tag">${price}</div>
-      </button>
-    </div>
-    <div class="book-row">${chips}</div>
-    ${assetChartHtml(book, r, L, state.date)}
-    <p class="eval-line">${escapeHtml(evalLine)}</p>
+    <div class="achieve-empty"></div>
     <button class="ghost settings-link" data-act="settings">${t("settings")}</button>
   `;
 }
@@ -2409,6 +2347,6 @@ requestAnimationFrame(() => {
 });
 window.setInterval(syncNowLine, 15000);
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("./sw.js?v=92").catch(() => {});
+if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
+  navigator.serviceWorker.register("./sw.js?v=93").catch(() => {});
 }

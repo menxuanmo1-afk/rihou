@@ -1,0 +1,14 @@
+{
+  "name": "liferecorder",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-www": "node scripts/prepare-www.mjs",
+    "ios:sync": "npm run prepare-www && npx cap sync ios"
+  },
+  "dependencies": {
+    "@capacitor/cli": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
+    "@capacitor/ios": "^8.5.1"
+  }
+}

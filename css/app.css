@@ -109,7 +109,14 @@ button { cursor: pointer; }
 }
 
 .timeline-wrap { flex: 1.08; display: flex; flex-direction: column; overflow: hidden; }
-.achieve-wrap { flex: 1; overflow: auto; padding: 22px 18px 28px; }
+.achieve-wrap {
+  flex: 1;
+  overflow: auto;
+  padding: 22px 18px 28px;
+  display: flex;
+  flex-direction: column;
+}
+.achieve-empty { flex: 1; min-height: 12px; }
 
 .split-kicker { margin: 0; letter-spacing: 0.04em; }
 .split-bar {

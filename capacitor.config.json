@@ -1,0 +1,9 @@
+{
+  "appId": "com.xuanmo.liferecorder",
+  "appName": "人生记录仪",
+  "webDir": "www",
+  "ios": {
+    "scheme": "App",
+    "contentInset": "automatic"
+  }
+}
