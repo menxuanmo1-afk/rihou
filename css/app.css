@@ -109,10 +109,8 @@ button { cursor: pointer; }
 }
 
 .timeline-wrap { flex: 1.08; display: flex; flex-direction: column; overflow: hidden; }
-.achieve-wrap {
-  flex: 1;
-  overflow: auto;
-  padding: 22px 18px 28px;
+.achieve-wrap { flex: 1; overflow: auto; padding: 22px 18px 28px; }
+html.native-app .achieve-wrap {
   display: flex;
   flex-direction: column;
 }
