@@ -1,5 +1,5 @@
-import { formatDuration, kindById } from "./models.js?v=97";
-import { loadSettings } from "./store.js?v=97";
+import { formatDuration, kindById } from "./models.js?v=98";
+import { loadSettings } from "./store.js?v=98";
 
 export function formatDurationI18n(minutes) {
   if (lang() !== "en") return formatDuration(minutes);
@@ -40,6 +40,21 @@ const STR = {
     today: "今天",
     thatDay: "这一天",
     hint: "长按「现在」这条线上面的空白，向下拉，记下已经发生的事。长按这条线下面的空白，可以画出课表、健身等计划。长按色块上下边缘可调时间，点旁边空白完成。",
+    todoRemaining: "剩余待办：",
+    todoToday: "今日待办：",
+    todoExpand: "展开",
+    todoCollapse: "收起",
+    todoEdit: "编辑",
+    todoAddToday: "添加到今日",
+    todoAdded: "已添加",
+    todoNew: "＋ 新建待办",
+    todoEmpty: "还没有待办",
+    todoContent: "待办内容",
+    todoDue: "截止日期",
+    todoComplete: "标记完成",
+    todoUndo: "恢复待办",
+    todoBlock: "待办",
+    todoDragHint: "长按拖动安排",
     invest: "投资",
     consume: "消费",
     rest: "其余",
@@ -166,6 +181,21 @@ const STR = {
     today: "Today",
     thatDay: "That day",
     hint: "Long-press empty space above the now line and drag to log what already happened. Long-press below the now line to draw a class or workout plan. Long-press a block’s top or bottom edge to adjust time; tap empty space to finish.",
+    todoRemaining: "Remaining: ",
+    todoToday: "Due today: ",
+    todoExpand: "Expand",
+    todoCollapse: "Collapse",
+    todoEdit: "Edit",
+    todoAddToday: "Add to today",
+    todoAdded: "Added",
+    todoNew: "+ New to-do",
+    todoEmpty: "No to-dos yet",
+    todoContent: "To-do",
+    todoDue: "Due date",
+    todoComplete: "Mark complete",
+    todoUndo: "Restore to-do",
+    todoBlock: "To-do",
+    todoDragHint: "Long-press and drag to schedule",
     invest: "Invest",
     consume: "Spend",
     rest: "Rest",

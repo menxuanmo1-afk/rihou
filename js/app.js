@@ -30,7 +30,7 @@ import {
   listValuationBooks,
   listCustomBooks,
   customBookCandidates,
-} from "./models.js?v=97";
+} from "./models.js?v=98";
 import {
   loadDay,
   upsertBlock,
@@ -48,7 +48,7 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=97";
+} from "./store.js?v=98";
 import {
   ASSET_BOOKS,
   BASE_PRICE,
@@ -62,11 +62,21 @@ import {
   remainingMinutes,
   bookEval,
   minutesByBucket,
-} from "./analysis.js?v=97";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=97";
-import { pickEvalLine } from "./lines.js?v=97";
-import { buildAiExport } from "./ai-export.js?v=97";
-import { resizeTimelineSpan } from "./timeline-resize.js?v=97";
+} from "./analysis.js?v=98";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=98";
+import { pickEvalLine } from "./lines.js?v=98";
+import { buildAiExport } from "./ai-export.js?v=98";
+import { resizeTimelineSpan } from "./timeline-resize.js?v=98";
+import {
+  addTodo,
+  formatTodoDue,
+  loadTodos,
+  nearestOpenTodoSlot,
+  setTodoDone,
+  sortTodos,
+  todoCounts,
+  updateTodo,
+} from "./todos.js?v=98";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -79,6 +89,8 @@ const state = {
   book: "all",
   planDraft: null,
   edgeEdit: null,
+  todosOpen: false,
+  todoEditing: null,
   slide: "",
 };
 
@@ -96,6 +108,8 @@ const gesture = {
   clipStart: 0,
   clipEnd: 0,
   edgePointerOffsetMin: 0,
+  todoOriginStart: 0,
+  todoOriginEnd: 0,
 };
 
 const LONG_PRESS_MS = 420;
@@ -130,6 +144,71 @@ function report() {
     days: loadAllDays(),
     settings: loadSettings(),
   });
+}
+
+function todoStripHtml() {
+  const counts = todoCounts(loadTodos(), todayISO());
+  return `<div class="todo-strip">
+    <div class="todo-counts">
+      <span>${t("todoRemaining")}<strong>${counts.remaining}</strong></span>
+      <span>${t("todoToday")}<strong>${counts.today}</strong></span>
+    </div>
+    <button type="button" class="todo-expand" data-act="todo-toggle" aria-expanded="${state.todosOpen}">
+      ${state.todosOpen ? t("todoCollapse") : t("todoExpand")}
+      <span aria-hidden="true">${state.todosOpen ? "▴" : "▾"}</span>
+    </button>
+  </div>`;
+}
+
+function todoEditRowHtml(todo, isNew = false) {
+  const id = isNew ? "new" : todo.id;
+  return `<div class="todo-row editing" data-todo-row="${escapeAttr(id)}">
+    <span class="todo-check placeholder" aria-hidden="true"></span>
+    <div class="todo-fields">
+      <input class="todo-text-input" data-todo-text value="${escapeAttr(todo.text || "")}" placeholder="${escapeAttr(t("todoContent"))}" maxlength="120" />
+      <input class="todo-date-input" data-todo-date type="date" value="${escapeAttr(todo.dueISO || "")}" aria-label="${escapeAttr(t("todoDue"))}" />
+    </div>
+    <div class="todo-actions edit-actions">
+      <button type="button" data-act="todo-edit-save" data-todo-id="${escapeAttr(id)}">${t("save")}</button>
+      <button type="button" data-act="todo-edit-cancel">${t("cancel")}</button>
+    </div>
+  </div>`;
+}
+
+function todoPanelHtml() {
+  if (!state.todosOpen) return "";
+  const todos = sortTodos(loadTodos());
+  const today = todayISO();
+  const todayPlanIds = new Set(
+    (loadDay(today).blocks || []).filter((block) => block.isPlan && block.todoId).map((block) => block.todoId),
+  );
+  const rows = todos.map((todo) => {
+    if (state.todoEditing === todo.id) return todoEditRowHtml(todo);
+    const due = formatTodoDue(todo.dueISO, lang(), today);
+    const scheduled = todayPlanIds.has(todo.id);
+    return `<div class="todo-row${todo.done ? " completed" : ""}" data-todo-row="${escapeAttr(todo.id)}">
+      <button type="button" class="todo-check" data-act="todo-toggle-done" data-todo-id="${escapeAttr(todo.id)}" aria-pressed="${todo.done}" aria-label="${escapeAttr(todo.done ? t("todoUndo") : t("todoComplete"))}">
+        <span aria-hidden="true">${todo.done ? "✓" : ""}</span>
+      </button>
+      <div class="todo-copy">
+        <div class="todo-text">${escapeHtml(todo.text)}</div>
+        ${due ? `<div class="todo-due${todo.dueISO < today ? " overdue" : ""}">${escapeHtml(due)}</div>` : ""}
+      </div>
+      <div class="todo-actions">
+        <button type="button" data-act="todo-edit" data-todo-id="${escapeAttr(todo.id)}">${t("todoEdit")}</button>
+        <button type="button" data-act="todo-add-today" data-todo-id="${escapeAttr(todo.id)}" ${todo.done || scheduled ? "disabled" : ""}>${scheduled ? t("todoAdded") : t("todoAddToday")}</button>
+      </div>
+    </div>`;
+  }).join("");
+  const newRow = state.todoEditing === "new" ? todoEditRowHtml({ text: "", dueISO: "" }, true) : "";
+  return `<div class="todo-panel" id="todo-panel">
+    <div class="todo-list">
+      ${rows || (!newRow ? `<p class="todo-empty">${t("todoEmpty")}</p>` : "")}
+      ${newRow}
+      ${state.todoEditing === "new" ? "" : `<button type="button" class="todo-new" data-act="todo-new">${t("todoNew")}</button>`}
+    </div>
+    <button type="button" class="todo-collapse-bottom" data-act="todo-collapse" aria-label="${escapeAttr(t("todoCollapse"))}"><span aria-hidden="true">⌃</span></button>
+  </div>`;
 }
 
 function render({ timelineScrollTop = null } = {}) {
@@ -197,8 +276,9 @@ function renderApp(timelineScrollTop = null) {
       </div>
     </header>
     <div class="main ${slide ? `in-${slide}` : ""}" id="day-stage">
-      ${showTime ? `<section class="panel timeline-wrap">
-        <div class="hint">${t("hint")}</div>
+      ${showTime ? `<section class="panel timeline-wrap${state.todosOpen ? " todo-open" : ""}">
+        ${todoStripHtml()}
+        ${todoPanelHtml()}
         ${timelineHtml()}
       </section>` : ""}
       ${showAchieve ? `<section class="panel achieve-wrap">
@@ -348,16 +428,19 @@ function planDraftHtml() {
   const d = state.planDraft;
   if (!d) return "";
   const { top, h } = blockGeom(d.startMin, d.endMin);
-  return `<div class="plan-draft${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
+  const todoPlacement = Boolean(d.isTodoPlacement);
+  const title = todoPlacement ? t("todoBlock") : t("plan");
+  const hint = todoPlacement ? t("todoDragHint") : d.isPlan ? t("planDraftHint") : t("draftHint");
+  return `<div class="plan-draft${todoPlacement ? " todo-placement" : ""}${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
     <div class="draft-hit" data-draft-open></div>
-    <div class="handle top" data-handle="start"></div>
+    ${todoPlacement ? "" : `<div class="handle top" data-handle="start"></div>`}
     <div class="draft-body">
-      ${d.isPlan ? `<div class="draft-title">${t("plan")}</div>` : ""}
+      ${d.isPlan ? `<div class="draft-title">${escapeHtml(title)}${todoPlacement ? ` · ${escapeHtml(t("todoDragHint"))}` : ""}${todoPlacement && d.title ? ` · ${escapeHtml(d.title)}` : ""}</div>` : ""}
       <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
-      <div class="draft-hint">${d.isPlan ? t("planDraftHint") : t("draftHint")}</div>
+      <div class="draft-hint">${escapeHtml(hint)}</div>
     </div>
     <button type="button" class="draft-x" data-draft-dismiss aria-label="取消">×</button>
-    <div class="handle bottom" data-handle="end"></div>
+    ${todoPlacement ? "" : `<div class="handle bottom" data-handle="end"></div>`}
   </div>`;
 }
 
@@ -385,6 +468,8 @@ function setDraftRange(startMin, endMin, isPlan = Boolean(state.planDraft?.isPla
   state.planDraft = {
     id: state.planDraft?.id || uid(),
     isPlan: Boolean(isPlan),
+    isTodoPlacement: Boolean(state.planDraft?.isTodoPlacement),
+    todoId: state.planDraft?.todoId || null,
     kinds: state.planDraft?.kinds || [],
     title: state.planDraft?.title || "",
     startMin: a,
@@ -425,10 +510,11 @@ function paintDraft() {
   el.style.height = `${h}px`;
   el.classList.toggle("tight", h < 44);
   el.classList.toggle("tiny", h < 20);
+  el.classList.toggle("moving", gesture.kind === "todo-move");
   const when = el.querySelector(".when");
   if (when) when.textContent = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
   const hint = el.querySelector(".draft-hint");
-  if (hint) hint.textContent = d.isPlan ? t("planDraftHint") : t("draftHint");
+  if (hint) hint.textContent = d.isTodoPlacement ? t("todoDragHint") : d.isPlan ? t("planDraftHint") : t("draftHint");
 }
 
 function clearPlanDraft() {
@@ -611,12 +697,14 @@ function commitEdgeEdit() {
 function openPlanFromDraft() {
   const d = state.planDraft;
   if (!d) return;
+  if (d.isTodoPlacement) return;
   if (d.isPlan) {
     openPlanEditor({
       id: d.id,
       isPlan: true,
       kinds: [...(d.kinds || [])],
       title: d.title || "",
+      todoId: d.todoId || null,
       startMin: d.startMin,
       endMin: d.endMin,
     }, false);
@@ -662,9 +750,12 @@ function resetGesture() {
   gesture.edgePointerOffsetMin = 0;
   gesture.edgeWhich = null;
   gesture.edgeId = null;
+  gesture.todoOriginStart = 0;
+  gesture.todoOriginEnd = 0;
   unbindWindowGesture();
   const timeline = document.getElementById("timeline");
   timeline?.classList.remove("drawing");
+  document.getElementById("plan-draft")?.classList.remove("moving");
 }
 
 function liveBlockLabel(block) {
@@ -801,7 +892,7 @@ function bindTimeline(timeline) {
   timeline.addEventListener("pointercancel", onTimelinePointerUp);
   timeline.addEventListener("contextmenu", (event) => event.preventDefault());
   timeline.addEventListener("touchmove", (event) => {
-    if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+    if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end" || gesture.kind === "todo-move") {
       event.preventDefault();
     }
   }, { passive: false });
@@ -836,11 +927,26 @@ function onTimelinePointerDown(event) {
   }
   if (event.target.closest("#plan-draft")) {
     event.preventDefault();
-    gesture.kind = "draft-tap";
     gesture.pointerId = event.pointerId;
     gesture.startX = event.clientX;
     gesture.startY = event.clientY;
     gesture.lastY = event.clientY;
+    if (state.planDraft?.isTodoPlacement) {
+      gesture.kind = "todo-press";
+      gesture.todoOriginStart = state.planDraft.startMin;
+      gesture.todoOriginEnd = state.planDraft.endMin;
+      gesture.timer = window.setTimeout(() => {
+        gesture.timer = 0;
+        if (gesture.kind !== "todo-press" || gesture.pointerId !== event.pointerId || !state.planDraft?.isTodoPlacement) return;
+        gesture.kind = "todo-move";
+        armSuppressClick();
+        timeline.classList.add("drawing");
+        document.getElementById("plan-draft")?.classList.add("moving");
+        navigator.vibrate?.(12);
+      }, LONG_PRESS_MS);
+    } else {
+      gesture.kind = "draft-tap";
+    }
     bindWindowGesture();
     try {
       timeline.setPointerCapture(event.pointerId);
@@ -961,10 +1067,20 @@ function onTimelinePointerDown(event) {
 function onTimelinePointerMove(event) {
   if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
   gesture.lastY = event.clientY;
-  if (gesture.kind === "press" || gesture.kind === "press-edge") {
+  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "todo-press") {
     const dx = event.clientX - gesture.startX;
     const dy = event.clientY - gesture.startY;
     if (Math.hypot(dx, dy) > PRESS_MOVE_PX) resetGesture();
+    return;
+  }
+  if (gesture.kind === "todo-move" && state.planDraft?.isTodoPlacement) {
+    event.preventDefault();
+    const duration = Math.max(PLAN_SNAP, gesture.todoOriginEnd - gesture.todoOriginStart);
+    const delta = Math.round((((event.clientY - gesture.startY) / HOUR_H) * 60) / PLAN_SNAP) * PLAN_SNAP;
+    const startMin = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - duration, gesture.todoOriginStart + delta));
+    state.planDraft.startMin = startMin;
+    state.planDraft.endMin = startMin + duration;
+    paintDraft();
     return;
   }
   if (gesture.kind === "draft-tap") {
@@ -1001,8 +1117,17 @@ function onTimelinePointerMove(event) {
 
 function onTimelinePointerUp(event) {
   if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
-  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "draft-hold") {
+  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "draft-hold" || gesture.kind === "todo-press") {
     resetGesture();
+    return;
+  }
+  if (gesture.kind === "todo-move") {
+    const timelineScrollTop = document.getElementById("timeline")?.scrollTop ?? null;
+    armSuppressClick();
+    const placed = finalizeTodoPlacement();
+    resetGesture();
+    if (placed) render({ timelineScrollTop });
+    else paintDraft();
     return;
   }
   if (gesture.kind === "draft-tap") {
@@ -1019,6 +1144,97 @@ function onTimelinePointerUp(event) {
   }
 }
 
+function timelineScrollTop() {
+  return document.getElementById("timeline")?.scrollTop ?? null;
+}
+
+function findTodo(id) {
+  return loadTodos().find((todo) => todo.id === id) || null;
+}
+
+function startTodoPlacement(todo) {
+  if (!todo || todo.done) return;
+  state.date = todayISO();
+  state.tab = "time";
+  state.todosOpen = false;
+  state.todoEditing = null;
+  currentDay();
+  if ((state.day.blocks || []).some((block) => block.isPlan && block.todoId === todo.id)) return;
+  const startMin = Math.min(END_HOUR * 60 - 30, Math.ceil(nowMinutes() / PLAN_SNAP) * PLAN_SNAP);
+  state.planDraft = {
+    id: uid(),
+    isPlan: true,
+    isTodoPlacement: true,
+    todoId: todo.id,
+    kinds: ["OTHER"],
+    title: todo.text,
+    startMin,
+    endMin: startMin + 30,
+    clipStart: START_HOUR * 60,
+    clipEnd: END_HOUR * 60,
+  };
+  render({ timelineScrollTop: Math.max(0, (startMin / 60 - START_HOUR - 1) * HOUR_H) });
+}
+
+function finalizeTodoPlacement() {
+  const draft = state.planDraft;
+  if (!draft?.isTodoPlacement) return false;
+  currentDay();
+  const slot = nearestOpenTodoSlot(state.day.blocks, draft.startMin, draft.endMin - draft.startMin, {
+    lo: START_HOUR * 60,
+    hi: END_HOUR * 60,
+    step: PLAN_SNAP,
+    ignoreId: draft.id,
+  });
+  if (!slot) {
+    navigator.vibrate?.([14, 35, 14]);
+    return false;
+  }
+  state.day = upsertPlan(state.day, {
+    id: draft.id,
+    ...slot,
+    kinds: draft.kinds,
+    title: draft.title,
+    seriesId: null,
+    todoId: draft.todoId,
+  });
+  state.planDraft = null;
+  return true;
+}
+
+function saveTodoEdit(button) {
+  const row = button.closest("[data-todo-row]");
+  const textInput = row?.querySelector("[data-todo-text]");
+  const text = textInput?.value.trim() || "";
+  if (!text) {
+    textInput?.focus();
+    row?.classList.add("invalid");
+    return;
+  }
+  const dueISO = row?.querySelector("[data-todo-date]")?.value || "";
+  const id = button.dataset.todoId;
+  if (id === "new") addTodo({ text, dueISO });
+  else updateTodo(id, { text, dueISO });
+  state.todoEditing = null;
+  render({ timelineScrollTop: timelineScrollTop() });
+}
+
+function toggleTodoDone(id) {
+  const todo = findTodo(id);
+  if (!todo) return;
+  const done = !todo.done;
+  setTodoDone(id, done);
+  if (done) {
+    const today = todayISO();
+    let day = loadDay(today);
+    for (const block of day.blocks || []) {
+      if (block.isPlan && block.todoId === id) day = removeBlock(day, block.id);
+    }
+    if (state.date === today) state.day = day;
+  }
+  render({ timelineScrollTop: timelineScrollTop() });
+}
+
 function onAction(event) {
   const act = event.currentTarget.dataset.act;
   if (act === "prev") {
@@ -1030,6 +1246,31 @@ function onAction(event) {
     goDate(todayISO(), dir);
   } else if (act === "log-now") {
     openRecordSheet(logNowRange());
+  } else if (act === "todo-toggle") {
+    state.todosOpen = !state.todosOpen;
+    if (!state.todosOpen) state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-collapse") {
+    state.todosOpen = false;
+    state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-new") {
+    state.todoEditing = "new";
+    render({ timelineScrollTop: timelineScrollTop() });
+    requestAnimationFrame(() => document.querySelector("[data-todo-row=\"new\"] [data-todo-text]")?.focus());
+  } else if (act === "todo-edit") {
+    state.todoEditing = event.currentTarget.dataset.todoId || null;
+    render({ timelineScrollTop: timelineScrollTop() });
+    requestAnimationFrame(() => document.querySelector(`[data-todo-row="${CSS.escape(state.todoEditing || "")}"] [data-todo-text]`)?.focus());
+  } else if (act === "todo-edit-save") {
+    saveTodoEdit(event.currentTarget);
+  } else if (act === "todo-edit-cancel") {
+    state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-toggle-done") {
+    toggleTodoDone(event.currentTarget.dataset.todoId || "");
+  } else if (act === "todo-add-today") {
+    startTodoPlacement(findTodo(event.currentTarget.dataset.todoId || ""));
   } else if (act === "tab-time") {
     commitEdgeEdit();
     state.tab = "time";
@@ -1537,6 +1778,7 @@ function openPlanEditor(block, isEdit) {
     startMin: block.startMin,
     endMin: block.endMin,
     seriesId: block.seriesId || null,
+    todoId: block.todoId || null,
     freq: series?.freq || "none",
     weekdays: series?.weekdays?.length ? [...series.weekdays] : [weekdayOfIso(state.date)],
     until: series?.until || "",
@@ -1641,6 +1883,7 @@ function savePlanDraft(draft, isEdit) {
     title: draft.title,
     kinds: draft.kinds,
     kind: draft.kinds[0],
+    todoId: draft.todoId || null,
   };
   const repeating = draft.freq === "daily" || draft.freq === "weekly";
   if (isEdit && draft.seriesId && draft.scope === "this") {
@@ -1708,6 +1951,7 @@ function openPlanResolve(block) {
     plannedStart: block.startMin,
     plannedEnd: block.endMin,
     seriesId: block.seriesId || null,
+    todoId: block.todoId || null,
     action: "done",
     moveDate: state.date,
   };
@@ -1782,6 +2026,7 @@ function resolvePlan(draft) {
         kinds: draft.kinds,
         title: draft.title,
         seriesId: draft.seriesId,
+        todoId: draft.todoId || null,
       });
       return;
     }
@@ -1794,6 +2039,7 @@ function resolvePlan(draft) {
       kinds: draft.kinds,
       title: draft.title,
       seriesId: draft.seriesId,
+      todoId: draft.todoId || null,
     });
     return;
   }
@@ -1807,8 +2053,10 @@ function resolvePlan(draft) {
     title: draft.title,
     kind: draft.kinds[0],
     fromSeriesId: draft.seriesId || null,
+    todoId: draft.todoId || null,
     isPlan: false,
   });
+  if (draft.todoId) setTodoDone(draft.todoId, true);
 }
 
 function openRecordSheet(range, extra = {}) {
@@ -2470,5 +2718,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=97").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=98").catch(() => {});
 }

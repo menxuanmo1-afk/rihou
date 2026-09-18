@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "./models.js?v=97";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "./models.js?v=98";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -72,6 +72,7 @@ export function upsertPlan(day, block) {
     kind: kinds[0],
     title: String(block.title || ""),
     seriesId: block.seriesId || null,
+    todoId: block.todoId || null,
   };
   const next = {
     ...day,
