@@ -57,4 +57,10 @@ assert.deepEqual(
   "plan drafts retain their fifteen-minute minimum",
 );
 
+assert.deepEqual(
+  resizeTimelineSpan({ startMin: 600, endMin: 630 }, "end", 605, { lo: 540, hi: 660, minSpan: 15, step: 5 }),
+  { startMin: 600, endMin: 615 },
+  "resizing an existing plan keeps its fifteen-minute minimum without moving the opposite edge",
+);
+
 console.log("timeline resize tests passed");

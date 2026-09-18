@@ -337,7 +337,7 @@ function planIsDue(block) {
 }
 
 function blockHtml(block) {
-  const editing = !block.isPlan && state.edgeEdit?.id === block.id;
+  const editing = state.edgeEdit?.id === block.id;
   const startMin = editing ? state.edgeEdit.startMin : block.startMin;
   const endMin = editing ? state.edgeEdit.endMin : block.endMin;
   const visStart = Math.max(startMin, START_HOUR * 60);
@@ -536,7 +536,9 @@ function edgeFromClientY(blockEl, clientY) {
 }
 
 function blockResizeClip(block) {
-  const { lo: loBound, hi: hiBound } = draftBounds(false);
+  const { lo: loBound, hi: hiBound } = block.isPlan
+    ? { lo: START_HOUR * 60, hi: END_HOUR * 60 }
+    : draftBounds(false);
   return timeEditClip(state.day.blocks, block, { loBound, hiBound, walls: "all" });
 }
 
@@ -611,6 +613,7 @@ function beginEdgeEdit(block) {
   const clip = blockResizeClip(block);
   state.edgeEdit = {
     id: block.id,
+    isPlan: Boolean(block.isPlan),
     startMin: block.startMin,
     endMin: block.endMin,
     origStartMin: block.startMin,
@@ -634,11 +637,13 @@ function setEdgeEditEdge(which, minutes) {
   const d = state.edgeEdit;
   if (!d) return;
   const lo = d.clipStart ?? START_HOUR * 60;
-  const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
+  const hi = d.isPlan
+    ? d.clipEnd ?? END_HOUR * 60
+    : Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
   const next = resizeTimelineSpan(d, which, minutes, {
     lo,
     hi,
-    minSpan: PLAN_SNAP,
+    minSpan: d.isPlan ? PLAN_MIN : PLAN_SNAP,
     step: PLAN_SNAP,
   });
   d.startMin = next.startMin;
@@ -682,15 +687,18 @@ function commitEdgeEdit() {
   }
   currentDay();
   const block = state.day.blocks.find((b) => b.id === d.id);
-  if (!block || block.isPlan) {
+  if (!block) {
     render({ timelineScrollTop });
     return;
   }
-  state.day = upsertBlock(state.day, {
+  const updated = {
     ...block,
     startMin: d.startMin,
     endMin: d.endMin,
-  });
+  };
+  state.day = block.isPlan
+    ? upsertPlan(state.day, updated)
+    : upsertBlock(state.day, updated);
   render({ timelineScrollTop });
 }
 
@@ -966,7 +974,7 @@ function onTimelinePointerDown(event) {
   const blockEl = event.target.closest("[data-id]");
   if (blockEl) {
     const found = state.day.blocks.find((b) => b.id === blockEl.dataset.id);
-    if (!found || found.isPlan) return;
+    if (!found) return;
     const which = edgeFromClientY(blockEl, event.clientY);
     if (!which) return;
     event.preventDefault();
@@ -982,7 +990,7 @@ function onTimelinePointerDown(event) {
       gesture.timer = 0;
       if (gesture.kind !== "press-edge" || gesture.pointerId !== event.pointerId) return;
       const block = state.day.blocks.find((b) => b.id === gesture.edgeId);
-      if (!block || block.isPlan) {
+      if (!block) {
         resetGesture();
         return;
       }
@@ -2718,5 +2726,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=98").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=99").catch(() => {});
 }

@@ -552,6 +552,7 @@ html.native-app .achieve-wrap {
 .block.plan.due {
   animation: plan-breathe 3.4s ease-in-out infinite;
 }
+.block.plan.edge-edit { animation: none; }
 .block-content {
   height: 100%;
   min-height: 0;
