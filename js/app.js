@@ -129,9 +129,9 @@ function report() {
   });
 }
 
-function render() {
+function render({ timelineScrollTop = null } = {}) {
   try {
-    renderApp();
+    renderApp(timelineScrollTop);
   } catch (err) {
     const app = document.getElementById("app");
     if (app) {
@@ -143,7 +143,7 @@ function render() {
   }
 }
 
-function renderApp() {
+function renderApp(timelineScrollTop = null) {
   if (isNativeApp()) document.documentElement.classList.add("native-app");
   else document.documentElement.classList.remove("native-app");
   loadCustomKinds();
@@ -208,7 +208,11 @@ function renderApp() {
     </nav>
   `;
   bindApp();
-  scrollToNow();
+  if (timelineScrollTop == null) scrollToNow();
+  else {
+    const timeline = document.getElementById("timeline");
+    if (timeline) timeline.scrollTop = timelineScrollTop;
+  }
   pinFrame();
 }
 
@@ -562,6 +566,7 @@ function paintEdgeEdit() {
 function commitEdgeEdit() {
   const d = state.edgeEdit;
   if (!d) return;
+  const timelineScrollTop = document.getElementById("timeline")?.scrollTop ?? null;
   const dirty = d.startMin !== d.origStartMin || d.endMin !== d.origEndMin;
   state.edgeEdit = null;
   if (!dirty) {
@@ -575,7 +580,7 @@ function commitEdgeEdit() {
   currentDay();
   const block = state.day.blocks.find((b) => b.id === d.id);
   if (!block || block.isPlan) {
-    render();
+    render({ timelineScrollTop });
     return;
   }
   state.day = upsertBlock(state.day, {
@@ -583,7 +588,7 @@ function commitEdgeEdit() {
     startMin: d.startMin,
     endMin: d.endMin,
   });
-  render();
+  render({ timelineScrollTop });
 }
 
 function openPlanFromDraft() {
@@ -2422,5 +2427,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=94").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=95").catch(() => {});
 }
