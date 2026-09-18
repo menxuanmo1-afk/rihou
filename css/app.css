@@ -437,22 +437,48 @@ html.native-app .achieve-wrap {
 .todo-fields {
   min-width: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 132px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 142px);
   gap: 6px;
 }
 .todo-row.editing { grid-template-columns: 24px minmax(0, 1fr); }
 .todo-row.editing .todo-fields { grid-column: 2; }
 .todo-row.editing .edit-actions { grid-column: 2; justify-content: flex-start; }
-.todo-fields input {
+.todo-text-input,
+.todo-date-field {
   min-width: 0;
   width: 100%;
-  height: 32px;
+  height: 34px;
   border: 1px solid var(--field-border);
   border-radius: 8px;
   background: var(--field);
-  padding: 5px 8px;
   color: var(--paper);
   font-size: 12px;
+}
+.todo-text-input { padding: 5px 8px; }
+.todo-date-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+  padding: 0 6px 0 8px;
+}
+.todo-date-field > span {
+  flex: 0 0 auto;
+  color: var(--mute);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.todo-date-field input {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 72px;
+  max-width: 80px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--paper);
+  font-size: 11px;
   color-scheme: dark;
 }
 .todo-row.invalid .todo-text-input { border-color: var(--instant); }
@@ -1091,7 +1117,7 @@ html.native-app .achieve-wrap {
   .todo-row { gap: 7px; }
   .todo-actions { gap: 2px; }
   .todo-actions button { padding-inline: 5px; }
-  .todo-fields { grid-template-columns: minmax(0, 1fr) 118px; }
+  .todo-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 136px); }
 }
 
 @media (min-width: 900px) {

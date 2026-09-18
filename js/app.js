@@ -166,7 +166,10 @@ function todoEditRowHtml(todo, isNew = false) {
     <span class="todo-check placeholder" aria-hidden="true"></span>
     <div class="todo-fields">
       <input class="todo-text-input" data-todo-text value="${escapeAttr(todo.text || "")}" placeholder="${escapeAttr(t("todoContent"))}" maxlength="120" />
-      <input class="todo-date-input" data-todo-date type="date" value="${escapeAttr(todo.dueISO || "")}" aria-label="${escapeAttr(t("todoDue"))}" />
+      <label class="todo-date-field">
+        <span>${t("todoDue")}</span>
+        <input class="todo-date-input" data-todo-date type="date" value="${escapeAttr(todo.dueISO || "")}" aria-label="${escapeAttr(t("todoDue"))}" />
+      </label>
     </div>
     <div class="todo-actions edit-actions">
       <button type="button" data-act="todo-edit-save" data-todo-id="${escapeAttr(id)}">${t("save")}</button>
@@ -2726,5 +2729,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=99").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=100").catch(() => {});
 }
