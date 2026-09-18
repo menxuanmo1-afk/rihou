@@ -228,8 +228,10 @@ export function nowMinutes(d = new Date()) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-function lastOccupiedEndAtOrBefore(day, endMin) {
-  const hits = (day?.blocks || []).filter((b) => b.endMin <= endMin && b.endMin > b.startMin);
+function lastOccupiedEndAtOrBefore(day, endMin, exceptId = null) {
+  const hits = (day?.blocks || []).filter(
+    (b) => b.id !== exceptId && b.endMin <= endMin && b.endMin > b.startMin,
+  );
   if (!hits.length) return null;
   return Math.max(...hits.map((b) => b.endMin));
 }
@@ -240,21 +242,29 @@ function coveringPlanAt(day, minute) {
   ) || null;
 }
 
-/** 上次占用结束点（实际记录或计划）→ 现在。计划占着的时段不能记成实际记录。
- *  若现在还在一段计划里，只记到这段计划的上沿。
+/** 上次占用结束点（实际记录或已结束计划）→ 现在。
+ *  若现在位于计划中，返回该计划 id；调用方可在实际记录保存时把计划起点顺延到现在。
  *  今天还没有占用时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
  *  昨天也没有记录，则从今天 0:00 起。 */
 export function gapFromLastToNow(day, now = new Date(), yesterdayDay = null) {
   const nowMin = nowMinutes(now);
   const covering = coveringPlanAt(day, nowMin);
-  const cap = covering ? covering.startMin : nowMin;
-  const last = lastOccupiedEndAtOrBefore(day, cap);
-  if (last != null) return { startMin: last, endMin: cap, overnight: false };
+  const last = lastOccupiedEndAtOrBefore(day, nowMin, covering?.id);
+  const coveringPlanId = covering?.id || null;
+  if (last != null) return { startMin: last, endMin: nowMin, overnight: false, coveringPlanId };
   const yLast = lastOccupiedEndAtOrBefore(yesterdayDay, 24 * 60);
   if (yLast == null || yLast >= 24 * 60) {
-    return { startMin: 0, endMin: cap, overnight: false };
+    return { startMin: 0, endMin: nowMin, overnight: false, coveringPlanId };
   }
-  return { startMin: yLast, endMin: cap, overnight: true };
+  return { startMin: yLast, endMin: nowMin, overnight: true, coveringPlanId };
+}
+
+export function planRemainingAfter(plan, actualEndMin) {
+  if (!plan?.isPlan) return null;
+  const startMin = Math.max(Number(plan.startMin) || 0, Number(actualEndMin) || 0);
+  const endMin = Number(plan.endMin) || 0;
+  if (startMin >= endMin) return null;
+  return { ...plan, startMin, endMin };
 }
 
 export function overnightSpanMin(startMin, endMin) {
