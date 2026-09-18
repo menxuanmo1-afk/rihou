@@ -65,6 +65,7 @@ import {
 import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=94";
 import { pickEvalLine } from "./lines.js?v=94";
 import { buildAiExport } from "./ai-export.js?v=94";
+import { resizeTimelineSpan } from "./timeline-resize.js?v=96";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -93,6 +94,7 @@ const gesture = {
   windowBound: false,
   clipStart: 0,
   clipEnd: 0,
+  edgePointerOffsetMin: 0,
 };
 
 const LONG_PRESS_MS = 420;
@@ -260,7 +262,7 @@ function blockHtml(block) {
   const visStart = Math.max(startMin, START_HOUR * 60);
   const visEnd = Math.min(endMin, END_HOUR * 60);
   if (visEnd <= visStart) return "";
-  const { top, h } = blockGeom(startMin, endMin);
+  const { top, h } = blockGeom(startMin, endMin, editing ? 1 : 8);
   const colors = blockColors(block);
   const mixed = colors.length > 1 && !block.isPlan;
   const name = liveBlockLabel(block);
@@ -278,18 +280,19 @@ function blockHtml(block) {
   const handles = editing
     ? `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`
     : "";
-  const inner = `${label}${h > 28 ? `<div class="when">${minutesToHm(block.startMin)}–${minutesToHm(block.endMin)}</div>` : ""}`;
-  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}" data-id="${block.id}" style="${style}">
-        ${inner}
+  const inner = `<span class="block-label">${label}</span>${h > 28 ? `<div class="when">${minutesToHm(startMin)}–${minutesToHm(endMin)}</div>` : ""}`;
+  const resizeTiny = editing && h < 24 ? " resize-tiny" : "";
+  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}${resizeTiny}" data-id="${block.id}" style="${style}">
+        <div class="block-content">${inner}</div>
         ${handles}
       </div>`;
 }
 
-function blockGeom(startMin, endMin) {
+function blockGeom(startMin, endMin, minHeight = 8) {
   const visStart = Math.max(startMin, START_HOUR * 60);
   const visEnd = Math.min(endMin, END_HOUR * 60);
   const top = ((visStart - START_HOUR * 60) / 60) * HOUR_H;
-  const h = Math.max(8, ((visEnd - visStart) / 60) * HOUR_H);
+  const h = Math.max(minHeight, ((visEnd - visStart) / 60) * HOUR_H);
   return { top, h };
 }
 
@@ -329,6 +332,10 @@ function rawMinutesFromClientY(clientY) {
   if (!track) return START_HOUR * 60;
   const y = clientY - track.getBoundingClientRect().top;
   return START_HOUR * 60 + (y / HOUR_H) * 60;
+}
+
+function resizeMinutesFromClientY(clientY) {
+  return rawMinutesFromClientY(clientY) - (gesture.edgePointerOffsetMin || 0);
 }
 
 function minutesFromClientY(clientY, lo, hi) {
@@ -392,13 +399,15 @@ function setDraftEdge(which, minutes) {
   const { lo: defLo, hi: defHi } = draftBounds(d.isPlan);
   const lo = d.clipStart ?? defLo;
   const hi = Math.min(d.clipEnd ?? defHi, defHi);
-  const t = snapMin(minutes, lo, hi);
   const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
-  if (which === "start") {
-    d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
-  } else {
-    d.endMin = Math.min(hi, Math.max(t, d.startMin + minLen));
-  }
+  const next = resizeTimelineSpan(d, which, minutes, {
+    lo,
+    hi,
+    minSpan: minLen,
+    step: PLAN_SNAP,
+  });
+  d.startMin = next.startMin;
+  d.endMin = next.endMin;
 }
 
 function paintDraft() {
@@ -528,6 +537,7 @@ function beginEdgeEdit(block) {
       `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`,
     );
   }
+  paintEdgeEdit();
 }
 
 function setEdgeEditEdge(which, minutes) {
@@ -535,13 +545,14 @@ function setEdgeEditEdge(which, minutes) {
   if (!d) return;
   const lo = d.clipStart ?? START_HOUR * 60;
   const hi = Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
-  const t = snapMin(minutes, lo, hi);
-  const minLen = 1;
-  if (which === "start") {
-    d.startMin = Math.max(lo, Math.min(t, d.endMin - minLen));
-  } else {
-    d.endMin = Math.min(hi, Math.max(t, d.startMin + minLen));
-  }
+  const next = resizeTimelineSpan(d, which, minutes, {
+    lo,
+    hi,
+    minSpan: PLAN_SNAP,
+    step: PLAN_SNAP,
+  });
+  d.startMin = next.startMin;
+  d.endMin = next.endMin;
 }
 
 function paintEdgeEdit() {
@@ -549,9 +560,11 @@ function paintEdgeEdit() {
   if (!d) return;
   const el = document.querySelector(`.block[data-id="${d.id}"]`);
   if (!el) return;
-  const { top, h } = blockGeom(d.startMin, d.endMin);
+  const { top, h } = blockGeom(d.startMin, d.endMin, 1);
   el.style.top = `${top}px`;
   el.style.height = `${h}px`;
+  el.classList.toggle("resize-tiny", h < 24);
+  el.classList.toggle("resize-compact", h <= 28);
   const when = el.querySelector(".when");
   const label = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
   if (when) when.textContent = label;
@@ -559,7 +572,7 @@ function paintEdgeEdit() {
     const div = document.createElement("div");
     div.className = "when";
     div.textContent = label;
-    el.appendChild(div);
+    (el.querySelector(".block-content") || el).appendChild(div);
   }
 }
 
@@ -642,6 +655,9 @@ function resetGesture() {
   }
   gesture.kind = null;
   gesture.pointerId = null;
+  gesture.edgePointerOffsetMin = 0;
+  gesture.edgeWhich = null;
+  gesture.edgeId = null;
   unbindWindowGesture();
   const timeline = document.getElementById("timeline");
   timeline?.classList.remove("drawing");
@@ -799,12 +815,19 @@ function onTimelinePointerDown(event) {
   const handle = event.target.closest("[data-handle]");
   if (handle && (state.planDraft || state.edgeEdit)) {
     event.preventDefault();
-    gesture.kind = handle.dataset.handle === "start" ? "resize-start" : "resize-end";
+    const which = handle.dataset.handle === "start" ? "start" : "end";
+    const span = state.edgeEdit || state.planDraft;
+    gesture.kind = which === "start" ? "resize-start" : "resize-end";
     gesture.pointerId = event.pointerId;
+    gesture.edgePointerOffsetMin = rawMinutesFromClientY(event.clientY) - span[`${which}Min`];
     armSuppressClick();
     timeline.classList.add("drawing");
     bindWindowGesture();
-    timeline.setPointerCapture(event.pointerId);
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture if the pointer has already moved */
+    }
     return;
   }
   if (event.target.closest("#plan-draft")) {
@@ -856,6 +879,7 @@ function onTimelinePointerDown(event) {
       beginEdgeEdit(block);
       armSuppressClick();
       gesture.kind = gesture.edgeWhich === "start" ? "resize-start" : "resize-end";
+      gesture.edgePointerOffsetMin = rawMinutesFromClientY(gesture.lastY) - block[`${gesture.edgeWhich}Min`];
       timeline.classList.add("drawing");
       bindWindowGesture();
       try {
@@ -951,22 +975,22 @@ function onTimelinePointerMove(event) {
     return;
   }
   if (gesture.kind === "resize-start" && state.edgeEdit) {
-    setEdgeEditEdge("start", minutesFromClientY(event.clientY));
+    setEdgeEditEdge("start", resizeMinutesFromClientY(event.clientY));
     paintEdgeEdit();
     return;
   }
   if (gesture.kind === "resize-end" && state.edgeEdit) {
-    setEdgeEditEdge("end", minutesFromClientY(event.clientY));
+    setEdgeEditEdge("end", resizeMinutesFromClientY(event.clientY));
     paintEdgeEdit();
     return;
   }
   if (gesture.kind === "resize-start" && state.planDraft) {
-    setDraftEdge("start", minutesFromClientY(event.clientY));
+    setDraftEdge("start", resizeMinutesFromClientY(event.clientY));
     paintDraft();
     return;
   }
   if (gesture.kind === "resize-end" && state.planDraft) {
-    setDraftEdge("end", minutesFromClientY(event.clientY));
+    setDraftEdge("end", resizeMinutesFromClientY(event.clientY));
     paintDraft();
   }
 }
@@ -2427,5 +2451,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=95").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=96").catch(() => {});
 }

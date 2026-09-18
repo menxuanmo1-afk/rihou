@@ -382,6 +382,11 @@ html.native-app .achieve-wrap {
 .block.plan.due {
   animation: plan-breathe 3.4s ease-in-out infinite;
 }
+.block-content {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
 @media (prefers-reduced-motion: reduce) {
   .block.plan.due {
     animation: none;
@@ -397,33 +402,35 @@ html.native-app .achieve-wrap {
 }
 .block.edge-edit .handle {
   position: absolute;
-  left: 0;
-  right: 0;
-  height: 22px;
-  display: flex;
-  justify-content: center;
+  left: 50%;
+  width: 72px;
+  margin-left: -36px;
+  height: 24px;
   z-index: 2;
   touch-action: none;
   cursor: ns-resize;
 }
 .block.edge-edit .handle.top {
-  top: 0;
-  align-items: flex-start;
+  top: -24px;
 }
 .block.edge-edit .handle.bottom {
-  bottom: 0;
-  align-items: flex-end;
+  bottom: -24px;
 }
 .block.edge-edit .handle::after {
   content: "";
-  width: 40px;
+  position: absolute;
+  left: 50%;
+  width: 48px;
   height: 4px;
   border-radius: 2px;
   background: var(--paper);
   box-shadow: 0 0 0 3px rgba(26, 33, 40, 0.55);
+  transform: translateX(-50%);
 }
-.block.edge-edit .handle.top::after { transform: translateY(-50%); }
-.block.edge-edit .handle.bottom::after { transform: translateY(50%); }
+.block.edge-edit .handle.top::after { bottom: -2px; }
+.block.edge-edit .handle.bottom::after { top: -2px; }
+.block.edge-edit.resize-tiny .block-content { display: none; }
+.block.edge-edit.resize-compact .when { display: none; }
 .block .when { opacity: 0.8; font-size: 11px; margin-top: 2px; }
 
 .plan-draft {
@@ -471,22 +478,18 @@ html.native-app .achieve-wrap {
 .plan-draft .handle {
   position: absolute;
   left: 50%;
-  width: 56px;
-  margin-left: -28px;
-  height: 22px;
-  display: flex;
-  justify-content: center;
+  width: 72px;
+  margin-left: -36px;
+  height: 24px;
   z-index: 2;
   touch-action: none;
   cursor: ns-resize;
 }
 .plan-draft .handle.top {
-  top: -1.5px;
-  align-items: flex-start;
+  top: -24px;
 }
 .plan-draft .handle.bottom {
-  bottom: -1.5px;
-  align-items: flex-end;
+  bottom: -24px;
 }
 .plan-draft.tight .draft-x {
   top: -16px;
@@ -494,14 +497,17 @@ html.native-app .achieve-wrap {
 }
 .plan-draft .handle::after {
   content: "";
-  width: 40px;
+  position: absolute;
+  left: 50%;
+  width: 48px;
   height: 4px;
   border-radius: 2px;
   background: var(--clay);
   box-shadow: 0 0 0 3px rgba(26, 33, 40, 0.55);
+  transform: translateX(-50%);
 }
-.plan-draft .handle.top::after { transform: translateY(-50%); }
-.plan-draft .handle.bottom::after { transform: translateY(50%); }
+.plan-draft .handle.top::after { bottom: -2px; }
+.plan-draft .handle.bottom::after { top: -2px; }
 .plan-draft .draft-x {
   position: absolute;
   top: 4px;
