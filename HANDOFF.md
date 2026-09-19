@@ -1,6 +1,6 @@
 # 人生记录仪 — 交给下一个 AI 的交接
 
-> **2026-09-19 更新（优先于本文旧方案）：** 用户已授权实现并推送 iPhone 助理。原生已新增 `js/native/`、`css/assistant.css`、本地通知及 `cloud/coach/` 服务代码。Worker **已部署到 `https://rihou-coach.menxuanmo.workers.dev`，尚未接通真实 AI**：已验证缺少 Secret 时安全返回 503；独立访问码已随机生成并存入本机钥匙串与 Cloudflare Secret，等待用户在 Cloudflare 直接配置 DeepSeek 密钥及确认模型余额，不要索取密钥到聊天中。当前模型配置为 `deepseek-flash`、非思考 JSON 输出；未做模型质量比较或大陆网络验证。详情见 [服务与部署说明](cloud/coach/README.md) 和 [真机验收清单](docs/native-assistant-acceptance.md)。
+> **2026-09-19 更新（优先于本文旧方案）：** 用户已授权实现并推送 iPhone 助理。原生已新增 `js/native/`、`css/assistant.css`、本地通知及 `cloud/coach/` 服务代码。Worker **已部署到 `https://rihou-coach.menxuanmo.workers.dev`，真实 DeepSeek 调用已接通**：用户已配置密钥与充值；两次虚构记录测试 HTTP 200，没有上传真实日记。首轮发现一处模型时长错误，现提供程序计算的时间事实，observation 直接从原始记录生成。独立访问码存于 Mac 钥匙串与 Cloudflare Secret，不索取或输出到聊天。原生地址已预填，AI 上传仍需用户主动同意；模拟器构建安装启动通过，MO-iPhone 暂不可用，等待连接解锁后配置并验收。当前模型为 `deepseek-flash`、非思考 JSON 输出；未做模型质量比较或大陆网络验证。详情见 [服务与部署说明](cloud/coach/README.md) 和 [真机验收清单](docs/native-assistant-acceptance.md)。
 >
 > 当前 UI：投资 / 昨晚睡眠 / 消费三行小计（小时小数格式），起床到起床；实际时间线整合亮点/问题及“查看深度分析”；计划与待办复盘压缩；今日建议支持多条作息提醒和到期待办采纳。无可见知识库、消息列表、“为什么选这个”或“安排依据”。顶部“设置”替换原生 AI 导出。计划提前10分钟本地通知，作息提醒依据刚结束的活动记录触发，不自动检测真实用餐。知识摘要仅在服务端。
 >

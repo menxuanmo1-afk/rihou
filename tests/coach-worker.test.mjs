@@ -6,6 +6,17 @@ assert.throws(()=>validateInput({...input,blocks:[{...input.blocks[0],end:0}]}))
 const clean=cleanOutput({summary:"one",events:[null,{recordId:"unknown"},{recordId:"a",knowledgeIds:["sleep"],sources:[{url:"https://untrusted.test"}]}],habits:["meal_walk","evil","meal_walk"]},validateInput(input));
 assert.equal(clean.events.length,1);assert.equal(clean.events[0].sources[0].url,"https://www.cdc.gov/sleep/about/");
 assert.deepEqual(clean.habits,["meal_walk"]);
+const reading=validateInput({mode:"yesterday",timeZone:"Asia/Shanghai",blocks:[{id:"reading",start:Date.parse("2026-09-18T10:15:00+08:00"),end:Date.parse("2026-09-18T11:15:00+08:00"),name:"读书",kinds:["READ"],durationMinutes:45}]});
+assert.equal(reading.blocks[0].durationMinutes,60,"duration is computed rather than trusting supplied facts");
+const facts=cleanOutput({summary:"记录复盘",events:[{recordId:"reading",observation:"另有45分钟阅读"}]},reading);
+assert.match(facts.events[0].observation,/60分钟/);
+assert.match(facts.events[0].observation,/10:15/);
+assert.doesNotMatch(facts.events[0].observation,/45分钟/);
+const night=validateInput({mode:"yesterday",timeZone:"Asia/Shanghai",blocks:[{id:"night",start:Date.parse("2026-09-18T23:30:00+08:00"),end:Date.parse("2026-09-19T07:00:00+08:00"),name:"睡眠"}]});
+assert.equal(night.blocks[0].durationMinutes,450);
+assert.match(night.blocks[0].localStart,/09\/18/);
+assert.match(night.blocks[0].localEnd,/09\/19/);
+assert.throws(()=>validateInput({...input,timeZone:"invalid/timezone"}));
 const env={DEEPSEEK_API_KEY:"test-not-a-real-key",DEEPSEEK_MODEL:"test-model",APP_ACCESS_TOKEN:"a".repeat(32),AI_RATE_LIMIT:{limit:async()=>({success:true})}};
 const request=(body=input,token=env.APP_ACCESS_TOKEN,origin="capacitor://localhost")=>new Request("https://worker.test/analyze",{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${token}`,Origin:origin},body:JSON.stringify(body)});
 assert.equal((await worker.fetch(request(),{})).status,503);

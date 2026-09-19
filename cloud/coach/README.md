@@ -1,6 +1,6 @@
 # iPhone AI 助理：个人试用版服务
 
-状态（2026-09-19）：**Worker 已部署，尚未连接真实 DeepSeek 调用**。个人试用服务根地址为 `https://rihou-coach.menxuanmo.workers.dev`；部署后已验证缺少 Secret 时 `POST /analyze` 返回 503，不会调用模型。`APP_ACCESS_TOKEN` 已随机生成并加密写入 Cloudflare，另存本机 macOS 钥匙串（service：`com.rihou.coach.personal-access`，account：`menxuanmo`），值未进入聊天或仓库。等待用户在 Cloudflare 安全设置中配置 `DEEPSEEK_API_KEY` 并确认 API 余额。先验证个人手机，再设计商店公开分发的账号和费用机制。这个版本的访问码不适合发给所有商店用户共用。
+状态（2026-09-19）：**Worker 已部署，真实 DeepSeek 调用已接通**。个人试用服务根地址为 `https://rihou-coach.menxuanmo.workers.dev`。用户已配置 `DEEPSEEK_API_KEY` 并充值；两次虚构记录测试均返回 HTTP 200（约4.8秒、3.2秒，不代表长期延迟保证），没有读取或上传用户日记。首轮发现模型混淆一项时长，已增加程序计算的时间/时长输入，并将返回的 observation 改为程序直接生成；复测事实行与测试记录一致。模型其余解释仍需人工审阅，不能视为医学或全面质量认证。`APP_ACCESS_TOKEN` 已随机生成并加密写入 Cloudflare，另存本机 macOS 钥匙串（service：`com.rihou.coach.personal-access`，account：`menxuanmo`），值未进入聊天或仓库。原生设置已预填服务地址，AI 授权默认仍关闭。真机 MO-iPhone 暂不可连接，等待连接并解锁后配置本机访问码、由用户确认上传授权并验收。这个版本的访问码不适合发给所有商店用户共用。
 
 ## 先记住三件事
 
@@ -25,7 +25,7 @@
 
 当前 Worker 仅开放 `POST /analyze`，要求访问码；限制 JSON 大小、块数与输出长度，服务限流每 60 秒 5 次。Cloudflare 限流并非全局精确预算锁，必须另外管理 DeepSeek 余额/额度；访问码泄露应立即轮换。服务无数据库、不主动记录日记或调用内容，第三方处理与保留政策以 Cloudflare / DeepSeek 实际条款为准。
 
-本机访问码不写入备份，但保存在 WebView 本地存储，不是 Keychain。正式上架前应改为用户级认证、可撤销短期会话与安全存储，并完善隐私政策、AI 第三方数据告知、费用/配额及商店审核材料。当前仅部署个人试用 Worker，未发布 App Store 或更改账号收费设置；尚无真实模型调用、真机端到端或中国大陆网络验证。
+本机访问码不写入备份，但 App 中保存在 WebView 本地存储，不是 iOS Keychain（Mac 上的原始访问码另存 macOS Keychain）。正式上架前应改为用户级认证、可撤销短期会话与安全存储，并完善隐私政策、AI 第三方数据告知、费用/配额及商店审核材料。当前仅部署个人试用 Worker，未发布 App Store 或更改账号收费设置；真实模型连通已验证，真机端到端和中国大陆网络仍未验证。
 
 ## 知识与安全边界
 
@@ -51,3 +51,5 @@
 ## 验证
 
 根目录 `npm test`、`npm run ios:sync`。原生以 `js/native/app.js` 为独立入口，构建到 `www/js/native.js`；原生存储与待办适配同样独立。构建检查拒绝任何真正输出的估值分析、估值文案模块或旧 AI 导出模块。网页文件未改动，后续也不要以复用为由改动网页；共享的只读基础文件如需调整，应先拆到原生目录。
+
+`node scripts/test-coach-live.mjs --run` 为明确选择执行的付费连通测试：仅发送脚本内六条虚构记录，从 macOS 钥匙串读取 App 访问码，不输出密钥，不读取真实日记。不加 `--run` 不发请求；不纳入自动 `npm test`。当前模拟器构建/安装/启动通过，原生页面浏览器预览已核实服务地址预填、访问码空值及上传授权未勾选；尚未完成手机上的 AI 端到端验证。

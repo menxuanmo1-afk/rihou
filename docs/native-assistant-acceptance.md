@@ -1,6 +1,6 @@
 # iPhone 助理验收清单
 
-本次改动不发布 App Store，不部署 Worker。`npm run ios:sync` 后用 Xcode 将新构建装到测试手机。已有日记需先导出备份。
+当前不发布 App Store。Worker 已部署，2026-09-19 两次虚构记录真实 DeepSeek 连通测试均成功；这不替代真机验收或内容质量评估。`npm run ios:sync` 后用 Xcode 将新构建装到测试手机。已有日记需先导出备份。
 
 1. 无数据时，助理显示补记睡眠的空态；未配置 Worker 时明确显示 AI 尚未连接，没有假的亮点/问题。
 2. 连续记两次起床：昨日统计从上次起床开始；23:00–07:00 睡眠显示 8.0h，通勤不算消费；休息和消费不混淆。
@@ -15,5 +15,7 @@
 11. 网页仍有资产图、估值栏、自定义估值与原 AI 导出。不要把原生助理 CSS 加到网页入口。
 
 已执行的自动化覆盖见 `tests/assistant.test.mjs`、`tests/coach-worker.test.mjs`；原来的三组时间线/待办测试继续运行。Xcode 编译与浏览器模拟不能代替上述真机通知与真实服务验收。
+
+2026-09-19 接通验证：`npm test`、`npm run ios:sync` 通过；模拟器构建安装启动通过，原生界面预览已检查默认服务地址和未勾选的 AI 授权。模型事实行不再采用生成文本，按原始记录生成起止时间和分钟数。待验证：真机 MO-iPhone 暂不可连接；需用户连接、解锁并保留/备份已有日记。若在云同步项目目录构建遇到 `resource fork, Finder information ... not allowed`，使用 `/private/tmp/rihou-ios-build.XXXXXX` 下独立 DerivedData 目录；不要清理用户源文件或日记数据。
 
 依赖审计：当前原有 Capacitor CLI → xcode → uuid 链报告3个中等级别告警，属于构建工具链，不进入 App 的原生 JS 输出。本次未采用审计建议的 Capacitor 降级；后续随官方修复处理，不能宣称整个依赖树无漏洞。

@@ -4,13 +4,15 @@ const text=(v,n)=>typeof v==="string"?v.slice(0,n):"";
 const habits=new Set(["meal_walk","wake_start","work_break"]);
 export function validateInput(raw) {
   if(!raw || !["yesterday","week"].includes(raw.mode) || !Array.isArray(raw.blocks) || !raw.blocks.length || raw.blocks.length>800) throw Error("invalid input");
+  const timeZone=text(raw.timeZone,80)||"Asia/Shanghai";
+  const clock=new Intl.DateTimeFormat("zh-CN",{timeZone,month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
   const blocks=raw.blocks.map(b=>{
     if(!b||typeof b.id!=="string"||!Number.isFinite(b.start)||!Number.isFinite(b.end)||b.end<=b.start||b.end-b.start>172800000) throw Error("invalid block");
-    return {id:text(b.id,120),start:b.start,end:b.end,kinds:Array.isArray(b.kinds)?b.kinds.slice(0,12).map(k=>text(k,50)):[],name:text(b.name,300)};
+    return {id:text(b.id,120),start:b.start,end:b.end,localStart:clock.format(b.start),localEnd:clock.format(b.end),durationMinutes:Number(((b.end-b.start)/60000).toFixed(3)),kinds:Array.isArray(b.kinds)?b.kinds.slice(0,12).map(k=>text(k,50)):[],name:text(b.name,300)};
   });
   if(new Set(blocks.map(b=>b.id)).size!==blocks.length)throw Error("duplicate blocks");
   const summary={}; for(const k of ["invest","sleep","consume","rest"])if(Number.isFinite(raw.summary?.[k])&&raw.summary[k]>=0) summary[k]=raw.summary[k];
-  return {mode:raw.mode,date:text(raw.date,10),timeZone:text(raw.timeZone,80)||"Asia/Shanghai",boundaryKnown:raw.boundaryKnown===true,ageGroup:raw.ageGroup==="teen"?"teen":"adult",summary,blocks,
+  return {mode:raw.mode,date:text(raw.date,10),timeZone,boundaryKnown:raw.boundaryKnown===true,ageGroup:raw.ageGroup==="teen"?"teen":"adult",summary,blocks,
     plans:(Array.isArray(raw.plans)?raw.plans:[]).slice(0,100).map(p=>({name:text(p?.name,120),start:Number(p?.start)||0,end:Number(p?.end)||0,actualStart:Number(p?.actualStart)||null})),
   };
 }
@@ -22,7 +24,10 @@ export function cleanOutput(raw, input) {
     seen.add(e.recordId);return true;
   }).slice(0,5).map(e=>{
     const references=KNOWLEDGE.filter(k=>Array.isArray(e.knowledgeIds)&&e.knowledgeIds.includes(k.id)).slice(0,3);
-    return {recordId:e.recordId,type:e.type==="highlight"?"highlight":"problem",title:text(e.title,45),observation:text(e.observation,100),
+    const block=input.blocks.find(b=>b.id===e.recordId);
+    // Facts come from the record, never from model-generated arithmetic or prose.
+    const observation=`${block.localStart}–${block.localEnd} · ${text(block.name,35)||"时间记录"} · ${block.durationMinutes}分钟`;
+    return {recordId:e.recordId,type:e.type==="highlight"?"highlight":"problem",title:text(e.title,45),observation,
       mechanism:references.length?text(e.mechanism,400):"未找到足够依据，不作生物学解释。",impact:text(e.impact,250),action:text(e.action,250),limit:text(e.limit,250)||"时间记录不能代替健康检查；没有记录的事情可能只是漏记。",
       sources:references.map(({title,url})=>({title,url})),
     };
@@ -34,9 +39,10 @@ const system=`你是人生记录仪的非医疗作息助理。只输出有效JSO
 昨日按起床到起床计算；睡眠用输入summary.sleep（昨晚主睡眠），其他分钟使用本机统计。时间戳按输入timeZone展示。不将计划当实际。混合事项均分。消费只有SCROLL/GAME，通勤吃饭等为休息。缺上次起床边界时说明数据不完整。
 先指出实际发生的事实，再给谨慎推断；没有吃饭记录不是没吃饭。单天不判断长期习惯或疾病。周报只有本周数据，不声称持续数周。不要羞辱、打分、金融估值或用睡眠换效率。
 知识只能来自下附审核摘要，知识摘要是一般证据，不代表个体测量。简单生理解释只在确实相关时给。明确证据人群与局限；禁止确定性医疗诊断、用药/补剂建议、极端禁食或过量训练。长期睡眠困难或明显不适建议咨询专业人员。不要采用血糖加多巴胺使注意力废掉、凌晨固定深睡窗口等说法。
-界面要短：summary一句有用总结，最多90字。events最多5条，对应输入recordId，亮点和问题直接贴在相关时间块上；observation一句事实，title短句。深度展开才显示mechanism(生理/行为原理)、impact(可能影响)、action(小而具体)、limit(适用边界)，每项一两句。不做空泛鸡汤，不凑问题数。knowledgeIds只能选下方id，不生成URL。
+每个时间块的localStart、localEnd、durationMinutes由程序精确提供，不需要你计算。不要混用不同记录的时长。事实行由程序生成，不输出observation。summary、title、impact只写有依据的行为关系，不复述钟点或时长数字（界面已有准确统计）。不得把吃完早餐后的刷视频描述成醒来后的第一件事；不得把一次早餐记录判断为“按时”或“规律”。只推荐与该段记录直接相关的改进，上午读书不必附带睡前光照建议。不输出SCROLL等内部枚举。
+界面要短：summary一句有用总结，最多90字。events最多3条，对应输入recordId，只选择最有意义的亮点和问题，不凑数；title短句。深度展开才显示mechanism(生理/行为原理)、impact(可能影响)、action(小而具体)、limit(适用边界)，每项一两句。不做空泛鸡汤。knowledgeIds只能选下方id，不生成URL。
 habits可选0–3个：meal_walk(用餐结束轻松走10分钟)，wake_start(睡眠结束先开始15分钟任务)，work_break(学习等记录至少60分钟后活动5分钟)。选与数据有关的，不排满一天。不要声称自动知道吃完饭、已安排或已发送通知。
-输出结构：{"summary":"...","events":[{"recordId":"...","type":"problem或highlight","title":"...","observation":"...","mechanism":"...","impact":"...","action":"...","limit":"...","knowledgeIds":["sleep"]}],"habits":["meal_walk"]}
+输出结构：{"summary":"...","events":[{"recordId":"...","type":"problem或highlight","title":"...","mechanism":"...","impact":"...","action":"...","limit":"...","knowledgeIds":["sleep"]}],"habits":["meal_walk"]}
 知识摘要：${JSON.stringify(KNOWLEDGE)}`;
 
 async function boundedJson(request, limit=180000) {
