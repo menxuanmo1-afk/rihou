@@ -1,0 +1,51 @@
+import assert from "node:assert/strict";
+import { buildReview, capturePlans, category, futureSlot, atMinute, isFreshRecord, habitMatches, sanitizeAnalysis, weekReady } from "../js/native/core.js";
+import { planNotifications } from "../js/native/reminders.js";
+const block=(id,startMin,endMin,kind,isPlan=false)=>({id,startMin,endMin,kinds:[kind],isPlan});
+const days={
+  "2026-09-17":{blocks:[block("s1",0,420,"SLEEP")]},
+  "2026-09-18":{blocks:[block("s2",0,450,"SLEEP"),block("w",480,600,"STUDY"),block("c",600,630,"COMMUTE"),block("v",630,660,"SCROLL"),block("s3",1410,1440,"SLEEP")]},
+  "2026-09-19":{blocks:[block("s4",0,390,"SLEEP")]},
+};
+const now=atMinute("2026-09-19",400),review=buildReview(days,{},now);
+assert.equal(review.start,atMinute("2026-09-18",450));
+assert.equal(review.end,atMinute("2026-09-19",390));
+assert.equal(review.totals.sleep,420,"sleep is last night, including prior date");
+assert.equal(review.totals.invest,120);
+assert.equal(review.totals.consume,30);
+assert.equal(review.totals.rest,30,"commute is rest, not consumption");
+assert.equal(review.blocks.some(b=>b.blockId==="s2"),false);
+assert.equal(category("MEAL"),"rest");assert.equal(category("GAME"),"consume");
+assert.equal(buildReview({"2026-09-19":days["2026-09-19"]},{},now).boundaryKnown,false);
+const archive={p:{blockId:"p",date:"2026-09-18",start:atMinute("2026-09-18",480),end:atMinute("2026-09-18",600)}};
+days["2026-09-18"].blocks[1].fromPlanId="p";
+assert.equal(buildReview(days,archive,now).plans[0].delayMin,0);
+assert.notEqual(buildReview(days,archive,now).fingerprint,review.fingerprint);
+assert.deepEqual(futureSlot([block("a",480,530,"STUDY")],481,30),{startMin:530,endMin:560});
+assert.equal(futureSlot([],1430,30),null);
+assert.equal(isFreshRecord({date:"2026-09-19",endMin:398},now),true);
+assert.equal(isFreshRecord({date:"2026-09-18",endMin:398},now),false);
+assert.equal(habitMatches("work_break",block("a",0,59,"STUDY")),false);
+assert.equal(habitMatches("meal_walk",block("a",0,30,"MEAL")),true);
+assert.equal(weekReady(new Date(2026,8,20,13,59)),false);
+assert.equal(weekReady(new Date(2026,8,20,14)),true);
+assert.deepEqual(sanitizeAnalysis({summary:"a",events:[null,{recordId:"bad"},{recordId:"ok",sources:"bad"}],habits:"bad"},new Set(["ok"])).events[0].sources,[]);
+const planned={"2026-09-19":{blocks:[block("p",480,510,"STUDY",true)]}};
+const notifications=planNotifications(planned,atMinute("2026-09-19",450));
+assert.equal(notifications[0].schedule.at.getTime(),atMinute("2026-09-19",470));
+assert.equal(notifications[0].body.includes("学习"),false,"lock screen is private by default");
+assert.equal(planNotifications(planned,now,true)[0].body.includes("学习"),true);
+const ledger=Object.fromEntries(notifications.map(n=>[n.extra.key,{at:n.schedule.at.getTime()}]));
+assert.equal(planNotifications(planned,atMinute("2026-09-19",472),false,ledger).length,0,"a fired reminder is not scheduled twice");
+assert.equal(planNotifications(planned,atMinute("2026-09-19",475))[0].schedule.at.getTime(),atMinute("2026-09-19",475)+2000);
+assert.equal(planNotifications(planned,atMinute("2026-09-19",485)).length,0);
+planned["2026-09-19"].blocks[0].startMin=540;
+planned["2026-09-19"].blocks[0].endMin=570;
+assert.notEqual(planNotifications(planned,now)[0].id,notifications[0].id,"moving a plan replaces its reminder");
+assert.equal(planNotifications({},now).length,0);
+assert.equal(Object.keys(capturePlans(planned)).length,1);
+const promised=capturePlans(planned,{},atMinute("2026-09-19",500));
+planned["2026-09-19"].blocks[0].startMin=550;
+assert.equal(capturePlans(planned,promised,atMinute("2026-09-19",552))["2026-09-19:p"].start,atMinute("2026-09-19",540),"partially logging a plan preserves its original promised slot");
+assert.equal(buildReview({"2026-09-19":{blocks:[block("short",240,360,"SLEEP")]}},{},now).totals.sleep,120,"short morning sleep is still reviewable");
+console.log("native assistant boundary, cache, reminders and suggestion tests passed");

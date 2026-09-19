@@ -1,0 +1,51 @@
+.native-app .achieve-wrap { display:block; padding:22px 18px 34px; }
+.coach { width:100%; max-width:620px; margin:0 auto; font-size:14px; line-height:1.65; }
+.coach .coach-title { font-size:22px; font-weight:650; letter-spacing:.02em; margin:0 0 4px; }
+.coach-status,.coach-muted,.coach-boundary,.coach-habit p,.coach-due p { color:var(--mute); font-size:12px; margin:4px 0 10px; }
+.coach-status { min-height:20px; margin-bottom:18px; }
+.coach-metrics { border-top:1px solid #ffffff18; border-bottom:1px solid #ffffff18; padding:10px 0; }
+.coach-metrics>div { display:flex; align-items:baseline; gap:16px; padding:8px 0; }
+.coach-metrics span { flex:0 0 100px; white-space:nowrap; font-size:14px; }
+.coach-metrics strong { font-size:20px; font-weight:600; margin-left:7px; font-variant-numeric:tabular-nums; }
+.coach-metrics p { min-width:0; border-left:1px solid #ffffff30; padding-left:16px; margin:0; font-size:12px; color:var(--mute); }
+.coach-boundary { font-size:10px; padding-top:8px; }
+.coach-section { margin-top:28px; }
+.coach h3 { font-size:15px; font-weight:600; margin:18px 0 12px; }
+.coach-timeline { display:flex; gap:20px; min-height:var(--coach-height); margin-top:16px; }
+.coach-mini { flex:0 0 47px; display:flex; flex-direction:column; align-items:center; }
+.coach-mini time { font-size:10px; color:var(--mute); font-variant-numeric:tabular-nums; }
+.coach-track { position:relative; width:23px; flex:1; min-height:240px; margin:8px 0; background:#ffffff08; border-radius:5px; overflow:hidden; }
+.coach-track span { position:absolute; width:100%; left:0; border-bottom:1px solid var(--ink); opacity:.85; }
+.coach-events { flex:1; min-width:0; display:flex; flex-direction:column; justify-content:space-around; gap:18px; }
+.coach-events article { border-bottom:1px solid #ffffff0d; padding:0 0 12px; }
+.coach-events time { font-size:11px; color:var(--mute); margin-right:8px; }
+.coach-events strong { display:block; margin-top:5px; font-size:15px; font-weight:550; }
+.coach-events p { margin:4px 0; color:#c9c3bb; font-size:13px; }
+.coach-tag { font-size:10px; padding:2px 6px; border-radius:4px; background:#ffffff0c; color:var(--mute); }
+.coach-tag.problem { background:#e8a87c15; color:var(--clay); }
+.coach-tag.highlight { background:#7dcea015; color:var(--moss); }
+.coach-link { background:none; border:0; color:var(--clay); font-size:12px; padding:8px 0; text-align:left; min-height:36px; }
+.coach-summary { background:#ffffff05; padding:12px 14px; border-left:2px solid var(--clay); font-size:13px; }
+.coach-finding { display:flex; gap:10px; font-size:13px; margin:8px 0; }
+.coach-finding em { font-style:normal; color:var(--clay); flex-shrink:0; }
+.coach details { font-size:12px; color:var(--mute); margin-top:12px; }
+.coach summary { cursor:pointer; padding:8px 0; }
+.coach-habit,.coach-due { display:flex; gap:14px; align-items:center; justify-content:space-between; border-bottom:1px solid #ffffff0e; padding:12px 0; }
+.coach-habit>div,.coach-due>div { min-width:0; }
+.coach-habit strong,.coach-due strong { font-size:13px; font-weight:500; overflow-wrap:anywhere; }
+.coach-habit p,.coach-due p { margin-bottom:0; font-size:11px; }
+.coach-habit .btn,.coach-due .btn { flex-shrink:0; font-size:12px; min-height:40px; padding:8px 12px; }
+.coach button:disabled { opacity:.4; cursor:default; }
+.coach button[aria-pressed=true] { color:var(--moss); border-color:#7dcea050; }
+.coach-due small { font-size:10px; color:var(--clay); margin-left:4px; }
+.coach-feedback { color:var(--moss); min-height:22px; font-size:12px; }
+.coach-empty { border:1px dashed #ffffff20; color:var(--mute); padding:22px; border-radius:10px; }
+.coach-settings { max-height:88dvh; overflow-y:auto; padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+.coach-settings label { display:block; font-size:13px; margin:14px 0; }
+.coach-settings input:not([type=checkbox]),.coach-settings select { display:block; width:100%; max-width:100%; margin-top:6px; padding:12px; background:var(--field); border:1px solid var(--field-border); border-radius:8px; color:var(--paper); font:inherit; font-size:16px; }
+.coach-settings input[type=checkbox] { accent-color:var(--moss); width:17px; height:17px; vertical-align:middle; margin-right:6px; }
+.coach-settings .row { flex-wrap:wrap; }
+.coach-detail { max-height:85dvh; overflow-y:auto; }
+.coach-detail p { font-size:14px; overflow-wrap:anywhere; }
+.coach-detail .coach-muted { font-size:11px; }
+@media (max-width:360px) { .coach-metrics>div {gap:10px;} .coach-metrics span {flex-basis:92px;} .coach-metrics p {padding-left:10px;} .coach-timeline {gap:12px;} }

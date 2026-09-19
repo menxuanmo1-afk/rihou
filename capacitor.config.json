@@ -2,6 +2,11 @@
   "appId": "com.xuanmo.liferecorder",
   "appName": "人生记录仪",
   "webDir": "www",
+  "plugins": {
+    "LocalNotifications": {
+      "presentationOptions": ["banner", "list", "sound"]
+    }
+  },
   "ios": {
     "scheme": "App",
     "contentInset": "automatic"

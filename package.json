@@ -5,11 +5,16 @@
   "scripts": {
     "prepare-www": "node scripts/prepare-www.mjs",
     "ios:sync": "npm run prepare-www && npx cap sync ios",
-    "test": "node tests/timeline-resize.test.mjs && node tests/log-now.test.mjs && node tests/todos.test.mjs"
+    "test": "node tests/timeline-resize.test.mjs && node tests/log-now.test.mjs && node tests/todos.test.mjs && node tests/assistant.test.mjs && node tests/coach-worker.test.mjs"
   },
   "dependencies": {
+    "@capacitor/app": "^8.1.1",
     "@capacitor/cli": "^8.5.1",
     "@capacitor/core": "^8.5.1",
-    "@capacitor/ios": "^8.5.1"
+    "@capacitor/ios": "^8.5.1",
+    "@capacitor/local-notifications": "^8.3.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

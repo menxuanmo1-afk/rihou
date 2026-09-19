@@ -1,0 +1,2438 @@
+import {
+  pickerKinds,
+  uid,
+  kindById,
+  minutesToHm,
+  parseHm,
+  hmInputValue,
+  todayISO,
+  addDays,
+  dateTitle,
+  blockKinds,
+  blockColors,
+  gradientCss,
+  gapFromLastToNow,
+  planRemainingAfter,
+  lastActualEnd,
+  nowMinutes,
+  actualAtMinute,
+  emptySpan,
+  emptyPlanSpan,
+  timeEditClip,
+  overnightSpanMin,
+  weekdayOfIso,
+  KINDS,
+  listCustomKinds,
+  CUSTOM_MAX,
+  CUSTOM_LABEL_MAX,
+  KIND_COLORS,
+} from "../models.js?v=98";
+import {
+  loadDay,
+  upsertBlock,
+  upsertPlan,
+  removeBlock,
+  loadSettings,
+  saveSettings,
+  exportAll,
+  importAll,
+  loadAllDays,
+  loadCustomKinds,
+  saveCustomKinds,
+  loadPlanSeries,
+  savePlanSeries,
+  skipPlanOccurrence,
+  clearFuturePlanInstances,
+} from "./store.js?v=98";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=98";
+import { resizeTimelineSpan } from "../timeline-resize.js?v=98";
+import {
+  addTodo,
+  formatTodoDue,
+  loadTodos,
+  nearestOpenTodoSlot,
+  setTodoDone,
+  sortTodos,
+  todoCounts,
+  updateTodo,
+} from "./todos.js?v=98";
+
+const START_HOUR = 0;
+const END_HOUR = 24;
+const HOUR_H = 56;
+
+const state = {
+  date: todayISO(),
+  day: loadDay(todayISO()),
+  tab: "time",
+  planDraft: null,
+  edgeEdit: null,
+  todosOpen: false,
+  todoEditing: null,
+  slide: "",
+};
+
+const gesture = {
+  kind: null,
+  pointerId: null,
+  originMin: 0,
+  startX: 0,
+  startY: 0,
+  lastY: 0,
+  timer: 0,
+  suppressClick: false,
+  suppressTimer: 0,
+  windowBound: false,
+  clipStart: 0,
+  clipEnd: 0,
+  edgePointerOffsetMin: 0,
+  todoOriginStart: 0,
+  todoOriginEnd: 0,
+};
+
+const LONG_PRESS_MS = 420;
+const PRESS_MOVE_PX = 18;
+const PLAN_SNAP = 5;
+const PLAN_MIN = 15;
+const DAY_SWIPE_PX = 56;
+const DAY_AXIS_PX = 14;
+
+const daySwipe = {
+  pointerId: null,
+  startX: 0,
+  startY: 0,
+  dx: 0,
+  axis: null,
+};
+
+function currentDay() {
+  state.day = loadDay(state.date);
+  return state.day;
+}
+
+const nativeMode = true;
+const assistant = await import("./assistant.js");
+function todoStripHtml() {
+  const counts = todoCounts(loadTodos(), todayISO());
+  return `<div class="todo-strip">
+    <div class="todo-counts">
+      <span>${t("todoRemaining")}<strong>${counts.remaining}</strong></span>
+      <span>${t("todoToday")}<strong>${counts.today}</strong></span>
+    </div>
+    <button type="button" class="todo-expand" data-act="todo-toggle" aria-expanded="${state.todosOpen}">
+      ${state.todosOpen ? t("todoCollapse") : t("todoExpand")}
+      <span aria-hidden="true">${state.todosOpen ? "▴" : "▾"}</span>
+    </button>
+  </div>`;
+}
+
+function todoEditRowHtml(todo, isNew = false) {
+  const id = isNew ? "new" : todo.id;
+  return `<div class="todo-row editing" data-todo-row="${escapeAttr(id)}">
+    <span class="todo-check placeholder" aria-hidden="true"></span>
+    <div class="todo-fields">
+      <input class="todo-text-input" data-todo-text value="${escapeAttr(todo.text || "")}" placeholder="${escapeAttr(t("todoContent"))}" maxlength="120" />
+      <label class="todo-date-field">
+        <span>${t("todoDue")}</span>
+        <input class="todo-date-input" data-todo-date type="date" value="${escapeAttr(todo.dueISO || "")}" aria-label="${escapeAttr(t("todoDue"))}" />
+      </label>
+    </div>
+    <div class="todo-actions edit-actions">
+      <button type="button" data-act="todo-edit-save" data-todo-id="${escapeAttr(id)}">${t("save")}</button>
+      <button type="button" data-act="todo-edit-cancel">${t("cancel")}</button>
+    </div>
+  </div>`;
+}
+
+function todoPanelHtml() {
+  if (!state.todosOpen) return "";
+  const todos = sortTodos(loadTodos());
+  const today = todayISO();
+  const todayPlanIds = new Set(
+    (loadDay(today).blocks || []).filter((block) => block.isPlan && block.todoId).map((block) => block.todoId),
+  );
+  const rows = todos.map((todo) => {
+    if (state.todoEditing === todo.id) return todoEditRowHtml(todo);
+    const due = formatTodoDue(todo.dueISO, lang(), today);
+    const scheduled = todayPlanIds.has(todo.id);
+    return `<div class="todo-row${todo.done ? " completed" : ""}" data-todo-row="${escapeAttr(todo.id)}">
+      <button type="button" class="todo-check" data-act="todo-toggle-done" data-todo-id="${escapeAttr(todo.id)}" aria-pressed="${todo.done}" aria-label="${escapeAttr(todo.done ? t("todoUndo") : t("todoComplete"))}">
+        <span aria-hidden="true">${todo.done ? "✓" : ""}</span>
+      </button>
+      <div class="todo-copy">
+        <div class="todo-text">${escapeHtml(todo.text)}</div>
+        ${due ? `<div class="todo-due${todo.dueISO < today ? " overdue" : ""}">${escapeHtml(due)}</div>` : ""}
+      </div>
+      <div class="todo-actions">
+        <button type="button" data-act="todo-edit" data-todo-id="${escapeAttr(todo.id)}">${t("todoEdit")}</button>
+        <button type="button" data-act="todo-add-today" data-todo-id="${escapeAttr(todo.id)}" ${todo.done || scheduled ? "disabled" : ""}>${scheduled ? t("todoAdded") : t("todoAddToday")}</button>
+      </div>
+    </div>`;
+  }).join("");
+  const newRow = state.todoEditing === "new" ? todoEditRowHtml({ text: "", dueISO: "" }, true) : "";
+  return `<div class="todo-panel" id="todo-panel">
+    <div class="todo-list">
+      ${rows || (!newRow ? `<p class="todo-empty">${t("todoEmpty")}</p>` : "")}
+      ${newRow}
+      ${state.todoEditing === "new" ? "" : `<button type="button" class="todo-new" data-act="todo-new">${t("todoNew")}</button>`}
+    </div>
+    <button type="button" class="todo-collapse-bottom" data-act="todo-collapse" aria-label="${escapeAttr(t("todoCollapse"))}"><span aria-hidden="true">⌃</span></button>
+  </div>`;
+}
+
+function render({ timelineScrollTop = null } = {}) {
+  try {
+    renderApp(timelineScrollTop);
+  } catch (err) {
+    const app = document.getElementById("app");
+    if (app) {
+      app.innerHTML = `<section class="panel achieve-wrap" style="padding:24px">
+        <p>页面刚才卡住了，再打开一次就好。</p>
+        <p class="muted">${String(err && err.message ? err.message : err)}</p>
+      </section>`;
+    }
+  }
+}
+
+function renderApp(timelineScrollTop = null) {
+  if (isNativeApp()) document.documentElement.classList.add("native-app");
+  else document.documentElement.classList.remove("native-app");
+  loadCustomKinds();
+  currentDay();
+  const app = document.getElementById("app");
+  const isToday = state.date === todayISO();
+  const slide = state.slide;
+  state.slide = "";
+  const wide = window.matchMedia("(min-width: 900px)").matches;
+  const onAsset = state.tab === "achieve";
+  const showTime = wide || state.tab === "time";
+  const showAchieve = wide || onAsset;
+  document.documentElement.lang = lang() === "en" ? "en" : "zh-CN";
+  let achieve = "";
+  if (showAchieve) {
+    try {
+      achieve = achieveHtml();
+    } catch {
+      achieve = `<p class="muted">助理暂时未能载入，请重新打开。</p>`;
+    }
+  }
+  const nativeReportDate = nativeMode && onAsset ? assistant.reportDate() : null;
+  app.innerHTML = `
+    <header class="top">
+      <div class="date-nav">
+        ${nativeMode && onAsset ? "" : `<button class="btn" data-act="prev">‹</button>`}
+        <div>
+          <h1>${dateTitle(nativeReportDate || state.date, lang())}</h1>
+          <div class="sub">${onAsset ? "昨日分析" : "时间记录"}</div>
+        </div>
+        ${nativeMode && onAsset ? "" : `<button class="btn" data-act="next">›</button>`}
+      </div>
+      <div class="top-actions">
+        <button class="btn" data-act="settings">${t("settings")}</button>
+        ${isToday || (nativeMode && onAsset) ? `<button class="btn log-now" data-act="log-now">${t("logNow")}</button>` : `<button class="btn" data-act="today">${t("today")}</button>`}
+      </div>
+    </header>
+    <div class="main ${slide ? `in-${slide}` : ""}" id="day-stage">
+      ${showTime ? `<section class="panel timeline-wrap${state.todosOpen ? " todo-open" : ""}">
+        ${todoStripHtml()}
+        ${todoPanelHtml()}
+        ${timelineHtml()}
+      </section>` : ""}
+      ${showAchieve ? `<section class="panel achieve-wrap">
+        ${achieve}
+      </section>` : ""}
+    </div>
+    <nav class="tabs">
+      <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">${t("time")}</button>
+      <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve">助理</button>
+    </nav>
+  `;
+  bindApp();
+  if (nativeMode) assistant.bind(app, { active: showAchieve });
+  if (timelineScrollTop == null) scrollToNow();
+  else {
+    const timeline = document.getElementById("timeline");
+    if (timeline) timeline.scrollTop = timelineScrollTop;
+  }
+  pinFrame();
+}
+
+function timelineHtml() {
+  const hours = END_HOUR - START_HOUR;
+  const height = hours * HOUR_H;
+  const now = new Date();
+  const isToday = state.date === todayISO();
+  const nowMin = nowMinutes(now);
+  const nowTop = ((nowMin - START_HOUR * 60) / 60) * HOUR_H;
+  const showNow = isToday && nowMin >= START_HOUR * 60 && nowMin < END_HOUR * 60;
+
+  const hourRows = Array.from({ length: hours }, (_, i) => {
+    const hour = START_HOUR + i;
+    return `<div class="hour-row" data-hour="${hour}"><span class="hour-label">${String(hour).padStart(2, "0")}:00</span></div>`;
+  }).join("");
+
+  const blocks = (state.day.blocks || []).flatMap((block) => {
+    if (block.endMin <= block.startMin) return [];
+    return [blockHtml(block)];
+  }).join("");
+
+  return `<div class="timeline" id="timeline">
+    <div class="track" id="track" style="height:${height}px">
+      ${hourRows}
+      ${blocks}
+      ${showNow ? `<div class="now-line" style="top:${nowTop}px"></div>` : ""}
+      ${planDraftHtml()}
+    </div>
+  </div>`;
+}
+
+function planIsDue(block) {
+  if (!block?.isPlan) return false;
+  const today = todayISO();
+  if (state.date < today) return true;
+  if (state.date > today) return false;
+  return nowMinutes() >= block.startMin;
+}
+
+function blockHtml(block) {
+  const editing = state.edgeEdit?.id === block.id;
+  const startMin = editing ? state.edgeEdit.startMin : block.startMin;
+  const endMin = editing ? state.edgeEdit.endMin : block.endMin;
+  const visStart = Math.max(startMin, START_HOUR * 60);
+  const visEnd = Math.min(endMin, END_HOUR * 60);
+  if (visEnd <= visStart) return "";
+  const { top, h } = blockGeom(startMin, endMin, editing ? 1 : 8);
+  const colors = blockColors(block);
+  const mixed = colors.length > 1 && !block.isPlan;
+  const name = liveBlockLabel(block);
+  const label = block.isPlan ? `${t("plan")} · ${name}` : name;
+  const ink = mixed || luminance(colors[0]) <= 0.55 ? "#F4EDE4" : "#0F1419";
+  const bg = block.isPlan ? `${colors[0]}22` : gradientCss(colors);
+  const due = block.isPlan && planIsDue(block);
+  const style = [
+    `top:${top}px`,
+    `height:${h}px`,
+    `background:${bg}`,
+    `color:${block.isPlan ? colors[0] : ink}`,
+    block.isPlan ? `border-color:${colors[0]}` : "",
+  ].filter(Boolean).join(";");
+  const handles = editing
+    ? `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`
+    : "";
+  const inner = `<span class="block-label">${label}</span>${h > 28 ? `<div class="when">${minutesToHm(startMin)}–${minutesToHm(endMin)}</div>` : ""}`;
+  const resizeTiny = editing && h < 24 ? " resize-tiny" : "";
+  return `<div class="block ${block.isPlan ? "plan" : "actual"}${mixed ? " mix" : ""}${due ? " due" : ""}${editing ? " edge-edit" : ""}${resizeTiny}" data-id="${block.id}" style="${style}">
+        <div class="block-content">${inner}</div>
+        ${handles}
+      </div>`;
+}
+
+function blockGeom(startMin, endMin, minHeight = 8) {
+  const visStart = Math.max(startMin, START_HOUR * 60);
+  const visEnd = Math.min(endMin, END_HOUR * 60);
+  const top = ((visStart - START_HOUR * 60) / 60) * HOUR_H;
+  const h = Math.max(minHeight, ((visEnd - visStart) / 60) * HOUR_H);
+  return { top, h };
+}
+
+function snapMin(minutes, lo, hi) {
+  const clamped = Math.max(lo, Math.min(hi, minutes));
+  if (clamped >= hi) return hi;
+  const snapped = Math.round(clamped / PLAN_SNAP) * PLAN_SNAP;
+  return Math.max(lo, Math.min(hi, snapped));
+}
+
+function recordableUntil() {
+  const today = todayISO();
+  if (state.date > today) return START_HOUR * 60;
+  if (state.date < today) return END_HOUR * 60;
+  return Math.max(START_HOUR * 60, Math.min(END_HOUR * 60, nowMinutes()));
+}
+
+function planFromMin() {
+  const today = todayISO();
+  if (state.date < today) return END_HOUR * 60;
+  if (state.date > today) return START_HOUR * 60;
+  return Math.min(END_HOUR * 60, nowMinutes());
+}
+
+function planUntilMin() {
+  return state.date < todayISO() ? START_HOUR * 60 : END_HOUR * 60;
+}
+
+function draftBounds(isPlan) {
+  return isPlan
+    ? { lo: planFromMin(), hi: planUntilMin() }
+    : { lo: START_HOUR * 60, hi: recordableUntil() };
+}
+
+function rawMinutesFromClientY(clientY) {
+  const track = document.getElementById("track");
+  if (!track) return START_HOUR * 60;
+  const y = clientY - track.getBoundingClientRect().top;
+  return START_HOUR * 60 + (y / HOUR_H) * 60;
+}
+
+function resizeMinutesFromClientY(clientY) {
+  return rawMinutesFromClientY(clientY) - (gesture.edgePointerOffsetMin || 0);
+}
+
+function minutesFromClientY(clientY, lo, hi) {
+  const bounds = lo == null ? draftBounds(Boolean(state.planDraft?.isPlan)) : { lo, hi };
+  return snapMin(rawMinutesFromClientY(clientY), bounds.lo, bounds.hi);
+}
+
+function planDraftHtml() {
+  const d = state.planDraft;
+  if (!d) return "";
+  const { top, h } = blockGeom(d.startMin, d.endMin);
+  const todoPlacement = Boolean(d.isTodoPlacement);
+  const title = todoPlacement ? t("todoBlock") : t("plan");
+  const hint = todoPlacement ? t("todoDragHint") : d.isPlan ? t("planDraftHint") : t("draftHint");
+  return `<div class="plan-draft${todoPlacement ? " todo-placement" : ""}${h < 44 ? " tight" : ""}${h < 20 ? " tiny" : ""}" id="plan-draft" style="top:${top}px;height:${h}px">
+    <div class="draft-hit" data-draft-open></div>
+    ${todoPlacement ? "" : `<div class="handle top" data-handle="start"></div>`}
+    <div class="draft-body">
+      ${d.isPlan ? `<div class="draft-title">${escapeHtml(title)}${todoPlacement ? ` · ${escapeHtml(t("todoDragHint"))}` : ""}${todoPlacement && d.title ? ` · ${escapeHtml(d.title)}` : ""}</div>` : ""}
+      <div class="when">${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}</div>
+      <div class="draft-hint">${escapeHtml(hint)}</div>
+    </div>
+    <button type="button" class="draft-x" data-draft-dismiss aria-label="取消">×</button>
+    ${todoPlacement ? "" : `<div class="handle bottom" data-handle="end"></div>`}
+  </div>`;
+}
+
+function draftClip() {
+  const isPlan = Boolean(state.planDraft?.isPlan);
+  const { lo: defLo, hi: defHi } = draftBounds(isPlan);
+  return {
+    lo: state.planDraft?.clipStart ?? gesture.clipStart ?? defLo,
+    hi: Math.min(state.planDraft?.clipEnd ?? gesture.clipEnd ?? defHi, defHi),
+  };
+}
+
+function setDraftRange(startMin, endMin, isPlan = Boolean(state.planDraft?.isPlan)) {
+  const { lo, hi } = draftClip();
+  let a = snapMin(startMin, lo, hi);
+  let b = snapMin(endMin, lo, hi);
+  if (b < a) [a, b] = [b, a];
+  a = Math.max(lo, Math.min(a, hi));
+  b = Math.max(lo, Math.min(b, hi));
+  if (b < a) [a, b] = [b, a];
+  const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
+  if (b - a < minLen) b = Math.min(hi, a + minLen);
+  if (b - a < minLen) a = Math.max(lo, b - minLen);
+  if (b - a < 1) return;
+  state.planDraft = {
+    id: state.planDraft?.id || uid(),
+    isPlan: Boolean(isPlan),
+    isTodoPlacement: Boolean(state.planDraft?.isTodoPlacement),
+    todoId: state.planDraft?.todoId || null,
+    kinds: state.planDraft?.kinds || [],
+    title: state.planDraft?.title || "",
+    startMin: a,
+    endMin: b,
+    clipStart: lo,
+    clipEnd: hi,
+  };
+}
+
+function setDraftEdge(which, minutes) {
+  const d = state.planDraft;
+  if (!d) return;
+  const { lo: defLo, hi: defHi } = draftBounds(d.isPlan);
+  const lo = d.clipStart ?? defLo;
+  const hi = Math.min(d.clipEnd ?? defHi, defHi);
+  const minLen = Math.min(PLAN_MIN, Math.max(1, hi - lo));
+  const next = resizeTimelineSpan(d, which, minutes, {
+    lo,
+    hi,
+    minSpan: minLen,
+    step: PLAN_SNAP,
+  });
+  d.startMin = next.startMin;
+  d.endMin = next.endMin;
+}
+
+function paintDraft() {
+  const d = state.planDraft;
+  const track = document.getElementById("track");
+  if (!d || !track) return;
+  let el = document.getElementById("plan-draft");
+  if (!el) {
+    track.insertAdjacentHTML("beforeend", planDraftHtml());
+    el = document.getElementById("plan-draft");
+  }
+  const { top, h } = blockGeom(d.startMin, d.endMin);
+  el.style.top = `${top}px`;
+  el.style.height = `${h}px`;
+  el.classList.toggle("tight", h < 44);
+  el.classList.toggle("tiny", h < 20);
+  el.classList.toggle("moving", gesture.kind === "todo-move");
+  const when = el.querySelector(".when");
+  if (when) when.textContent = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
+  const hint = el.querySelector(".draft-hint");
+  if (hint) hint.textContent = d.isTodoPlacement ? t("todoDragHint") : d.isPlan ? t("planDraftHint") : t("draftHint");
+}
+
+function clearPlanDraft() {
+  state.planDraft = null;
+  document.getElementById("plan-draft")?.remove();
+}
+
+const EDGE_HIT_PX = 22;
+
+function edgeFromClientY(blockEl, clientY) {
+  const r = blockEl.getBoundingClientRect();
+  if (r.height <= 0) return null;
+  if (r.height <= EDGE_HIT_PX * 2) {
+    return clientY < r.top + r.height / 2 ? "start" : "end";
+  }
+  if (clientY - r.top <= EDGE_HIT_PX) return "start";
+  if (r.bottom - clientY <= EDGE_HIT_PX) return "end";
+  return null;
+}
+
+function blockResizeClip(block) {
+  const { lo: loBound, hi: hiBound } = block.isPlan
+    ? { lo: START_HOUR * 60, hi: END_HOUR * 60 }
+    : draftBounds(false);
+  return timeEditClip(state.day.blocks, block, { loBound, hiBound, walls: "all" });
+}
+
+function clipBoundsForDraft(draft) {
+  const asPlan = Boolean(draft.isPlan) || draft.action === "postpone";
+  const blocks = draft.coveringPlanId
+    ? (state.day.blocks || []).filter((block) => block.id !== draft.coveringPlanId)
+    : state.day.blocks;
+  if (draft.overnight) {
+    const yesterday = loadDay(addDays(state.date, -1));
+    const startClip = timeEditClip(yesterday.blocks, {
+      id: draft.id,
+      startMin: draft.startMin,
+      endMin: 24 * 60,
+    }, { loBound: 0, hiBound: 24 * 60, walls: "all" });
+    const endClip = timeEditClip(blocks, {
+      id: draft.id,
+      startMin: 0,
+      endMin: draft.endMin,
+    }, { loBound: 0, hiBound: recordableUntil(), walls: "all" });
+    return { lo: startClip.lo, hi: endClip.hi, overnight: true };
+  }
+  const { lo: loBound, hi: hiBound } = draftBounds(asPlan);
+  return { ...timeEditClip(blocks, draft, { loBound, hiBound, walls: "all" }), overnight: false };
+}
+
+function tryAssignTime(draft, patch) {
+  const clip = clipBoundsForDraft(draft);
+  let start = patch.startMin != null ? Number(patch.startMin) : draft.startMin;
+  let end = patch.endMin != null ? Number(patch.endMin) : draft.endMin;
+  start = Math.max(0, Math.min(24 * 60, start));
+  end = Math.max(0, Math.min(24 * 60, end));
+  if (draft.overnight) {
+    draft.startMin = Math.max(clip.lo, Math.min(24 * 60, start));
+    draft.endMin = Math.min(clip.hi, Math.max(0, end));
+    return true;
+  }
+  const lo = clip.lo;
+  const hi = clip.hi;
+  if (hi <= lo) return false;
+  if (patch.startMin != null && patch.endMin == null) {
+    start = Math.max(lo, Math.min(start, draft.endMin - 1, hi - 1));
+    end = draft.endMin;
+  } else if (patch.endMin != null && patch.startMin == null) {
+    end = Math.min(hi, Math.max(end, draft.startMin + 1, lo + 1));
+    start = draft.startMin;
+  } else {
+    start = Math.max(lo, Math.min(start, hi - 1));
+    end = Math.min(hi, Math.max(end, start + 1));
+  }
+  if (end <= start) end = Math.min(hi, start + 1);
+  if (end <= start) return false;
+  draft.startMin = start;
+  draft.endMin = end;
+  return true;
+}
+
+function snapDraftToClip(draft) {
+  const clip = clipBoundsForDraft(draft);
+  if (draft.overnight) {
+    draft.startMin = Math.max(clip.lo, Math.min(24 * 60, draft.startMin));
+    draft.endMin = Math.min(clip.hi, Math.max(0, draft.endMin));
+    return;
+  }
+  if (clip.hi <= clip.lo) return;
+  draft.startMin = Math.max(clip.lo, Math.min(draft.startMin, clip.hi - 1));
+  draft.endMin = Math.min(clip.hi, Math.max(draft.endMin, draft.startMin + 1));
+}
+
+function beginEdgeEdit(block) {
+  clearPlanDraft();
+  const clip = blockResizeClip(block);
+  state.edgeEdit = {
+    id: block.id,
+    isPlan: Boolean(block.isPlan),
+    startMin: block.startMin,
+    endMin: block.endMin,
+    origStartMin: block.startMin,
+    origEndMin: block.endMin,
+    clipStart: clip.lo,
+    clipEnd: clip.hi,
+  };
+  const el = document.querySelector(`.block[data-id="${block.id}"]`);
+  if (!el) return;
+  el.classList.add("edge-edit");
+  if (!el.querySelector("[data-handle]")) {
+    el.insertAdjacentHTML(
+      "beforeend",
+      `<div class="handle top" data-handle="start"></div><div class="handle bottom" data-handle="end"></div>`,
+    );
+  }
+  paintEdgeEdit();
+}
+
+function setEdgeEditEdge(which, minutes) {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const lo = d.clipStart ?? START_HOUR * 60;
+  const hi = d.isPlan
+    ? d.clipEnd ?? END_HOUR * 60
+    : Math.min(d.clipEnd ?? END_HOUR * 60, recordableUntil());
+  const next = resizeTimelineSpan(d, which, minutes, {
+    lo,
+    hi,
+    minSpan: d.isPlan ? PLAN_MIN : PLAN_SNAP,
+    step: PLAN_SNAP,
+  });
+  d.startMin = next.startMin;
+  d.endMin = next.endMin;
+}
+
+function paintEdgeEdit() {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const el = document.querySelector(`.block[data-id="${d.id}"]`);
+  if (!el) return;
+  const { top, h } = blockGeom(d.startMin, d.endMin, 1);
+  el.style.top = `${top}px`;
+  el.style.height = `${h}px`;
+  el.classList.toggle("resize-tiny", h < 24);
+  el.classList.toggle("resize-compact", h <= 28);
+  const when = el.querySelector(".when");
+  const label = `${minutesToHm(d.startMin)}–${minutesToHm(d.endMin)}`;
+  if (when) when.textContent = label;
+  else if (h > 28) {
+    const div = document.createElement("div");
+    div.className = "when";
+    div.textContent = label;
+    (el.querySelector(".block-content") || el).appendChild(div);
+  }
+}
+
+function commitEdgeEdit() {
+  const d = state.edgeEdit;
+  if (!d) return;
+  const timelineScrollTop = document.getElementById("timeline")?.scrollTop ?? null;
+  const dirty = d.startMin !== d.origStartMin || d.endMin !== d.origEndMin;
+  state.edgeEdit = null;
+  if (!dirty) {
+    const el = document.querySelector(`.block[data-id="${d.id}"]`);
+    if (el) {
+      el.classList.remove("edge-edit");
+      el.querySelectorAll("[data-handle]").forEach((h) => h.remove());
+    }
+    return;
+  }
+  currentDay();
+  const block = state.day.blocks.find((b) => b.id === d.id);
+  if (!block) {
+    render({ timelineScrollTop });
+    return;
+  }
+  const updated = {
+    ...block,
+    startMin: d.startMin,
+    endMin: d.endMin,
+  };
+  state.day = block.isPlan
+    ? upsertPlan(state.day, updated)
+    : upsertBlock(state.day, updated);
+  render({ timelineScrollTop });
+}
+
+function openPlanFromDraft() {
+  const d = state.planDraft;
+  if (!d) return;
+  if (d.isTodoPlacement) return;
+  if (d.isPlan) {
+    openPlanEditor({
+      id: d.id,
+      isPlan: true,
+      kinds: [...(d.kinds || [])],
+      title: d.title || "",
+      todoId: d.todoId || null,
+      startMin: d.startMin,
+      endMin: d.endMin,
+    }, false);
+    return;
+  }
+  openRecordSheet(
+    { startMin: d.startMin, endMin: d.endMin },
+    { id: d.id, kinds: [], title: d.title || "", fromEl: document.getElementById("plan-draft") },
+  );
+}
+
+function armSuppressClick() {
+  gesture.suppressClick = true;
+  window.clearTimeout(gesture.suppressTimer);
+  gesture.suppressTimer = window.setTimeout(() => {
+    gesture.suppressClick = false;
+  }, 500);
+}
+
+function bindWindowGesture() {
+  if (gesture.windowBound) return;
+  gesture.windowBound = true;
+  window.addEventListener("pointermove", onTimelinePointerMove);
+  window.addEventListener("pointerup", onTimelinePointerUp);
+  window.addEventListener("pointercancel", onTimelinePointerUp);
+}
+
+function unbindWindowGesture() {
+  if (!gesture.windowBound) return;
+  gesture.windowBound = false;
+  window.removeEventListener("pointermove", onTimelinePointerMove);
+  window.removeEventListener("pointerup", onTimelinePointerUp);
+  window.removeEventListener("pointercancel", onTimelinePointerUp);
+}
+
+function resetGesture() {
+  if (gesture.timer) {
+    clearTimeout(gesture.timer);
+    gesture.timer = 0;
+  }
+  gesture.kind = null;
+  gesture.pointerId = null;
+  gesture.edgePointerOffsetMin = 0;
+  gesture.edgeWhich = null;
+  gesture.edgeId = null;
+  gesture.todoOriginStart = 0;
+  gesture.todoOriginEnd = 0;
+  unbindWindowGesture();
+  const timeline = document.getElementById("timeline");
+  timeline?.classList.remove("drawing");
+  document.getElementById("plan-draft")?.classList.remove("moving");
+}
+
+function liveBlockLabel(block) {
+  if (block.title) return block.title;
+  const labels = blockKinds(block).map((id) => kindLabel(id));
+  if (labels.length === 1) return labels[0];
+  return labels.join(" / ");
+}
+
+function luminance(hex) {
+  const n = (hex || "#888888").replace("#", "");
+  const r = parseInt(n.slice(0, 2), 16) / 255;
+  const g = parseInt(n.slice(2, 4), 16) / 255;
+  const b = parseInt(n.slice(4, 6), 16) / 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b;
+}
+
+function isNativeApp() {
+  return nativeMode;
+}
+
+function achieveHtml() { return assistant.html(); }
+function bindApp() {
+  document.querySelectorAll("[data-act]").forEach((el) => {
+    el.addEventListener("click", onAction);
+  });
+  bindTimeline(document.getElementById("timeline"));
+  bindDaySwipe(document.getElementById("day-stage"));
+}
+
+function bindTimeline(timeline) {
+  if (!timeline) return;
+
+  timeline.addEventListener("click", (event) => {
+    if (gesture.suppressClick) {
+      gesture.suppressClick = false;
+      event.preventDefault();
+      return;
+    }
+    if (state.edgeEdit) {
+      if (event.target.closest("[data-handle]")) return;
+      if (event.target.closest(`.block[data-id="${state.edgeEdit.id}"]`)) return;
+      commitEdgeEdit();
+      event.preventDefault();
+      return;
+    }
+    if (event.target.closest("[data-draft-dismiss]") || event.target.closest("[data-handle]")) return;
+    if (event.target.closest("#plan-draft")) {
+      event.preventDefault();
+      openPlanFromDraft();
+      return;
+    }
+    const block = event.target.closest("[data-id]");
+    if (block) {
+      const found = state.day.blocks.find((b) => b.id === block.dataset.id);
+      if (found && !found.isPlan) openEditor(found);
+      else if (found?.isPlan) {
+        if (planIsDue(found)) openPlanResolve(found);
+        else openPlanEditor(found, true);
+      }
+    }
+  });
+
+  timeline.addEventListener("pointerdown", onTimelinePointerDown);
+  timeline.addEventListener("pointermove", onTimelinePointerMove);
+  timeline.addEventListener("pointerup", onTimelinePointerUp);
+  timeline.addEventListener("pointercancel", onTimelinePointerUp);
+  timeline.addEventListener("contextmenu", (event) => event.preventDefault());
+  timeline.addEventListener("touchmove", (event) => {
+    if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end" || gesture.kind === "todo-move") {
+      event.preventDefault();
+    }
+  }, { passive: false });
+}
+
+function onTimelinePointerDown(event) {
+  if (event.pointerType === "mouse" && event.button !== 0) return;
+  const timeline = event.currentTarget;
+  if (event.target.closest("[data-draft-dismiss]")) {
+    event.preventDefault();
+    armSuppressClick();
+    clearPlanDraft();
+    return;
+  }
+  const handle = event.target.closest("[data-handle]");
+  if (handle && (state.planDraft || state.edgeEdit)) {
+    event.preventDefault();
+    const which = handle.dataset.handle === "start" ? "start" : "end";
+    const span = state.edgeEdit || state.planDraft;
+    gesture.kind = which === "start" ? "resize-start" : "resize-end";
+    gesture.pointerId = event.pointerId;
+    gesture.edgePointerOffsetMin = rawMinutesFromClientY(event.clientY) - span[`${which}Min`];
+    armSuppressClick();
+    timeline.classList.add("drawing");
+    bindWindowGesture();
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture if the pointer has already moved */
+    }
+    return;
+  }
+  if (event.target.closest("#plan-draft")) {
+    event.preventDefault();
+    gesture.pointerId = event.pointerId;
+    gesture.startX = event.clientX;
+    gesture.startY = event.clientY;
+    gesture.lastY = event.clientY;
+    if (state.planDraft?.isTodoPlacement) {
+      gesture.kind = "todo-press";
+      gesture.todoOriginStart = state.planDraft.startMin;
+      gesture.todoOriginEnd = state.planDraft.endMin;
+      gesture.timer = window.setTimeout(() => {
+        gesture.timer = 0;
+        if (gesture.kind !== "todo-press" || gesture.pointerId !== event.pointerId || !state.planDraft?.isTodoPlacement) return;
+        gesture.kind = "todo-move";
+        armSuppressClick();
+        timeline.classList.add("drawing");
+        document.getElementById("plan-draft")?.classList.add("moving");
+        navigator.vibrate?.(12);
+      }, LONG_PRESS_MS);
+    } else {
+      gesture.kind = "draft-tap";
+    }
+    bindWindowGesture();
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture before move */
+    }
+    return;
+  }
+
+  if (state.edgeEdit) {
+    if (event.target.closest(`.block[data-id="${state.edgeEdit.id}"]`)) return;
+    commitEdgeEdit();
+    armSuppressClick();
+    return;
+  }
+
+  const blockEl = event.target.closest("[data-id]");
+  if (blockEl) {
+    const found = state.day.blocks.find((b) => b.id === blockEl.dataset.id);
+    if (!found) return;
+    const which = edgeFromClientY(blockEl, event.clientY);
+    if (!which) return;
+    event.preventDefault();
+    gesture.pointerId = event.pointerId;
+    gesture.originMin = minutesFromClientY(event.clientY);
+    gesture.startX = event.clientX;
+    gesture.startY = event.clientY;
+    gesture.lastY = event.clientY;
+    gesture.kind = "press-edge";
+    gesture.edgeWhich = which;
+    gesture.edgeId = found.id;
+    gesture.timer = window.setTimeout(() => {
+      gesture.timer = 0;
+      if (gesture.kind !== "press-edge" || gesture.pointerId !== event.pointerId) return;
+      const block = state.day.blocks.find((b) => b.id === gesture.edgeId);
+      if (!block) {
+        resetGesture();
+        return;
+      }
+      beginEdgeEdit(block);
+      armSuppressClick();
+      gesture.kind = gesture.edgeWhich === "start" ? "resize-start" : "resize-end";
+      gesture.edgePointerOffsetMin = rawMinutesFromClientY(gesture.lastY) - block[`${gesture.edgeWhich}Min`];
+      timeline.classList.add("drawing");
+      bindWindowGesture();
+      try {
+        timeline.setPointerCapture(event.pointerId);
+      } catch {
+        /* Safari may ignore capture before move */
+      }
+      navigator.vibrate?.(12);
+    }, LONG_PRESS_MS);
+    return;
+  }
+
+  const originRaw = rawMinutesFromClientY(event.clientY);
+  const makingPlan = originRaw >= planFromMin() && planFromMin() < planUntilMin();
+  const makingActual = originRaw < recordableUntil();
+  if (!makingPlan && !makingActual) return;
+  const asPlan = makingPlan && !makingActual;
+  const bounds = draftBounds(asPlan);
+  const originMin = snapMin(originRaw, bounds.lo, bounds.hi);
+  if (originMin < bounds.lo || originMin >= bounds.hi) return;
+  gesture.pointerId = event.pointerId;
+  gesture.originMin = originMin;
+  gesture.startX = event.clientX;
+  gesture.startY = event.clientY;
+  gesture.lastY = event.clientY;
+  gesture.kind = "press";
+  gesture.asPlan = asPlan;
+  gesture.timer = window.setTimeout(() => {
+    gesture.timer = 0;
+    if (gesture.kind !== "press" || gesture.pointerId !== event.pointerId) return;
+    gesture.kind = "stretch";
+    armSuppressClick();
+    const asPlanNow = Boolean(gesture.asPlan);
+    if (!asPlanNow) {
+      const hit = actualAtMinute(state.day.blocks, gesture.originMin);
+      if (hit) {
+        resetGesture();
+        openEditor(hit);
+        return;
+      }
+    }
+    const span = asPlanNow
+      ? emptyPlanSpan(state.day.blocks, gesture.originMin, state.planDraft?.id, planFromMin(), planUntilMin())
+      : emptySpan(state.day.blocks, gesture.originMin, state.planDraft?.id, START_HOUR * 60, recordableUntil());
+    if (!span || span.endMin - span.startMin < 1) {
+      resetGesture();
+      return;
+    }
+    gesture.clipStart = span.startMin;
+    gesture.clipEnd = span.endMin;
+    state.planDraft = {
+      id: uid(),
+      isPlan: asPlanNow,
+      kinds: [],
+      title: "",
+      startMin: gesture.originMin,
+      endMin: gesture.originMin,
+      clipStart: span.startMin,
+      clipEnd: span.endMin,
+    };
+    timeline.classList.add("drawing");
+    bindWindowGesture();
+    try {
+      timeline.setPointerCapture(event.pointerId);
+    } catch {
+      /* Safari may ignore capture before move */
+    }
+    const nowMin = minutesFromClientY(gesture.lastY);
+    setDraftRange(gesture.originMin, nowMin === gesture.originMin ? gesture.originMin + PLAN_MIN : nowMin, asPlanNow);
+    paintDraft();
+    navigator.vibrate?.(12);
+  }, LONG_PRESS_MS);
+}
+
+function onTimelinePointerMove(event) {
+  if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
+  gesture.lastY = event.clientY;
+  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "todo-press") {
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (Math.hypot(dx, dy) > PRESS_MOVE_PX) resetGesture();
+    return;
+  }
+  if (gesture.kind === "todo-move" && state.planDraft?.isTodoPlacement) {
+    event.preventDefault();
+    const duration = Math.max(PLAN_SNAP, gesture.todoOriginEnd - gesture.todoOriginStart);
+    const delta = Math.round((((event.clientY - gesture.startY) / HOUR_H) * 60) / PLAN_SNAP) * PLAN_SNAP;
+    const startMin = Math.max(START_HOUR * 60, Math.min(END_HOUR * 60 - duration, gesture.todoOriginStart + delta));
+    state.planDraft.startMin = startMin;
+    state.planDraft.endMin = startMin + duration;
+    paintDraft();
+    return;
+  }
+  if (gesture.kind === "draft-tap") {
+    const dx = event.clientX - gesture.startX;
+    const dy = event.clientY - gesture.startY;
+    if (Math.hypot(dx, dy) > PRESS_MOVE_PX) gesture.kind = "draft-hold";
+    return;
+  }
+  if (gesture.kind === "stretch") {
+    setDraftRange(gesture.originMin, minutesFromClientY(event.clientY));
+    paintDraft();
+    return;
+  }
+  if (gesture.kind === "resize-start" && state.edgeEdit) {
+    setEdgeEditEdge("start", resizeMinutesFromClientY(event.clientY));
+    paintEdgeEdit();
+    return;
+  }
+  if (gesture.kind === "resize-end" && state.edgeEdit) {
+    setEdgeEditEdge("end", resizeMinutesFromClientY(event.clientY));
+    paintEdgeEdit();
+    return;
+  }
+  if (gesture.kind === "resize-start" && state.planDraft) {
+    setDraftEdge("start", resizeMinutesFromClientY(event.clientY));
+    paintDraft();
+    return;
+  }
+  if (gesture.kind === "resize-end" && state.planDraft) {
+    setDraftEdge("end", resizeMinutesFromClientY(event.clientY));
+    paintDraft();
+  }
+}
+
+function onTimelinePointerUp(event) {
+  if (gesture.pointerId != null && event.pointerId !== gesture.pointerId) return;
+  if (gesture.kind === "press" || gesture.kind === "press-edge" || gesture.kind === "draft-hold" || gesture.kind === "todo-press") {
+    resetGesture();
+    return;
+  }
+  if (gesture.kind === "todo-move") {
+    const timelineScrollTop = document.getElementById("timeline")?.scrollTop ?? null;
+    armSuppressClick();
+    const placed = finalizeTodoPlacement();
+    resetGesture();
+    if (placed) render({ timelineScrollTop });
+    else paintDraft();
+    return;
+  }
+  if (gesture.kind === "draft-tap") {
+    resetGesture();
+    armSuppressClick();
+    openPlanFromDraft();
+    return;
+  }
+  if (gesture.kind === "stretch" || gesture.kind === "resize-start" || gesture.kind === "resize-end") {
+    armSuppressClick();
+    if (state.planDraft) paintDraft();
+    if (state.edgeEdit) paintEdgeEdit();
+    resetGesture();
+  }
+}
+
+function timelineScrollTop() {
+  return document.getElementById("timeline")?.scrollTop ?? null;
+}
+
+function findTodo(id) {
+  return loadTodos().find((todo) => todo.id === id) || null;
+}
+
+function startTodoPlacement(todo) {
+  if (!todo || todo.done) return;
+  state.date = todayISO();
+  state.tab = "time";
+  state.todosOpen = false;
+  state.todoEditing = null;
+  currentDay();
+  if ((state.day.blocks || []).some((block) => block.isPlan && block.todoId === todo.id)) return;
+  const startMin = Math.min(END_HOUR * 60 - 30, Math.ceil(nowMinutes() / PLAN_SNAP) * PLAN_SNAP);
+  state.planDraft = {
+    id: uid(),
+    isPlan: true,
+    isTodoPlacement: true,
+    todoId: todo.id,
+    kinds: ["OTHER"],
+    title: todo.text,
+    startMin,
+    endMin: startMin + 30,
+    clipStart: START_HOUR * 60,
+    clipEnd: END_HOUR * 60,
+  };
+  render({ timelineScrollTop: Math.max(0, (startMin / 60 - START_HOUR - 1) * HOUR_H) });
+}
+
+function finalizeTodoPlacement() {
+  const draft = state.planDraft;
+  if (!draft?.isTodoPlacement) return false;
+  currentDay();
+  const slot = nearestOpenTodoSlot(state.day.blocks, draft.startMin, draft.endMin - draft.startMin, {
+    lo: START_HOUR * 60,
+    hi: END_HOUR * 60,
+    step: PLAN_SNAP,
+    ignoreId: draft.id,
+  });
+  if (!slot) {
+    navigator.vibrate?.([14, 35, 14]);
+    return false;
+  }
+  state.day = upsertPlan(state.day, {
+    id: draft.id,
+    ...slot,
+    kinds: draft.kinds,
+    title: draft.title,
+    seriesId: null,
+    todoId: draft.todoId,
+  });
+  state.planDraft = null;
+  return true;
+}
+
+function saveTodoEdit(button) {
+  const row = button.closest("[data-todo-row]");
+  const textInput = row?.querySelector("[data-todo-text]");
+  const text = textInput?.value.trim() || "";
+  if (!text) {
+    textInput?.focus();
+    row?.classList.add("invalid");
+    return;
+  }
+  const dueISO = row?.querySelector("[data-todo-date]")?.value || "";
+  const id = button.dataset.todoId;
+  if (id === "new") addTodo({ text, dueISO });
+  else updateTodo(id, { text, dueISO });
+  state.todoEditing = null;
+  render({ timelineScrollTop: timelineScrollTop() });
+}
+
+function toggleTodoDone(id) {
+  const todo = findTodo(id);
+  if (!todo) return;
+  const done = !todo.done;
+  setTodoDone(id, done);
+  if (done) {
+    const today = todayISO();
+    let day = loadDay(today);
+    for (const block of day.blocks || []) {
+      if (block.isPlan && block.todoId === id) day = removeBlock(day, block.id);
+    }
+    if (state.date === today) state.day = day;
+  }
+  render({ timelineScrollTop: timelineScrollTop() });
+}
+
+function onAction(event) {
+  const act = event.currentTarget.dataset.act;
+  if (act === "prev") {
+    goDate(addDays(state.date, -1), "right");
+  } else if (act === "next") {
+    goDate(addDays(state.date, 1), "left");
+  } else if (act === "today") {
+    const dir = state.date < todayISO() ? "left" : "right";
+    goDate(todayISO(), dir);
+  } else if (act === "log-now") {
+    if (nativeMode && state.tab === "achieve") { state.date = todayISO(); currentDay(); }
+    openRecordSheet(logNowRange());
+  } else if (act === "todo-toggle") {
+    state.todosOpen = !state.todosOpen;
+    if (!state.todosOpen) state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-collapse") {
+    state.todosOpen = false;
+    state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-new") {
+    state.todoEditing = "new";
+    render({ timelineScrollTop: timelineScrollTop() });
+    requestAnimationFrame(() => document.querySelector("[data-todo-row=\"new\"] [data-todo-text]")?.focus());
+  } else if (act === "todo-edit") {
+    state.todoEditing = event.currentTarget.dataset.todoId || null;
+    render({ timelineScrollTop: timelineScrollTop() });
+    requestAnimationFrame(() => document.querySelector(`[data-todo-row="${CSS.escape(state.todoEditing || "")}"] [data-todo-text]`)?.focus());
+  } else if (act === "todo-edit-save") {
+    saveTodoEdit(event.currentTarget);
+  } else if (act === "todo-edit-cancel") {
+    state.todoEditing = null;
+    render({ timelineScrollTop: timelineScrollTop() });
+  } else if (act === "todo-toggle-done") {
+    toggleTodoDone(event.currentTarget.dataset.todoId || "");
+  } else if (act === "todo-add-today") {
+    startTodoPlacement(findTodo(event.currentTarget.dataset.todoId || ""));
+  } else if (act === "tab-time") {
+    commitEdgeEdit();
+    state.tab = "time";
+    render();
+  } else if (act === "tab-achieve") {
+    commitEdgeEdit();
+    state.tab = "achieve";
+    render();
+  } else if (act === "settings") {
+    openSettingsSheet();
+  } else if (act === "export") {
+    download("rihou-backup.json", exportAll());
+  } else if (act === "import") {
+    pickFile((text) => {
+      importAll(text);
+      render();
+    });
+  }
+}
+
+function goDate(iso, dir) {
+  if (iso === state.date) return;
+  commitEdgeEdit();
+  state.date = iso;
+  state.slide = dir || "";
+  clearPlanDraft();
+  render();
+}
+
+function sheetOpen() {
+  return document.getElementById("sheet-bg")?.classList.contains("show");
+}
+
+function daySwipeBlocked() {
+  return Boolean(
+    state.planDraft
+    || state.edgeEdit
+    || (gesture.kind && gesture.kind !== "press" && gesture.kind !== "press-edge"),
+  );
+}
+
+function resetDaySwipe(stage) {
+  daySwipe.pointerId = null;
+  daySwipe.axis = null;
+  daySwipe.dx = 0;
+  if (stage) {
+    stage.style.transform = "";
+    stage.style.transition = "";
+  }
+}
+
+function bindDaySwipe(stage) {
+  if (!stage) return;
+  stage.addEventListener("pointerdown", onDaySwipeDown);
+  stage.addEventListener("pointermove", onDaySwipeMove);
+  stage.addEventListener("pointerup", onDaySwipeUp);
+  stage.addEventListener("pointercancel", onDaySwipeUp);
+  stage.addEventListener("touchmove", onDaySwipeTouchMove, { passive: false });
+}
+
+function onDaySwipeTouchMove(event) {
+  if (daySwipe.axis === "x") event.preventDefault();
+}
+
+function onDaySwipeDown(event) {
+  if (sheetOpen() || daySwipeBlocked()) return;
+  if (event.button && event.button !== 0) return;
+  if (event.target.closest("button, input, textarea, .book-row, .sheet, [data-handle], .edge-edit, #plan-draft")) return;
+  daySwipe.pointerId = event.pointerId;
+  daySwipe.startX = event.clientX;
+  daySwipe.startY = event.clientY;
+  daySwipe.dx = 0;
+  daySwipe.axis = null;
+}
+
+function onDaySwipeMove(event) {
+  if (daySwipe.pointerId !== event.pointerId) return;
+  if (daySwipeBlocked()) {
+    resetDaySwipe(document.getElementById("day-stage"));
+    return;
+  }
+  const dx = event.clientX - daySwipe.startX;
+  const dy = event.clientY - daySwipe.startY;
+  if (!daySwipe.axis) {
+    if (Math.hypot(dx, dy) < DAY_AXIS_PX) return;
+    daySwipe.axis = Math.abs(dx) > Math.abs(dy) * 1.15 ? "x" : "y";
+  }
+  if (daySwipe.axis !== "x") return;
+  event.preventDefault();
+  resetGesture();
+  daySwipe.dx = dx;
+  const stage = document.getElementById("day-stage");
+  if (stage) {
+    try {
+      stage.setPointerCapture(event.pointerId);
+    } catch {
+      /* ignore */
+    }
+    stage.style.transition = "none";
+    stage.style.transform = `translateX(${dx}px)`;
+  }
+}
+
+function onDaySwipeUp(event) {
+  if (daySwipe.pointerId !== event.pointerId) return;
+  const stage = document.getElementById("day-stage");
+  const dx = daySwipe.dx;
+  const axis = daySwipe.axis;
+  resetDaySwipe(stage);
+  if (axis !== "x" || Math.abs(dx) < DAY_SWIPE_PX) {
+    if (stage) {
+      stage.style.transition = "transform 0.22s ease";
+      stage.style.transform = "";
+    }
+    return;
+  }
+  goDate(addDays(state.date, dx < 0 ? 1 : -1), dx < 0 ? "left" : "right");
+}
+
+function scrollToNow() {
+  if (state.planDraft) return;
+  const timeline = document.getElementById("timeline");
+  if (!timeline) return;
+  if (state.date === todayISO()) {
+    const last = lastActualEnd(state.day);
+    const focus = last == null ? nowMinutes() : last;
+    const hour = Math.max(START_HOUR, Math.floor(focus / 60) - 1);
+    timeline.scrollTop = (hour - START_HOUR) * HOUR_H;
+    return;
+  }
+  const first = (state.day.blocks || [])
+    .filter((b) => !b.isPlan)
+    .sort((a, b) => a.startMin - b.startMin)[0];
+  const focus = first ? first.startMin : 8 * 60;
+  timeline.scrollTop = Math.max(0, (focus / 60 - START_HOUR - 1) * HOUR_H);
+}
+
+
+function kindRowHtml(draft) {
+  const chips = pickerKinds(draft.kinds).map((k) => {
+    const on = draft.kinds.includes(k.id) ? "on" : "";
+    const swatch = k.custom
+      ? `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`
+      : "";
+    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${swatch}${escapeAttr(kindLabel(k.id))}</button>`;
+  }).join("");
+  return `${chips}<button type="button" class="chip-h add" data-add-custom>${t("customKind")}</button>`;
+}
+
+function bindKindRow(root, draft, refresh, keepOne, reopen) {
+  const row = root.querySelector("#kind-row");
+  if (!row) return;
+  row.querySelectorAll("[data-kind]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const id = el.dataset.kind;
+      if (draft.kinds.includes(id)) {
+        draft.kinds = draft.kinds.filter((k) => k !== id);
+        if (keepOne && draft.kinds.length === 0) draft.kinds = [id];
+      } else {
+        draft.kinds = [...draft.kinds, id];
+      }
+      refresh();
+    });
+  });
+  row.querySelector("[data-add-custom]")?.addEventListener("click", () => {
+    const titleEl = root.querySelector("#title");
+    if (titleEl) draft.title = titleEl.value;
+    openCustomKindSheet({
+      onDismiss: reopen || refresh,
+      onCreated(id) {
+        if (!draft.kinds.includes(id)) draft.kinds.push(id);
+      },
+    });
+  });
+}
+
+function customKindHtml(form) {
+  const colors = KIND_COLORS.map((color) => {
+    const on = color === form.color ? "on" : "";
+    return `<button type="button" class="color-dot ${on}" data-color="${escapeAttr(color)}" style="background:${escapeAttr(color)}"></button>`;
+  }).join("");
+  return `
+    <div class="mini-card">
+      <h2>${form.id ? t("customEdit") : t("customKind")}</h2>
+      <p class="muted">${t("customName")}</p>
+      <input class="field" id="custom-name" maxlength="${CUSTOM_LABEL_MAX}" placeholder="${escapeAttr(t("customName"))}" value="${escapeAttr(form.name)}" />
+      <p class="muted">${t("customColor")}</p>
+      <div class="row" id="custom-colors">${colors}</div>
+      <div class="mini-actions">
+        <button type="button" class="ghost" data-custom-cancel>${t("cancel")}</button>
+        <button type="button" class="primary" data-custom-ok>${t("customOk")}</button>
+      </div>
+    </div>
+  `;
+}
+
+function openCustomKindSheet({ onDismiss, onCreated, existing }) {
+  const form = existing
+    ? { id: existing.id, name: existing.label, color: existing.color, book: existing.book || "mind" }
+    : { id: "", name: "", color: KIND_COLORS[0], book: "mind" };
+  const bind = (root) => {
+    const nameEl = root.querySelector("#custom-name");
+    nameEl?.focus();
+    root.querySelectorAll("[data-color]").forEach((el) => {
+      el.addEventListener("click", () => {
+        form.color = el.dataset.color;
+        root.querySelectorAll("[data-color]").forEach((x) => {
+          x.classList.toggle("on", x.dataset.color === form.color);
+        });
+      });
+    });
+    root.querySelectorAll("[data-val-book]").forEach((el) => {
+      el.addEventListener("click", () => {
+        form.book = el.dataset.valBook;
+        root.querySelectorAll("[data-val-book]").forEach((x) => {
+          x.classList.toggle("on", x.dataset.valBook === form.book);
+        });
+      });
+    });
+    root.querySelector("[data-custom-cancel]")?.addEventListener("click", onDismiss);
+    root.querySelector("[data-custom-ok]")?.addEventListener("click", () => {
+      const name = (nameEl?.value || "").trim().slice(0, CUSTOM_LABEL_MAX);
+      if (!name) {
+        nameEl?.focus();
+        return;
+      }
+      const builtin = KINDS.filter((k) => !k.hidden).find((k) => kindLabel(k.id) === name || k.label === name);
+      if (builtin) {
+        if (form.id) {
+          nameEl?.focus();
+          return;
+        }
+        onCreated?.(builtin.id);
+        onDismiss();
+        return;
+      }
+      const hit = listCustomKinds().find((c) => c.label === name);
+      if (hit && hit.id !== form.id) {
+        if (form.id) {
+          nameEl?.focus();
+          return;
+        }
+        onCreated?.(hit.id);
+        onDismiss();
+        return;
+      }
+      if (form.id) {
+        saveCustomKinds(listCustomKinds().map((c) => (
+          c.id === form.id ? { ...c, label: name, color: form.color, book: form.book } : c
+        )));
+        onDismiss();
+        return;
+      }
+      const ok = root.querySelector("[data-custom-ok]");
+      if (listCustomKinds().length >= CUSTOM_MAX) {
+        if (ok) ok.textContent = t("customFull");
+        return;
+      }
+      const id = `CUS_${uid().replace(/-/g, "").slice(0, 10)}`;
+      saveCustomKinds([...listCustomKinds(), {
+        id,
+        label: name,
+        color: form.color,
+        book: form.book,
+      }]);
+      onCreated?.(id);
+      onDismiss();
+    });
+  };
+  showSheet(customKindHtml(form), bind, { mini: true, onDismiss });
+}
+
+function manageRowHtml(id, label, color, kind) {
+  const swatch = color
+    ? `<span class="chip-dot" style="background:${escapeAttr(color)}"></span>`
+    : "";
+  return `
+    <div class="manage-row">
+      <div class="manage-name">${swatch}${escapeHtml(label)}</div>
+      <div class="manage-actions">
+        <button type="button" class="ghost" data-edit-${kind}="${escapeAttr(id)}">${t("customEdit")}</button>
+        <button type="button" class="danger" data-del-${kind}="${escapeAttr(id)}">${t("customDelete")}</button>
+      </div>
+    </div>`;
+}
+
+function openManageCustomSheet() {
+  const kinds = listCustomKinds();
+  const kindBlock = kinds.length
+    ? kinds.map((c) => manageRowHtml(c.id, c.label, c.color, "kind")).join("")
+    : `<p class="muted">${t("manageEmpty")}</p>`;
+  showSheet(`
+    <div class="sheet">
+      <h2>${t("manageCustom")}</h2>
+      <p class="muted">${t("customDeleteWarn")}</p>
+      <div class="section">${t("manageKinds")}</div>
+      ${kindBlock}
+      <button class="ghost" data-back>${t("manageBack")}</button>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-back]")?.addEventListener("click", () => openSettingsSheet());
+    root.querySelectorAll("[data-edit-kind]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = listCustomKinds().find((c) => c.id === el.dataset.editKind);
+        if (!item) return;
+        openCustomKindSheet({
+          existing: item,
+          onDismiss: () => {
+            render();
+            openManageCustomSheet();
+          },
+        });
+      });
+    });
+    root.querySelectorAll("[data-del-kind]").forEach((el) => {
+      el.addEventListener("click", () => {
+        const item = listCustomKinds().find((c) => c.id === el.dataset.delKind);
+        if (!item) return;
+        openDeleteConfirm(item.label, () => {
+          saveCustomKinds(listCustomKinds().filter((c) => c.id !== item.id));
+          render();
+          openManageCustomSheet();
+        }, () => openManageCustomSheet());
+      });
+    });
+  });
+}
+
+function openDeleteConfirm(label, onConfirm, onCancel) {
+  showSheet(`
+    <div class="mini-card">
+      <h2>${t("customDelete")}「${escapeHtml(label)}」</h2>
+      <p class="muted">${t("customDeleteWarn")}</p>
+      <div class="mini-actions">
+        <button type="button" class="ghost" data-cancel>${t("cancel")}</button>
+        <button type="button" class="danger" data-ok>${t("customDeleteConfirm")}</button>
+      </div>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-cancel]")?.addEventListener("click", onCancel);
+    root.querySelector("[data-ok]")?.addEventListener("click", onConfirm);
+  }, { mini: true, onDismiss: onCancel });
+}
+
+function openPlanScopePick(action, onPick, onCancel) {
+  const title = action === "delete" ? t("deleteBlock") : t("save");
+  const allClass = action === "delete" ? "danger" : "primary";
+  showSheet(`
+    <div class="mini-card">
+      <h2>${title}</h2>
+      <button type="button" class="primary" data-scope="this">${t("planScopeThis")}</button>
+      <button type="button" class="${allClass}" data-scope="future">${t("planScopeAll")}</button>
+      <button type="button" class="ghost" data-cancel>${t("cancel")}</button>
+    </div>
+  `, (root) => {
+    root.querySelector("[data-scope=\"this\"]")?.addEventListener("click", () => onPick("this"));
+    root.querySelector("[data-scope=\"future\"]")?.addEventListener("click", () => onPick("future"));
+    root.querySelector("[data-cancel]")?.addEventListener("click", onCancel);
+  }, { mini: true, onDismiss: onCancel });
+}
+
+function seriesFor(block) {
+  if (!block?.seriesId) return null;
+  return loadPlanSeries().find((s) => s.id === block.seriesId) || null;
+}
+
+function weekdayChips(selected) {
+  const on = new Set((selected || []).map(Number));
+  return [0, 1, 2, 3, 4, 5, 6].map((d) => (
+    `<button type="button" class="chip-h ${on.has(d) ? "on" : ""}" data-wd="${d}">${t(`wd${d}`)}</button>`
+  )).join("");
+}
+
+function openPlanEditor(block, isEdit) {
+  commitEdgeEdit();
+  const series = seriesFor(block);
+  const draft = {
+    id: block.id || uid(),
+    isPlan: true,
+    clipWalls: "all",
+    kinds: Array.isArray(block.kinds) ? [...block.kinds] : blockKinds(block),
+    title: block.title || "",
+    startMin: block.startMin,
+    endMin: block.endMin,
+    seriesId: block.seriesId || null,
+    todoId: block.todoId || null,
+    freq: series?.freq || "none",
+    weekdays: series?.weekdays?.length ? [...series.weekdays] : [weekdayOfIso(state.date)],
+    until: series?.until || "",
+    scope: "this",
+  };
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(draft.id)}"]`)
+    || document.getElementById("plan-draft");
+  showSheet(planEditorHtml(draft, isEdit), (root) => bindPlanEditor(root, draft, isEdit), { fromEl });
+}
+
+function planEditorHtml(draft, isEdit) {
+  return `
+    <div class="sheet">
+      <h2>${isEdit ? t("editBlock") : t("addPlan")}</h2>
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
+      ${timeFields(draft, { nowOn: "start" })}
+      <div class="section">${t("planRepeat")}</div>
+      <div class="row">
+        <button type="button" class="chip-h ${draft.freq === "none" ? "on" : ""}" data-freq="none">${t("planRepeatNone")}</button>
+        <button type="button" class="chip-h ${draft.freq === "daily" ? "on" : ""}" data-freq="daily">${t("planRepeatDaily")}</button>
+        <button type="button" class="chip-h ${draft.freq === "weekly" ? "on" : ""}" data-freq="weekly">${t("planRepeatWeekly")}</button>
+      </div>
+      ${draft.freq === "weekly" ? `<div class="row" id="wd-row">${weekdayChips(draft.weekdays)}</div>` : ""}
+      <button class="primary" data-save>${t("save")}</button>
+      ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function bindPlanEditor(root, draft, isEdit) {
+  const reopen = () => showSheet(planEditorHtml(draft, isEdit), (r) => bindPlanEditor(r, draft, isEdit));
+  const refresh = () => {
+    const titleEl = root.querySelector("#title");
+    if (titleEl) draft.title = titleEl.value;
+    reopen();
+  };
+  bindTimeFields(root, draft);
+  bindKindRow(root, draft, refresh, isEdit, reopen);
+  root.querySelectorAll("[data-freq]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft.freq = el.dataset.freq;
+      refresh();
+    });
+  });
+  root.querySelectorAll("[data-wd]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const day = Number(el.dataset.wd);
+      if (draft.weekdays.includes(day)) {
+        draft.weekdays = draft.weekdays.filter((d) => d !== day);
+        if (draft.weekdays.length === 0) draft.weekdays = [day];
+      } else {
+        draft.weekdays = [...draft.weekdays, day];
+      }
+      refresh();
+    });
+  });
+  const finish = (scope) => {
+    draft.scope = scope;
+    savePlanDraft(draft, isEdit);
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  };
+  const finishDelete = (scope) => {
+    deletePlanOccurrence(draft, scope === "future");
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  };
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    draft.title = root.querySelector("#title")?.value.trim() || "";
+    if (draft.kinds.length === 0) {
+      root.querySelector("[data-save]").textContent = t("pickOne");
+      return;
+    }
+    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    if (isEdit && draft.seriesId) {
+      openPlanScopePick("save", finish, reopen);
+      return;
+    }
+    finish("this");
+  });
+  root.querySelector("[data-delete]")?.addEventListener("click", () => {
+    draft.title = root.querySelector("#title")?.value.trim() || "";
+    if (isEdit && draft.seriesId) {
+      openPlanScopePick("delete", finishDelete, reopen);
+      return;
+    }
+    finishDelete("this");
+  });
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function savePlanDraft(draft, isEdit) {
+  snapDraftToClip(draft);
+  const payload = {
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    title: draft.title,
+    kinds: draft.kinds,
+    kind: draft.kinds[0],
+    todoId: draft.todoId || null,
+  };
+  const repeating = draft.freq === "daily" || draft.freq === "weekly";
+  if (isEdit && draft.seriesId && draft.scope === "this") {
+    state.day = upsertPlan(state.day, { ...payload, seriesId: draft.seriesId });
+    return;
+  }
+  if (!repeating) {
+    if (isEdit && draft.seriesId && draft.scope === "future") {
+      stopPlanSeries(draft.seriesId, addDays(state.date, 1));
+    }
+    state.day = upsertPlan(state.day, { ...payload, seriesId: null });
+    return;
+  }
+  const prev = draft.seriesId ? loadPlanSeries().find((s) => s.id === draft.seriesId) : null;
+  const seriesId = isEdit && draft.seriesId && draft.scope === "future" ? draft.seriesId : uid();
+  if (isEdit && draft.seriesId && draft.scope === "future") {
+    clearFuturePlanInstances(draft.seriesId, state.date);
+  }
+  const series = {
+    id: seriesId,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    kinds: draft.kinds,
+    title: draft.title,
+    freq: draft.freq,
+    weekdays: draft.freq === "weekly" ? draft.weekdays : [],
+    startDate: prev?.startDate || state.date,
+    until: draft.until || null,
+  };
+  savePlanSeries([...loadPlanSeries().filter((s) => s.id !== series.id), series]);
+  state.day = upsertPlan(state.day, { ...payload, seriesId: series.id });
+}
+
+function deletePlanOccurrence(draft, allFuture) {
+  if (allFuture && draft.seriesId) {
+    clearFuturePlanInstances(draft.seriesId, state.date);
+    savePlanSeries(loadPlanSeries().filter((s) => s.id !== draft.seriesId));
+    currentDay();
+    return;
+  }
+  if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+  state.day = removeBlock(state.day, draft.id);
+}
+
+function stopPlanSeries(seriesId, fromIso) {
+  if (!seriesId) return;
+  const list = loadPlanSeries().map((s) => {
+    if (s.id !== seriesId) return s;
+    const until = addDays(fromIso, -1);
+    if (until < s.startDate) return null;
+    return { ...s, until };
+  }).filter(Boolean);
+  savePlanSeries(list);
+  clearFuturePlanInstances(seriesId, fromIso);
+}
+
+function openPlanResolve(block) {
+  commitEdgeEdit();
+  const draft = {
+    id: block.id,
+    kinds: [...blockKinds(block)],
+    title: block.title || "",
+    startMin: block.startMin,
+    endMin: Math.min(block.endMin, nowMinutes() || block.endMin),
+    plannedStart: block.startMin,
+    plannedEnd: block.endMin,
+    seriesId: block.seriesId || null,
+    todoId: block.todoId || null,
+    action: "done",
+    moveDate: state.date,
+  };
+  if (draft.endMin <= draft.startMin) draft.endMin = Math.min(24 * 60, draft.startMin + 1);
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(block.id)}"]`);
+  showSheet(planResolveHtml(draft), (root) => bindPlanResolve(root, draft), { fromEl });
+}
+
+function planResolveHtml(draft) {
+  const name = liveBlockLabel(draft);
+  return `
+    <div class="sheet">
+      <h2>${t("planDue")}</h2>
+      <p>${escapeHtml(`${t("plan")} · ${name}`)}</p>
+      <p class="muted">${minutesToHm(draft.plannedStart)}–${minutesToHm(draft.plannedEnd)}</p>
+      <div class="row">
+        <button type="button" class="chip-h ${draft.action === "done" ? "on" : ""}" data-action="done">${t("planDone")}</button>
+        <button type="button" class="chip-h ${draft.action === "miss" ? "on" : ""}" data-action="miss">${t("planMiss")}</button>
+        <button type="button" class="chip-h ${draft.action === "postpone" ? "on" : ""}" data-action="postpone">${t("planPostpone")}</button>
+      </div>
+      ${draft.action === "done" ? `<div class="section">${t("planActualTime")}</div>${timeFields(draft, { nowOn: "end" })}` : ""}
+      ${draft.action === "miss" ? `<p class="muted">${t("planMissHint")}</p>` : ""}
+      ${draft.action === "postpone" ? `<p class="muted">${t("planPostponeHint")}</p>
+        <label class="muted">${t("planMoveDate")}</label>
+        <input class="field" id="move-date" type="date" value="${escapeAttr(draft.moveDate)}" />
+        ${timeFields(draft, { nowOn: "start" })}` : ""}
+      <button class="primary" data-save>${t("save")}</button>
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function bindPlanResolve(root, draft) {
+  const reopen = () => showSheet(planResolveHtml(draft), (r) => bindPlanResolve(r, draft));
+  root.querySelectorAll("[data-action]").forEach((el) => {
+    el.addEventListener("click", () => {
+      draft.action = el.dataset.action;
+      if (draft.action === "done") {
+        draft.startMin = draft.plannedStart;
+        draft.endMin = Math.min(draft.plannedEnd, Math.max(nowMinutes(), draft.plannedStart + 1));
+      }
+      reopen();
+    });
+  });
+  if (draft.action === "done" || draft.action === "postpone") bindTimeFields(root, draft);
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    if (draft.action === "postpone") {
+      draft.moveDate = root.querySelector("#move-date")?.value || state.date;
+    }
+    resolvePlan(draft);
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function resolvePlan(draft) {
+  currentDay();
+  if (draft.action === "miss") {
+    if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+    state.day = removeBlock(state.day, draft.id);
+    return;
+  }
+  if (draft.action === "postpone") {
+    const toIso = draft.moveDate || state.date;
+    snapDraftToClip(draft);
+    if (toIso === state.date) {
+      state.day = upsertPlan(state.day, {
+        id: draft.id,
+        startMin: draft.startMin,
+        endMin: draft.endMin,
+        kinds: draft.kinds,
+        title: draft.title,
+        seriesId: draft.seriesId,
+        todoId: draft.todoId || null,
+      });
+      return;
+    }
+    if (draft.seriesId) skipPlanOccurrence(draft.seriesId, state.date);
+    state.day = removeBlock(state.day, draft.id);
+    upsertPlan(loadDay(toIso), {
+      id: uid(),
+      startMin: draft.startMin,
+      endMin: draft.endMin,
+      kinds: draft.kinds,
+      title: draft.title,
+      seriesId: draft.seriesId,
+      todoId: draft.todoId || null,
+    });
+    return;
+  }
+  snapDraftToClip(draft);
+  state.day = removeBlock(state.day, draft.id);
+  state.day = upsertBlock(state.day, {
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+    kinds: draft.kinds,
+    title: draft.title,
+    kind: draft.kinds[0],
+    fromSeriesId: draft.seriesId || null,
+    todoId: draft.todoId || null,
+    isPlan: false,
+  });
+  if (draft.todoId) setTodoDone(draft.todoId, true);
+  assistant?.recorded({ ...draft, date: state.date });
+}
+
+function openRecordSheet(range, extra = {}) {
+  commitEdgeEdit();
+  const overnight = Boolean(range.overnight);
+  const id = extra.id || uid();
+  let startMin = range.startMin;
+  let endMin = overnight ? Math.max(0, range.endMin) : range.endMin;
+  if (!overnight && endMin <= startMin) {
+    const probeEnd = startMin + 1;
+    const blocked = (state.day.blocks || []).some(
+      (b) => b.id !== id && b.startMin < probeEnd && b.endMin > startMin,
+    );
+    if (!blocked) endMin = probeEnd;
+  }
+  const draft = {
+    id,
+    isPlan: false,
+    clipWalls: "all",
+    kinds: extra.kinds ? [...extra.kinds] : [],
+    title: extra.title || "",
+    startMin,
+    endMin,
+    overnight,
+    coveringPlanId: range.coveringPlanId || null,
+  };
+  showSheet(recordHtml(draft), (root) => bindRecord(root, draft), { fromEl: extra.fromEl });
+}
+
+function recordHtml(draft) {
+  const hint = draft.kinds.length === 0
+    ? t("mixEmpty")
+    : draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
+  const crossed = draft.overnight || lastActualEnd(state.day) != null;
+
+  return `
+    <div class="sheet">
+      <h2>${crossed ? t("sinceLast") : t("logTitle")}</h2>
+      <p class="muted">${t("logHint")}</p>
+      ${timeFields(draft, { nowOn: "end" })}
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
+      <p class="muted" id="mix-hint">${hint}</p>
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
+      <button class="primary" data-save>${t("save")}</button>
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function spanLabel(draft) {
+  if (draft.overnight) {
+    return t("overnightSpan", {
+      start: minutesToHm(draft.startMin),
+      end: minutesToHm(draft.endMin),
+      dur: formatDurationI18n(overnightSpanMin(draft.startMin, draft.endMin)),
+    });
+  }
+  return `${minutesToHm(draft.startMin)}–${minutesToHm(draft.endMin)} · ${formatDurationI18n(Math.max(0, draft.endMin - draft.startMin))}`;
+}
+
+function timeFields(draft, { nowOn = null } = {}) {
+  const startNow = nowOn === "start"
+    ? `<button type="button" class="btn time-now" data-now="start">${t("now")}</button>`
+    : "";
+  const endNow = nowOn === "end"
+    ? `<button type="button" class="btn time-now" data-now="end">${t("now")}</button>`
+    : "";
+  return `
+    <div class="time-pair">
+      <div class="time-field">
+        <span>${draft.overnight ? t("startLastNight") : t("start")}</span>
+        <div class="time-controls">
+          <button type="button" class="btn" data-nudge="start,-5">−5</button>
+          <input type="time" id="start-time" step="60" value="${hmInputValue(draft.startMin)}" />
+          <button type="button" class="btn" data-nudge="start,5">+5</button>
+          ${startNow}
+        </div>
+      </div>
+      <div class="time-field">
+        <span>${t("end")}</span>
+        <div class="time-controls">
+          <button type="button" class="btn" data-nudge="end,-5">−5</button>
+          <input type="time" id="end-time" step="60" value="${hmInputValue(draft.endMin)}" />
+          <button type="button" class="btn" data-nudge="end,5">+5</button>
+        </div>
+      </div>
+      ${endNow}
+    </div>
+    <p class="muted" id="span-lab">${spanLabel(draft)}</p>
+  `;
+}
+
+function allowedRange(draft, which) {
+  const clip = clipBoundsForDraft(draft);
+  if (draft.overnight) {
+    return which === "start"
+      ? { lo: clip.lo, hi: 24 * 60 }
+      : { lo: 0, hi: clip.hi };
+  }
+  if (which === "start") {
+    return { lo: clip.lo, hi: Math.min(clip.hi - 1, draft.endMin - 1) };
+  }
+  return { lo: Math.max(clip.lo + 1, draft.startMin + 1), hi: clip.hi };
+}
+
+function paintTimeInputs(root, draft) {
+  for (const which of ["start", "end"]) {
+    const el = root.querySelector(`#${which}-time`);
+    if (!el) continue;
+    const range = allowedRange(draft, which);
+    const minutes = which === "start" ? draft.startMin : draft.endMin;
+    el.value = hmInputValue(minutes);
+    el.min = hmInputValue(range.lo);
+    const maxMin = range.hi >= 24 * 60 ? 23 * 60 + 59 : range.hi;
+    el.max = hmInputValue(Math.max(range.lo, maxMin));
+  }
+}
+
+function bindTimeFields(root, draft, onChange) {
+  const sync = () => {
+    paintTimeInputs(root, draft);
+    const lab = root.querySelector("#span-lab");
+    if (lab) lab.textContent = spanLabel(draft);
+    onChange?.();
+  };
+  paintTimeInputs(root, draft);
+  root.querySelector("#start-time").addEventListener("change", (e) => {
+    tryAssignTime(draft, { startMin: parseHm(e.target.value) });
+    sync();
+  });
+  root.querySelector("#end-time").addEventListener("change", (e) => {
+    tryAssignTime(draft, { endMin: parseHm(e.target.value) });
+    sync();
+  });
+  root.querySelectorAll("[data-nudge]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const [which, delta] = el.dataset.nudge.split(",");
+      const key = which === "start" ? "startMin" : "endMin";
+      tryAssignTime(draft, { [key]: draft[key] + Number(delta) });
+      sync();
+    });
+  });
+  root.querySelectorAll("[data-now]").forEach((el) => {
+    el.addEventListener("click", () => {
+      const now = nowMinutes();
+      if (el.dataset.now === "start") tryAssignTime(draft, { startMin: now });
+      else tryAssignTime(draft, { endMin: now });
+      sync();
+    });
+  });
+}
+
+function bindRecord(root, draft) {
+  bindTimeFields(root, draft);
+
+  const updateMix = () => {
+    const hint = root.querySelector("#mix-hint");
+    if (!hint) return;
+    if (draft.kinds.length === 0) hint.textContent = t("mixEmpty");
+    else hint.textContent = draft.kinds.length === 1 ? t("mixOne") : t("mixMany");
+  };
+
+  const reopen = () => showSheet(recordHtml(draft), (r) => bindRecord(r, draft));
+  const refreshKinds = () => {
+    const row = root.querySelector("#kind-row");
+    if (row) row.innerHTML = kindRowHtml(draft);
+    bindKindRow(root, draft, refreshKinds, false, reopen);
+    updateMix();
+  };
+  bindKindRow(root, draft, refreshKinds, false, reopen);
+
+
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    if (draft.kinds.length === 0) {
+      root.querySelector("[data-save]").textContent = t("pickOne");
+      return;
+    }
+    draft.title = root.querySelector("#title").value.trim();
+    saveLoggedDraft(draft);
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  });
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function openEditor(block) {
+  const draft = {
+    ...(nativeMode ? { fromPlanId: block.fromPlanId, fromSeriesId: block.fromSeriesId, todoId: block.todoId } : {}),
+    id: block.id,
+    isPlan: Boolean(block.isPlan),
+    clipWalls: "all",
+    kinds: [...blockKinds(block)],
+    title: block.title || "",
+    startMin: block.startMin,
+    endMin: block.endMin,
+  };
+  const isEdit = state.day.blocks.some((b) => b.id === block.id);
+  const fromEl = document.querySelector(`.block[data-id="${CSS.escape(block.id)}"]`)
+    || document.getElementById("plan-draft");
+  showSheet(editorHtml(draft, isEdit), (root) => bindEditor(root, draft, isEdit), { fromEl });
+}
+
+function editorHtml(draft, isEdit) {
+  const mixHint = draft.kinds.length > 1
+    ? `<p class="muted">${t("mixEdit")}</p>`
+    : "";
+  return `
+    <div class="sheet">
+      <h2>${isEdit ? t("editBlock") : t("logRange")}</h2>
+      <div class="row" id="kind-row">${kindRowHtml(draft)}</div>
+      ${mixHint}
+      <input class="field" id="title" placeholder="${escapeAttr(t("note"))}" value="${escapeAttr(draft.title)}" />
+      ${timeFields(draft, { nowOn: draft.isPlan ? "start" : "end" })}
+      <button class="primary" data-save>${t("save")}</button>
+      ${isEdit ? `<button class="danger" data-delete>${t("deleteBlock")}</button>` : ""}
+      <button class="ghost" data-close>${t("cancel")}</button>
+    </div>
+  `;
+}
+
+function bindEditor(root, draft, isEdit) {
+  const redraw = () => {
+    const html = editorHtml(draft, isEdit);
+    const inner = root.querySelector(".sheet");
+    const next = document.createElement("div");
+    next.innerHTML = html;
+    inner.replaceWith(next.firstElementChild);
+    bindEditor(root, draft, isEdit);
+  };
+
+  bindTimeFields(root, draft);
+  bindKindRow(root, draft, redraw, true, () => {
+    showSheet(editorHtml(draft, isEdit), (r) => bindEditor(r, draft, isEdit));
+  });
+  root.querySelector("[data-save]").addEventListener("click", () => {
+    draft.title = root.querySelector("#title").value.trim();
+    if (draft.kinds.length === 0) draft.kinds = ["OTHER"];
+    if (draft.endMin <= draft.startMin) draft.endMin = draft.startMin + 1;
+    snapDraftToClip(draft);
+    state.day = upsertBlock(state.day, {
+      id: draft.id,
+      startMin: draft.startMin,
+      endMin: draft.endMin,
+      title: draft.title,
+      kinds: draft.kinds,
+      kind: draft.kinds[0],
+      isPlan: false,
+      ...(nativeMode ? { fromPlanId: draft.fromPlanId, fromSeriesId: draft.fromSeriesId, todoId: draft.todoId } : {}),
+    });
+    assistant?.recorded({ ...draft, date: state.date });
+    if (state.planDraft?.id === draft.id) state.planDraft = null;
+    closeSheet();
+    render();
+  });
+  const del = root.querySelector("[data-delete]");
+  if (del) {
+    del.addEventListener("click", () => {
+      state.day = removeBlock(state.day, draft.id);
+      if (state.planDraft?.id === draft.id) state.planDraft = null;
+      closeSheet();
+      render();
+    });
+  }
+  root.querySelector("[data-close]").addEventListener("click", closeSheet);
+}
+
+function openSettingsSheet() {
+  assistant.openSettings({
+    manage: openManageCustomSheet,
+    add: () => openCustomKindSheet({ onDismiss: openSettingsSheet, onCreated: () => render() }),
+    backup: () => download("rihou-backup.json", exportAll()),
+    restore: () => pickFile(text => { importAll(text); render(); }),
+  });
+}
+
+let sheetTimer = 0;
+let sheetOrigin = null;
+
+function reduceMotion() {
+  return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+function sheetPanel(bg) {
+  return bg.querySelector(".sheet, .gloss-card, .mini-card");
+}
+
+function zoomDelta(src, dst) {
+  return {
+    sx: Math.max(0.06, src.width / Math.max(1, dst.width)),
+    sy: Math.max(0.06, src.height / Math.max(1, dst.height)),
+    dx: src.left + src.width / 2 - (dst.left + dst.width / 2),
+    dy: src.top + src.height / 2 - (dst.top + dst.height / 2),
+  };
+}
+
+function playZoomFrom(sourceEl, panel) {
+  if (reduceMotion() || !sourceEl?.isConnected || !panel) return;
+  const src = sourceEl.getBoundingClientRect();
+  const dst = panel.getBoundingClientRect();
+  if (src.width < 2 || src.height < 2 || dst.width < 2) return;
+  const { sx, sy, dx, dy } = zoomDelta(src, dst);
+  panel.style.transition = "none";
+  panel.style.transformOrigin = "center center";
+  panel.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  panel.style.opacity = "0.92";
+  void panel.offsetWidth;
+  requestAnimationFrame(() => {
+    panel.style.transition = "transform 0.3s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease";
+    panel.style.transform = "none";
+    panel.style.opacity = "1";
+  });
+}
+
+function playZoomToRect(rect, panel) {
+  if (reduceMotion() || !panel || !rect || rect.width < 2) return;
+  const dst = panel.getBoundingClientRect();
+  if (dst.width < 2) return;
+  const { sx, sy, dx, dy } = zoomDelta(rect, dst);
+  panel.style.transition = "transform 0.24s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.18s ease";
+  panel.style.transformOrigin = "center center";
+  panel.style.transform = `translate(${dx}px, ${dy}px) scale(${sx}, ${sy})`;
+  panel.style.opacity = "0.4";
+}
+
+function presentOverlay({ mode = "", html, bind, onDismiss, fromEl }) {
+  const bg = document.getElementById("sheet-bg");
+  clearTimeout(sheetTimer);
+  const replacing = bg.classList.contains("show") && !bg.classList.contains("hiding");
+  const zoomFrom = fromEl && fromEl.isConnected && !mode;
+  sheetOrigin = zoomFrom ? { el: fromEl, id: fromEl.dataset?.id || "" } : null;
+  const extras = ["sheet-bg"];
+  if (mode) extras.push(mode);
+  if (zoomFrom) extras.push("from-source");
+  bg.onclick = (event) => {
+    if (event.target === bg) {
+      if (typeof onDismiss === "function") onDismiss();
+      else closeSheet();
+    }
+  };
+  bg.innerHTML = html;
+  bind(bg);
+  if (replacing || reduceMotion()) {
+    bg.className = extras.concat("show").join(" ");
+    return;
+  }
+  bg.className = extras.join(" ");
+  void bg.offsetWidth;
+  requestAnimationFrame(() => {
+    bg.classList.add("show");
+    const panel = sheetPanel(bg);
+    if (zoomFrom && fromEl.isConnected && panel) playZoomFrom(fromEl, panel);
+  });
+}
+
+function showSheet(html, bind, opts = {}) {
+  presentOverlay({
+    mode: opts.mini ? "mini" : "",
+    html,
+    bind,
+    onDismiss: opts.onDismiss,
+    fromEl: opts.fromEl,
+  });
+}
+
+function closeSheet() {
+  const bg = document.getElementById("sheet-bg");
+  if (!bg.classList.contains("show") && !bg.classList.contains("hiding")) {
+    bg.className = "sheet-bg";
+    bg.innerHTML = "";
+    sheetOrigin = null;
+    return;
+  }
+  if (bg.classList.contains("hiding")) return;
+  const panel = sheetPanel(bg);
+  const fromSource = bg.classList.contains("from-source");
+  if (fromSource && panel && !reduceMotion()) {
+    const el = (sheetOrigin?.id && document.querySelector(`.block[data-id="${CSS.escape(sheetOrigin.id)}"]`))
+      || sheetOrigin?.el;
+    const rect = el?.getBoundingClientRect?.();
+    if (rect && rect.width > 2) playZoomToRect(rect, panel);
+  }
+  bg.classList.add("hiding");
+  bg.classList.remove("show");
+  const ms = reduceMotion() ? 0 : fromSource ? 260 : 240;
+  clearTimeout(sheetTimer);
+  sheetTimer = setTimeout(() => {
+    bg.className = "sheet-bg";
+    bg.innerHTML = "";
+    bg.onclick = null;
+    sheetOrigin = null;
+  }, ms);
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value);
+}
+
+function download(name, text) {
+  const mime = String(name).endsWith(".md")
+    ? "text/markdown;charset=utf-8"
+    : "application/json";
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function pickFile(onText) {
+  const input = document.createElement("input");
+  input.type = "file";
+  input.accept = "application/json";
+  input.onchange = () => {
+    const file = input.files?.[0];
+    if (!file) return;
+    file.text().then(onText);
+  };
+  input.click();
+}
+
+function logNowRange() {
+  currentDay();
+  const yesterday = loadDay(addDays(state.date, -1));
+  let range = gapFromLastToNow(state.day, new Date(), yesterday);
+  if (!range.overnight && range.endMin <= range.startMin) {
+    const endMin = Math.max(range.endMin, START_HOUR * 60 + 1);
+    const startMin = Math.max(START_HOUR * 60, endMin - 1);
+    const blocked = (state.day.blocks || []).some(
+      (b) => b.startMin < endMin && b.endMin > startMin,
+    );
+    if (!blocked) {
+      range = { ...range, startMin, endMin, overnight: false };
+    }
+  }
+  return range;
+}
+
+function rangeSpanMin(range) {
+  if (range.overnight) return overnightSpanMin(range.startMin, range.endMin);
+  return Math.max(0, range.endMin - range.startMin);
+}
+
+function saveLoggedDraft(draft) {
+  snapDraftToClip(draft);
+  const payload = {
+    title: draft.title,
+    kinds: draft.kinds,
+    kind: draft.kinds[0],
+    isPlan: false,
+    ...(nativeMode && draft.coveringPlanId ? { fromPlanId: draft.coveringPlanId } : {}),
+  };
+  if (draft.coveringPlanId) {
+    const plan = (state.day.blocks || []).find(
+      (block) => block.isPlan && block.id === draft.coveringPlanId,
+    );
+    if (plan) {
+      const remaining = planRemainingAfter(plan, draft.endMin);
+      if (remaining) {
+        state.day = upsertPlan(state.day, remaining);
+      } else {
+        if (plan.seriesId) skipPlanOccurrence(plan.seriesId, state.date);
+        state.day = removeBlock(state.day, plan.id);
+      }
+    }
+  }
+  if (draft.overnight) {
+    const yISO = addDays(state.date, -1);
+    if (24 * 60 - draft.startMin >= 1) {
+      upsertBlock(loadDay(yISO), {
+        ...payload,
+        id: uid(),
+        startMin: draft.startMin,
+        endMin: 24 * 60,
+      });
+    }
+    if (draft.endMin >= 1) {
+      state.day = upsertBlock(state.day, {
+        ...payload,
+        id: draft.id,
+        startMin: 0,
+        endMin: draft.endMin,
+      });
+    } else {
+      currentDay();
+    }
+    assistant?.recorded({ ...draft, date: state.date });
+    return;
+  }
+  if (draft.endMin <= draft.startMin) return;
+  state.day = upsertBlock(state.day, {
+    ...payload,
+    id: draft.id,
+    startMin: draft.startMin,
+    endMin: draft.endMin,
+  });
+  assistant?.recorded({ ...draft, date: state.date });
+}
+
+let offerLockUntil = 0;
+
+function offerLogNowOnOpen() {
+  if (nativeMode && state.tab === "achieve") return;
+  if (state.edgeEdit) return;
+  const now = Date.now();
+  if (now < offerLockUntil) return;
+  if (document.getElementById("sheet-bg")?.classList.contains("show")) return;
+  offerLockUntil = now + 1000;
+  if (state.date !== todayISO()) state.date = todayISO();
+  currentDay();
+  const range = logNowRange();
+  if (rangeSpanMin(range) < 1) return;
+  render();
+  openRecordSheet(range);
+}
+
+function pinFrame() {
+  const app = document.getElementById("app");
+  if (!app) return;
+  if (window.matchMedia("(min-width: 900px)").matches) {
+    app.style.top = "";
+    app.style.height = "";
+    return;
+  }
+  const vv = window.visualViewport;
+  const height = Math.max(
+    window.innerHeight,
+    document.documentElement.clientHeight,
+    vv ? Math.round(vv.height + vv.offsetTop) : 0,
+  );
+  app.style.top = "0px";
+  app.style.height = `${height}px`;
+}
+
+window.addEventListener("resize", () => {
+  pinFrame();
+  render();
+});
+window.visualViewport?.addEventListener("resize", pinFrame);
+window.visualViewport?.addEventListener("scroll", pinFrame);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    pinFrame();
+    render();
+    offerLogNowOnOpen();
+  }
+});
+window.addEventListener("pageshow", () => {
+  pinFrame();
+  render();
+  offerLogNowOnOpen();
+});
+
+function syncNowLine() {
+  if (state.tab !== "time" && !window.matchMedia("(min-width: 900px)").matches) return;
+  const isToday = state.date === todayISO();
+  const nowMin = nowMinutes();
+  const line = document.querySelector(".now-line");
+  if (line && isToday) {
+    line.style.top = `${((nowMin - START_HOUR * 60) / 60) * HOUR_H}px`;
+  }
+  document.querySelectorAll(".block.plan[data-id]").forEach((el) => {
+    const found = state.day.blocks.find((b) => b.id === el.dataset.id);
+    if (!found) return;
+    el.classList.toggle("due", planIsDue(found));
+  });
+}
+
+assistant?.configure({
+  render: () => render({ timelineScrollTop: timelineScrollTop() }),
+  showSheet, closeSheet,
+  navigate: (date, planId) => {
+    state.date = date; state.tab = "time"; currentDay(); render();
+    const block = state.day.blocks.find(b => b.id === planId);
+    if (block) document.querySelector(`.block[data-id="${CSS.escape(block.id)}"]`)?.scrollIntoView({ block: "center" });
+  },
+});
+render();
+pinFrame();
+requestAnimationFrame(() => {
+  pinFrame();
+  render();
+  pinFrame();
+  offerLogNowOnOpen();
+});
+window.setInterval(syncNowLine, 15000);
+
+if (!nativeMode && "serviceWorker" in navigator) {
+  navigator.serviceWorker.register("./sw.js?v=101").catch(() => {});
+}
