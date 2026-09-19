@@ -73,7 +73,8 @@ export default {
       let upstream;
       try{upstream=await fetch("https://api.deepseek.com/chat/completions",{
         method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${env.DEEPSEEK_API_KEY}`},signal:controller.signal,
-        body:JSON.stringify({model:env.DEEPSEEK_MODEL,messages:[{role:"system",content:system},{role:"user",content:JSON.stringify(input)}],response_format:{type:"json_object"},max_tokens:3200,stream:false}),
+        // Keep the bounded JSON budget for the answer rather than default reasoning tokens.
+        body:JSON.stringify({model:env.DEEPSEEK_MODEL,thinking:{type:"disabled"},messages:[{role:"system",content:system},{role:"user",content:JSON.stringify(input)}],response_format:{type:"json_object"},max_tokens:3200,stream:false}),
       });
       if(!upstream.ok)return reply(502,{error:"analysis unavailable"});
       const response=await boundedJson(upstream,180000);

@@ -1,6 +1,6 @@
 # iPhone AI 助理：个人试用版服务
 
-状态：代码已准备；**尚未部署，尚未连接真实 DeepSeek 调用**。先验证个人手机，再设计商店公开分发的账号和费用机制。这个版本的访问码不适合发给所有商店用户共用。
+状态（2026-09-19）：**Worker 已部署，尚未连接真实 DeepSeek 调用**。个人试用服务根地址为 `https://rihou-coach.menxuanmo.workers.dev`；部署后已验证缺少 Secret 时 `POST /analyze` 返回 503，不会调用模型。`APP_ACCESS_TOKEN` 已随机生成并加密写入 Cloudflare，另存本机 macOS 钥匙串（service：`com.rihou.coach.personal-access`，account：`menxuanmo`），值未进入聊天或仓库。等待用户在 Cloudflare 安全设置中配置 `DEEPSEEK_API_KEY` 并确认 API 余额。先验证个人手机，再设计商店公开分发的账号和费用机制。这个版本的访问码不适合发给所有商店用户共用。
 
 ## 先记住三件事
 
@@ -8,7 +8,7 @@
 - App 只需要 Worker HTTPS 地址和你另设的服务访问码。启用 AI 前必须主动同意发送时间记录及备注；未连接时只做本机统计。
 - 提前 10 分钟的计划通知由 iPhone 本地安排，与 Worker 和 DeepSeek 无关。系统权限、专注模式、通知摘要等可能影响到达方式，不能保证绕过系统限制。
 
-## 稍后一起部署
+## 部署与接通
 
 1. 在自己浏览器里登录 Cloudflare 和 DeepSeek 开放平台。确认 API 余额及可用模型。在 Cloudflare 部署这个文件夹，不是 GitHub 网页文件夹。
 2. 在本目录运行 `npx wrangler@4 login`，再运行 `npx wrangler@4 deploy`。此时缺少 Secret 的接口会返回 503，不会调用模型。
@@ -16,17 +16,16 @@
 
    ```sh
    npx wrangler@4 secret put DEEPSEEK_API_KEY
-   npx wrangler@4 secret put DEEPSEEK_MODEL
    npx wrangler@4 secret put APP_ACCESS_TOKEN
    ```
 
-   `DEEPSEEK_MODEL` 填当前账号实际可用、支持 JSON 输出的模型 ID。不要盲抄旧模型名。`APP_ACCESS_TOKEN` 是另外生成的至少 32 位随机访问码，**不是** DeepSeek 密钥；只供你自己的手机使用。
+   `DEEPSEEK_MODEL` 已在 `wrangler.toml` 配置为官方当前的 `deepseek-flash`，它不是密钥。请求显式使用非思考模式，避免默认思考过程占用 3200 token 的简短 JSON 输出预算；这只是首轮接通配置，不代表已做模型质量对比。`APP_ACCESS_TOKEN` 是另外生成的至少 32 位随机访问码，**不是** DeepSeek 密钥；只供你自己的手机使用。也可以在 Worker 的 Settings → Variables and Secrets 中以 Secret 类型填写这两个值。
 4. 在 App「设置 → AI 分析」填写部署返回的 HTTPS 根地址（不要加 `/analyze`）、服务访问码和年龄范围，勾选授权并保存。起床补记睡眠时生成分析；已补记的睡眠可用页面上的轻量生成按钮验证一次。
 5. 检查生成内容与本机小时数、记录时刻吻合，并核查深度分析证据；先用脱敏测试记录。不要把“模拟测试通过”当成已完成线上验证。
 
 当前 Worker 仅开放 `POST /analyze`，要求访问码；限制 JSON 大小、块数与输出长度，服务限流每 60 秒 5 次。Cloudflare 限流并非全局精确预算锁，必须另外管理 DeepSeek 余额/额度；访问码泄露应立即轮换。服务无数据库、不主动记录日记或调用内容，第三方处理与保留政策以 Cloudflare / DeepSeek 实际条款为准。
 
-本机访问码不写入备份，但保存在 WebView 本地存储，不是 Keychain。正式上架前应改为用户级认证、可撤销短期会话与安全存储，并完善隐私政策、AI 第三方数据告知、费用/配额及商店审核材料。当前并未部署服务器、发布 App Store 或更改你的账号收费设置。
+本机访问码不写入备份，但保存在 WebView 本地存储，不是 Keychain。正式上架前应改为用户级认证、可撤销短期会话与安全存储，并完善隐私政策、AI 第三方数据告知、费用/配额及商店审核材料。当前仅部署个人试用 Worker，未发布 App Store 或更改账号收费设置；尚无真实模型调用、真机端到端或中国大陆网络验证。
 
 ## 知识与安全边界
 

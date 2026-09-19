@@ -2,8 +2,11 @@ name = "rihou-coach"
 main = "worker.js"
 compatibility_date = "2026-09-19"
 
-# Set DEEPSEEK_API_KEY, APP_ACCESS_TOKEN and DEEPSEEK_MODEL using wrangler secret put.
+# Set DEEPSEEK_API_KEY and APP_ACCESS_TOKEN using wrangler secret put.
 # No keys, diary content, or request logging in this repository.
+[vars]
+DEEPSEEK_MODEL = "deepseek-flash"
+
 [observability]
 enabled = false
 

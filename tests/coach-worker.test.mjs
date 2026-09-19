@@ -19,6 +19,8 @@ const response=await worker.fetch(request(),env);
 assert.equal(response.status,200);assert.equal(response.headers.get("Access-Control-Allow-Origin"),"capacitor://localhost");
 assert.equal((await response.json()).summary,"完成了学习");
 assert.equal(sent.response_format.type,"json_object");
+assert.deepEqual(sent.thinking,{type:"disabled"});
+assert.equal(sent.max_tokens,3200);
 assert.equal(sent.messages[0].content.includes("不能"),true);
 globalThis.fetch=async()=>Response.json({choices:[{finish_reason:"length",message:{content:"{}"}}]});
 assert.equal((await worker.fetch(request(),env)).status,502);
