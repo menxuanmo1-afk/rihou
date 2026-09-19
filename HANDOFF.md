@@ -1,5 +1,7 @@
 # 人生记录仪 — 交给下一个 AI 的交接
 
+> **2026-09-20 真机更新（优先于下文旧状态）：** 已把最新原生工程在 Xcode 打开、签名并覆盖安装到 MO-iPhone，版本 1.0 / 构建 2，启动成功；Apple Team `579A7LW9T4` 已写入当前工程。更新前 App 数据容器已备份至仓库外的本机私有文件夹，更新后日记键 `rihou.days.v1` 内容校验一致。当前 Xcode 工程是本仓库的 `ios/App/App.xcodeproj`，不是 `/Users/mathewm/Documents/程序/vibe-coding/日后/ios/App/App.xcodeproj`（该旧副本未覆盖，原有签名配置未提交）。待办、计划、AI 助理及通知均已随原生构建安装；AI 后端已接通，但手机端服务访问码仍待用户粘贴，上传授权必须由用户在 App 设置中确认。未提交 TestFlight、App Store 上传或审核。今后改原生后先执行 `npm run ios:sync` 再构建，GitHub 推送不能自动更新 Xcode 工程内的打包资源或手机上的 App。
+
 > **2026-09-19 更新（优先于本文旧方案）：** 用户已授权实现并推送 iPhone 助理。原生已新增 `js/native/`、`css/assistant.css`、本地通知及 `cloud/coach/` 服务代码。Worker **已部署到 `https://rihou-coach.menxuanmo.workers.dev`，真实 DeepSeek 调用已接通**：用户已配置密钥与充值；两次虚构记录测试 HTTP 200，没有上传真实日记。首轮发现一处模型时长错误，现提供程序计算的时间事实，observation 直接从原始记录生成。独立访问码存于 Mac 钥匙串与 Cloudflare Secret，不索取或输出到聊天。原生地址已预填，AI 上传仍需用户主动同意；模拟器构建安装启动通过，MO-iPhone 暂不可用，等待连接解锁后配置并验收。当前模型为 `deepseek-flash`、非思考 JSON 输出；未做模型质量比较或大陆网络验证。详情见 [服务与部署说明](cloud/coach/README.md) 和 [真机验收清单](docs/native-assistant-acceptance.md)。
 >
 > 当前 UI：投资 / 昨晚睡眠 / 消费三行小计（小时小数格式），起床到起床；实际时间线整合亮点/问题及“查看深度分析”；计划与待办复盘压缩；今日建议支持多条作息提醒和到期待办采纳。无可见知识库、消息列表、“为什么选这个”或“安排依据”。顶部“设置”替换原生 AI 导出。计划提前10分钟本地通知，作息提醒依据刚结束的活动记录触发，不自动检测真实用餐。知识摘要仅在服务端。
