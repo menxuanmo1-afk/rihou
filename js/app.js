@@ -2729,5 +2729,5 @@ requestAnimationFrame(() => {
 window.setInterval(syncNowLine, 15000);
 
 if ("serviceWorker" in navigator && !window.Capacitor?.isNativePlatform?.()) {
-  navigator.serviceWorker.register("./sw.js?v=100").catch(() => {});
+  navigator.serviceWorker.register("./sw.js?v=101").catch(() => {});
 }

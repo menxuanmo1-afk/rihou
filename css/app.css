@@ -1120,6 +1120,11 @@ html.native-app .achieve-wrap {
   .todo-fields { grid-template-columns: minmax(0, 1fr) minmax(0, 136px); }
 }
 
+/* iOS Safari zooms the page when a focused text input is smaller than 16px. */
+@media (hover: none) and (pointer: coarse) {
+  .todo-text-input { font-size: 16px; }
+}
+
 @media (min-width: 900px) {
   html, body {
     position: static;
