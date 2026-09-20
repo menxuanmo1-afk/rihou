@@ -12,7 +12,6 @@ import {
   blockColors,
   gradientCss,
   gapFromLastToNow,
-  planRemainingAfter,
   lastActualEnd,
   nowMinutes,
   actualAtMinute,
@@ -26,7 +25,7 @@ import {
   CUSTOM_MAX,
   CUSTOM_LABEL_MAX,
   KIND_COLORS,
-} from "../models.js?v=98";
+} from "../models.js?v=102";
 import {
   loadDay,
   upsertBlock,
@@ -43,9 +42,9 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
-} from "./store.js?v=98";
-import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=98";
-import { resizeTimelineSpan } from "../timeline-resize.js?v=98";
+} from "./store.js?v=102";
+import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=102";
+import { resizeTimelineSpan } from "../timeline-resize.js?v=102";
 import {
   addTodo,
   formatTodoDue,
@@ -55,7 +54,7 @@ import {
   sortTodos,
   todoCounts,
   updateTodo,
-} from "./todos.js?v=98";
+} from "./todos.js?v=102";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -502,6 +501,7 @@ function blockResizeClip(block) {
 
 function clipBoundsForDraft(draft) {
   const asPlan = Boolean(draft.isPlan) || draft.action === "postpone";
+  const walls = asPlan ? "all" : (draft.clipWalls || "all");
   const blocks = draft.coveringPlanId
     ? (state.day.blocks || []).filter((block) => block.id !== draft.coveringPlanId)
     : state.day.blocks;
@@ -511,16 +511,16 @@ function clipBoundsForDraft(draft) {
       id: draft.id,
       startMin: draft.startMin,
       endMin: 24 * 60,
-    }, { loBound: 0, hiBound: 24 * 60, walls: "all" });
+    }, { loBound: 0, hiBound: 24 * 60, walls });
     const endClip = timeEditClip(blocks, {
       id: draft.id,
       startMin: 0,
       endMin: draft.endMin,
-    }, { loBound: 0, hiBound: recordableUntil(), walls: "all" });
+    }, { loBound: 0, hiBound: recordableUntil(), walls });
     return { lo: startClip.lo, hi: endClip.hi, overnight: true };
   }
   const { lo: loBound, hi: hiBound } = draftBounds(asPlan);
-  return { ...timeEditClip(blocks, draft, { loBound, hiBound, walls: "all" }), overnight: false };
+  return { ...timeEditClip(blocks, draft, { loBound, hiBound, walls }), overnight: false };
 }
 
 function tryAssignTime(draft, patch) {
@@ -1854,7 +1854,7 @@ function openRecordSheet(range, extra = {}) {
   const draft = {
     id,
     isPlan: false,
-    clipWalls: "all",
+    clipWalls: range.clipWalls || "all",
     kinds: extra.kinds ? [...extra.kinds] : [],
     title: extra.title || "",
     startMin,
@@ -2271,11 +2271,12 @@ function logNowRange() {
   currentDay();
   const yesterday = loadDay(addDays(state.date, -1));
   let range = gapFromLastToNow(state.day, new Date(), yesterday);
+  range.clipWalls = "actual";
   if (!range.overnight && range.endMin <= range.startMin) {
     const endMin = Math.max(range.endMin, START_HOUR * 60 + 1);
     const startMin = Math.max(START_HOUR * 60, endMin - 1);
     const blocked = (state.day.blocks || []).some(
-      (b) => b.startMin < endMin && b.endMin > startMin,
+      (b) => !b.isPlan && b.startMin < endMin && b.endMin > startMin,
     );
     if (!blocked) {
       range = { ...range, startMin, endMin, overnight: false };
@@ -2291,27 +2292,13 @@ function rangeSpanMin(range) {
 
 function saveLoggedDraft(draft) {
   snapDraftToClip(draft);
+  const options = { consumePlans: draft.clipWalls === "actual" };
   const payload = {
     title: draft.title,
     kinds: draft.kinds,
     kind: draft.kinds[0],
     isPlan: false,
-    ...(nativeMode && draft.coveringPlanId ? { fromPlanId: draft.coveringPlanId } : {}),
   };
-  if (draft.coveringPlanId) {
-    const plan = (state.day.blocks || []).find(
-      (block) => block.isPlan && block.id === draft.coveringPlanId,
-    );
-    if (plan) {
-      const remaining = planRemainingAfter(plan, draft.endMin);
-      if (remaining) {
-        state.day = upsertPlan(state.day, remaining);
-      } else {
-        if (plan.seriesId) skipPlanOccurrence(plan.seriesId, state.date);
-        state.day = removeBlock(state.day, plan.id);
-      }
-    }
-  }
   if (draft.overnight) {
     const yISO = addDays(state.date, -1);
     if (24 * 60 - draft.startMin >= 1) {
@@ -2320,7 +2307,7 @@ function saveLoggedDraft(draft) {
         id: uid(),
         startMin: draft.startMin,
         endMin: 24 * 60,
-      });
+      }, options);
     }
     if (draft.endMin >= 1) {
       state.day = upsertBlock(state.day, {
@@ -2328,7 +2315,7 @@ function saveLoggedDraft(draft) {
         id: draft.id,
         startMin: 0,
         endMin: draft.endMin,
-      });
+      }, options);
     } else {
       currentDay();
     }
@@ -2341,7 +2328,7 @@ function saveLoggedDraft(draft) {
     id: draft.id,
     startMin: draft.startMin,
     endMin: draft.endMin,
-  });
+  }, options);
   assistant?.recorded({ ...draft, date: state.date });
 }
 

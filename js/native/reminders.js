@@ -1,7 +1,7 @@
 import { LocalNotifications } from "@capacitor/local-notifications";
 import { App } from "@capacitor/app";
-import { addDays, todayISO } from "../models.js?v=98";
-import { loadDay, loadAllDays, loadSettings } from "./store.js?v=98";
+import { addDays, todayISO } from "../models.js?v=102";
+import { loadDay, loadAllDays, loadSettings } from "./store.js?v=102";
 import { actualName, atMinute, flatten, hash, hm } from "./core.js";
 
 const LEDGER="rihou.notification-ledger.v1";

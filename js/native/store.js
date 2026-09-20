@@ -1,4 +1,4 @@
-import { emptyDay, todayISO, foldExclusive, insertExclusive, setCustomKinds, setCustomBooks, uid, planOccursOn } from "../models.js?v=98";
+import { emptyDay, todayISO, foldExclusive, insertExclusive, plansOutsideActualRange, setCustomKinds, setCustomBooks, uid, planOccursOn } from "../models.js?v=102";
 
 const DAYS = "rihou.days.v1";
 const SETTINGS = "rihou.settings.v1";
@@ -44,7 +44,7 @@ export function saveDay(day) {
   changed({ date: day.date, previous });
 }
 
-export function upsertBlock(day, block) {
+export function upsertBlock(day, block, { consumePlans = false } = {}) {
   const kinds = Array.isArray(block.kinds) && block.kinds.length > 0
     ? block.kinds
     : [block.kind || "OTHER"];
@@ -55,11 +55,15 @@ export function upsertBlock(day, block) {
     kind: kinds[0],
     isPlan: false,
   };
+  const remaining = consumePlans ? plansOutsideActualRange(day.blocks, normalized.startMin, normalized.endMin) : day.blocks;
   const next = {
     ...day,
-    blocks: insertExclusive(day.blocks, normalized),
+    blocks: insertExclusive(remaining, normalized),
   };
   saveDay(next);
+  if (consumePlans) for (const plan of day.blocks || []) {
+    if (plan.isPlan && plan.seriesId && !remaining.some(b => b.isPlan && b.seriesId === plan.seriesId)) skipPlanOccurrence(plan.seriesId, day.date);
+  }
   return next;
 }
 

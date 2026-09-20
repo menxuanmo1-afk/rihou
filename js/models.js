@@ -228,9 +228,9 @@ export function nowMinutes(d = new Date()) {
   return d.getHours() * 60 + d.getMinutes();
 }
 
-function lastOccupiedEndAtOrBefore(day, endMin, exceptId = null) {
+function lastActualEndAtOrBefore(day, endMin) {
   const hits = (day?.blocks || []).filter(
-    (b) => b.id !== exceptId && b.endMin <= endMin && b.endMin > b.startMin,
+    (b) => !b.isPlan && b.endMin <= endMin && b.endMin > b.startMin,
   );
   if (!hits.length) return null;
   return Math.max(...hits.map((b) => b.endMin));
@@ -242,17 +242,17 @@ function coveringPlanAt(day, minute) {
   ) || null;
 }
 
-/** 上次占用结束点（实际记录或已结束计划）→ 现在。
- *  若现在位于计划中，返回该计划 id；调用方可在实际记录保存时把计划起点顺延到现在。
- *  今天还没有占用时，接到昨天最后一条的结束点（跨夜，例如早上补记睡觉）。
+/** 上次实际记录结束点 → 现在；任何计划都不改变起点。
+ *  若现在位于计划中，返回该计划 id，供兼容已有调用方。
+ *  今天还没有实际记录时，接到昨天最后一条实际记录（跨夜，例如早上补记睡觉）。
  *  昨天也没有记录，则从今天 0:00 起。 */
 export function gapFromLastToNow(day, now = new Date(), yesterdayDay = null) {
   const nowMin = nowMinutes(now);
   const covering = coveringPlanAt(day, nowMin);
-  const last = lastOccupiedEndAtOrBefore(day, nowMin, covering?.id);
+  const last = lastActualEndAtOrBefore(day, nowMin);
   const coveringPlanId = covering?.id || null;
   if (last != null) return { startMin: last, endMin: nowMin, overnight: false, coveringPlanId };
-  const yLast = lastOccupiedEndAtOrBefore(yesterdayDay, 24 * 60);
+  const yLast = lastActualEndAtOrBefore(yesterdayDay, 24 * 60);
   if (yLast == null || yLast >= 24 * 60) {
     return { startMin: 0, endMin: nowMin, overnight: false, coveringPlanId };
   }
@@ -373,8 +373,14 @@ function subtractRange(block, cutStart, cutEnd) {
   return pieces.filter((p) => p.endMin - p.startMin >= 1);
 }
 
-/** Place an actual block so each minute belongs to at most one record. Later block wins the overlap.
- *  Plans keep their minutes; an actual cannot take a plan's time. */
+/** Explicit log-to-now operation only: preserve every unrecorded part of a plan. */
+export function plansOutsideActualRange(blocks, start, end) {
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) return blocks || [];
+  return (blocks || []).flatMap(block => block.isPlan ? subtractRange(block, start, end) : [block]);
+}
+
+/** Place an actual block so each minute belongs to at most one actual record.
+ *  Later actual wins overlaps. Plans are left untouched here; log-to-now trims them explicitly. */
 export function insertExclusive(blocks, incoming) {
   const start = Math.min(Number(incoming.startMin), Number(incoming.endMin));
   const end = Math.max(Number(incoming.startMin), Number(incoming.endMin));

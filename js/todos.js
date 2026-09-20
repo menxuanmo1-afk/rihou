@@ -1,5 +1,5 @@
-import { uid } from "./models.js?v=98";
-import { loadSettings, saveSettings } from "./store.js?v=98";
+import { uid } from "./models.js?v=102";
+import { loadSettings, saveSettings } from "./store.js?v=102";
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 

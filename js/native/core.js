@@ -1,4 +1,4 @@
-import { addDays, todayISO, blockKinds, kindById } from "../models.js?v=98";
+import { addDays, todayISO, blockKinds, kindById } from "../models.js?v=102";
 
 export const escapeHtml = value => String(value ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 export const hours = minutes => `${(Math.max(0, minutes) / 60).toFixed(1)}h`;
