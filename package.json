@@ -5,7 +5,7 @@
   "scripts": {
     "prepare-www": "node scripts/prepare-www.mjs",
     "ios:sync": "npm run prepare-www && npx cap sync ios",
-    "test": "node tests/timeline-resize.test.mjs && node tests/log-now.test.mjs && node tests/todos.test.mjs && node tests/assistant.test.mjs && node tests/coach-worker.test.mjs"
+    "test": "node tests/timeline-resize.test.mjs && node tests/log-now.test.mjs && node tests/todos.test.mjs && node tests/kind-picker.test.mjs && node tests/assistant.test.mjs && node tests/coach-worker.test.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^8.1.1",

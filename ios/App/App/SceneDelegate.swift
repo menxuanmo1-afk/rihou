@@ -8,6 +8,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
         guard let windowScene = scene as? UIWindowScene else { return }
 
         window = UIWindow(windowScene: windowScene)
+        window?.backgroundColor = UIColor(red: 18.0 / 255.0, green: 24.0 / 255.0, blue: 30.0 / 255.0, alpha: 1.0)
         window?.rootViewController = CAPBridgeViewController()
         window?.makeKeyAndVisible()
 

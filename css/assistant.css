@@ -41,6 +41,99 @@
 .coach-feedback { color:var(--moss); min-height:22px; font-size:12px; }
 .coach-empty { border:1px dashed #ffffff20; color:var(--mute); padding:22px; border-radius:10px; }
 .coach-settings { max-height:88dvh; overflow-y:auto; padding-bottom:calc(24px + env(safe-area-inset-bottom)); }
+
+/* Native-only bottom navigation. The background covers the complete safe area
+   while each half of the bar remains one large touch target. */
+html.native-app,
+html.native-app body { background:var(--tabs); }
+html.native-app .app { background:var(--ink); }
+html.native-app .tabs {
+  min-height:calc(56px + env(safe-area-inset-bottom, 0px));
+  padding:0 6px env(safe-area-inset-bottom, 0px);
+  background:var(--tabs);
+  align-items:stretch;
+}
+html.native-app .tabs button {
+  position:relative;
+  height:56px;
+  min-width:0;
+  min-height:56px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  padding:3px 8px 2px;
+  border-radius:12px;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+html.native-app .tabs button:active { background:rgba(244,237,228,.06); }
+.tab-icon {
+  width:22px;
+  height:22px;
+  display:block;
+  fill:none;
+  stroke:currentColor;
+  stroke-width:1.8;
+  stroke-linecap:round;
+  stroke-linejoin:round;
+  pointer-events:none;
+}
+.tab-label {
+  font-size:11px;
+  font-weight:550;
+  line-height:13px;
+  pointer-events:none;
+}
+
+/* Grouped, horizontally scrollable matter picker used by native record sheets. */
+html.native-app #kind-row {
+  display:block;
+  min-width:0;
+  margin:10px -4px 12px;
+}
+.kind-groups { display:grid; gap:7px; min-width:0; }
+.kind-group {
+  display:grid;
+  grid-template-columns:52px minmax(0,1fr);
+  align-items:center;
+  min-width:0;
+}
+.kind-group-label {
+  color:var(--mute);
+  font-size:12px;
+  line-height:1;
+  text-align:right;
+  white-space:nowrap;
+}
+.kind-group-scroll {
+  display:flex;
+  flex-wrap:nowrap;
+  gap:7px;
+  min-width:0;
+  overflow-x:auto;
+  overflow-y:hidden;
+  padding:2px 6px;
+  overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.kind-group-scroll::-webkit-scrollbar { display:none; }
+.kind-group-scroll .chip-h { flex:0 0 auto; white-space:nowrap; }
+.kind-chip {
+  background:var(--kind-bg);
+  border-color:var(--kind-border);
+  color:var(--kind-color);
+}
+.kind-chip.on {
+  background:var(--kind-border);
+  border-color:var(--kind-color);
+  color:var(--paper);
+  box-shadow:0 0 0 1px var(--kind-color) inset;
+}
+.custom-group-row { flex-wrap:nowrap; }
+.custom-group-row .chip-h { flex:1; min-width:0; padding-inline:8px; }
 .coach-settings label { display:block; font-size:13px; margin:14px 0; }
 .coach-settings input:not([type=checkbox]),.coach-settings select { display:block; width:100%; max-width:100%; margin-top:6px; padding:12px; background:var(--field); border:1px solid var(--field-border); border-radius:8px; color:var(--paper); font:inherit; font-size:16px; }
 .coach-settings input[type=checkbox] { accent-color:var(--moss); width:17px; height:17px; vertical-align:middle; margin-right:6px; }

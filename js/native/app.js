@@ -24,7 +24,6 @@ import {
   listCustomKinds,
   CUSTOM_MAX,
   CUSTOM_LABEL_MAX,
-  KIND_COLORS,
 } from "../models.js?v=102";
 import {
   loadDay,
@@ -42,6 +41,9 @@ import {
   savePlanSeries,
   skipPlanOccurrence,
   clearFuturePlanInstances,
+  loadKindPickerPreferences,
+  saveCustomKindGroup,
+  noteKindUsage,
 } from "./store.js?v=102";
 import { t, lang, kindLabel, formatDurationI18n } from "./i18n.js?v=102";
 import { resizeTimelineSpan } from "../timeline-resize.js?v=102";
@@ -55,6 +57,13 @@ import {
   todoCounts,
   updateTodo,
 } from "./todos.js?v=102";
+import {
+  KIND_GROUP_IDS,
+  KIND_GROUP_PALETTES,
+  colorForKind,
+  groupPickerKinds,
+  normalizeKindGroup,
+} from "./kind-picker.js";
 
 const START_HOUR = 0;
 const END_HOUR = 24;
@@ -241,9 +250,21 @@ function renderApp(timelineScrollTop = null) {
         ${achieve}
       </section>` : ""}
     </div>
-    <nav class="tabs">
-      <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time">${t("time")}</button>
-      <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve">助理</button>
+    <nav class="tabs" aria-label="主要页面">
+      <button class="${state.tab === "time" ? "on" : ""}" data-act="tab-time" aria-label="${t("time")}"${state.tab === "time" ? ' aria-current="page"' : ""}>
+        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="12" cy="12" r="8.25"></circle>
+          <path d="M12 7.5v5l3.25 2"></path>
+        </svg>
+        <span class="tab-label">${t("time")}</span>
+      </button>
+      <button class="${state.tab === "achieve" ? "on" : ""}" data-act="tab-achieve" aria-label="助理"${state.tab === "achieve" ? ' aria-current="page"' : ""}>
+        <svg class="tab-icon" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M12 3.75c.55 3.55 2.7 5.7 6.25 6.25-3.55.55-5.7 2.7-6.25 6.25-.55-3.55-2.7-5.7-6.25-6.25C9.3 9.45 11.45 7.3 12 3.75Z"></path>
+          <path d="M18.5 15.75c.2 1.3.95 2.05 2.25 2.25-1.3.2-2.05.95-2.25 2.25-.2-1.3-.95-2.05-2.25-2.25 1.3-.2 2.05-.95 2.25-2.25Z"></path>
+        </svg>
+        <span class="tab-label">助理</span>
+      </button>
     </nav>
   `;
   bindApp();
@@ -1309,15 +1330,33 @@ function scrollToNow() {
 }
 
 
+const KIND_GROUP_LABELS = {
+  invest: "groupInvest",
+  health: "groupHealth",
+  entertain: "groupEntertain",
+  other: "groupOther",
+};
+
+function colorAlpha(hex, alpha) {
+  const raw = String(hex || "#9AA8B5").replace("#", "");
+  const full = raw.length === 3 ? raw.split("").map((char) => char + char).join("") : raw;
+  const value = Number.parseInt(full, 16);
+  if (!Number.isFinite(value)) return `rgba(154,168,181,${alpha})`;
+  return `rgba(${(value >> 16) & 255},${(value >> 8) & 255},${value & 255},${alpha})`;
+}
+
 function kindRowHtml(draft) {
-  const chips = pickerKinds(draft.kinds).map((k) => {
-    const on = draft.kinds.includes(k.id) ? "on" : "";
-    const swatch = k.custom
-      ? `<span class="chip-dot" style="background:${escapeAttr(k.color)}"></span>`
-      : "";
-    return `<button type="button" class="chip-h ${on}" data-kind="${escapeAttr(k.id)}">${swatch}${escapeAttr(kindLabel(k.id))}</button>`;
-  }).join("");
-  return `${chips}<button type="button" class="chip-h add" data-add-custom>${t("customKind")}</button>`;
+  const { usage, customGroups } = loadKindPickerPreferences();
+  const groups = groupPickerKinds(pickerKinds(draft.kinds), usage, customGroups);
+  return `<div class="kind-groups">${groups.map((group) => {
+    const chips = group.kinds.map((kind) => {
+      const color = colorForKind(kind, group.id);
+      const style = `--kind-color:${color};--kind-bg:${colorAlpha(color, 0.14)};--kind-border:${colorAlpha(color, 0.34)}`;
+      return `<button type="button" class="chip-h kind-chip ${draft.kinds.includes(kind.id) ? "on" : ""}" data-kind="${escapeAttr(kind.id)}" style="${escapeAttr(style)}">${escapeAttr(kindLabel(kind.id))}</button>`;
+    }).join("");
+    const add = group.id === "other" ? `<button type="button" class="chip-h add" data-add-custom>＋${t("customKind")}</button>` : "";
+    return `<div class="kind-group"><span class="kind-group-label">${t(KIND_GROUP_LABELS[group.id])}：</span><div class="kind-group-scroll">${chips}${add}</div></div>`;
+  }).join("")}</div>`;
 }
 
 function bindKindRow(root, draft, refresh, keepOne, reopen) {
@@ -1348,7 +1387,10 @@ function bindKindRow(root, draft, refresh, keepOne, reopen) {
 }
 
 function customKindHtml(form) {
-  const colors = KIND_COLORS.map((color) => {
+  const groupButtons = KIND_GROUP_IDS.map((group) => (
+    `<button type="button" class="chip-h ${form.group === group ? "on" : ""}" data-custom-group="${group}">${t(KIND_GROUP_LABELS[group])}</button>`
+  )).join("");
+  const colors = KIND_GROUP_PALETTES[form.group].map((color) => {
     const on = color === form.color ? "on" : "";
     return `<button type="button" class="color-dot ${on}" data-color="${escapeAttr(color)}" style="background:${escapeAttr(color)}"></button>`;
   }).join("");
@@ -1357,6 +1399,8 @@ function customKindHtml(form) {
       <h2>${form.id ? t("customEdit") : t("customKind")}</h2>
       <p class="muted">${t("customName")}</p>
       <input class="field" id="custom-name" maxlength="${CUSTOM_LABEL_MAX}" placeholder="${escapeAttr(t("customName"))}" value="${escapeAttr(form.name)}" />
+      <p class="muted">${t("customGroup")}</p>
+      <div class="row custom-group-row">${groupButtons}</div>
       <p class="muted">${t("customColor")}</p>
       <div class="row" id="custom-colors">${colors}</div>
       <div class="mini-actions">
@@ -1368,9 +1412,11 @@ function customKindHtml(form) {
 }
 
 function openCustomKindSheet({ onDismiss, onCreated, existing }) {
+  const savedGroup = existing ? loadKindPickerPreferences().customGroups[existing.id] : null;
   const form = existing
-    ? { id: existing.id, name: existing.label, color: existing.color, book: existing.book || "mind" }
-    : { id: "", name: "", color: KIND_COLORS[0], book: "mind" };
+    ? { id: existing.id, name: existing.label, color: existing.color, book: existing.book || "mind", group: normalizeKindGroup(savedGroup, existing.book === "body" ? "health" : "invest") }
+    : { id: "", name: "", color: KIND_GROUP_PALETTES.invest[0], book: "mind", group: "invest" };
+  if (!KIND_GROUP_PALETTES[form.group].includes(form.color)) form.color = KIND_GROUP_PALETTES[form.group][0];
   const bind = (root) => {
     const nameEl = root.querySelector("#custom-name");
     nameEl?.focus();
@@ -1380,6 +1426,19 @@ function openCustomKindSheet({ onDismiss, onCreated, existing }) {
         root.querySelectorAll("[data-color]").forEach((x) => {
           x.classList.toggle("on", x.dataset.color === form.color);
         });
+      });
+    });
+    root.querySelectorAll("[data-custom-group]").forEach((el) => {
+      el.addEventListener("click", () => {
+        form.name = (nameEl?.value || form.name).trim().slice(0, CUSTOM_LABEL_MAX);
+        form.group = normalizeKindGroup(el.dataset.customGroup);
+        const palette = KIND_GROUP_PALETTES[form.group];
+        if (!palette.includes(form.color)) form.color = palette[0];
+        form.book = form.group === "health" ? "body" : "mind";
+        const next = document.createElement("div");
+        next.innerHTML = customKindHtml(form);
+        root.querySelector(".mini-card")?.replaceWith(next.firstElementChild);
+        bind(root);
       });
     });
     root.querySelectorAll("[data-val-book]").forEach((el) => {
@@ -1421,6 +1480,7 @@ function openCustomKindSheet({ onDismiss, onCreated, existing }) {
         saveCustomKinds(listCustomKinds().map((c) => (
           c.id === form.id ? { ...c, label: name, color: form.color, book: form.book } : c
         )));
+        saveCustomKindGroup(form.id, form.group);
         onDismiss();
         return;
       }
@@ -1436,6 +1496,7 @@ function openCustomKindSheet({ onDismiss, onCreated, existing }) {
         color: form.color,
         book: form.book,
       }]);
+      saveCustomKindGroup(id, form.group);
       onCreated?.(id);
       onDismiss();
     });
@@ -1618,6 +1679,7 @@ function bindPlanEditor(root, draft, isEdit) {
   const finish = (scope) => {
     draft.scope = scope;
     savePlanDraft(draft, isEdit);
+    noteKindUsage(draft.kinds);
     if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
     render();
@@ -2015,6 +2077,7 @@ function bindRecord(root, draft) {
     }
     draft.title = root.querySelector("#title").value.trim();
     saveLoggedDraft(draft);
+    noteKindUsage(draft.kinds);
     if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();
     render();
@@ -2086,6 +2149,7 @@ function bindEditor(root, draft, isEdit) {
       isPlan: false,
       ...(nativeMode ? { fromPlanId: draft.fromPlanId, fromSeriesId: draft.fromSeriesId, todoId: draft.todoId } : {}),
     });
+    noteKindUsage(draft.kinds);
     assistant?.recorded({ ...draft, date: state.date });
     if (state.planDraft?.id === draft.id) state.planDraft = null;
     closeSheet();

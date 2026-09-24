@@ -133,6 +133,48 @@ export function saveCustomKinds(list) {
   return next;
 }
 
+const PICKER_GROUPS = new Set(["invest", "health", "entertain", "other"]);
+
+function normalizedCountMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .map(([id, count]) => [String(id), Math.max(0, Math.floor(Number(count) || 0))])
+    .filter(([id, count]) => id && count > 0));
+}
+
+function normalizedGroupMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  return Object.fromEntries(Object.entries(value)
+    .map(([id, group]) => [String(id), String(group)])
+    .filter(([id, group]) => id && PICKER_GROUPS.has(group)));
+}
+
+export function loadKindPickerPreferences() {
+  const settings = loadSettings();
+  return {
+    usage: normalizedCountMap(settings.kindUsage),
+    customGroups: normalizedGroupMap(settings.customKindGroups),
+  };
+}
+
+export function saveCustomKindGroup(id, group) {
+  if (!id || !PICKER_GROUPS.has(group)) return;
+  const settings = loadSettings();
+  saveSettings({
+    ...settings,
+    customKindGroups: { ...normalizedGroupMap(settings.customKindGroups), [String(id)]: group },
+  });
+}
+
+export function noteKindUsage(ids) {
+  const unique = [...new Set((Array.isArray(ids) ? ids : []).map(String).filter(Boolean))];
+  if (!unique.length) return;
+  const settings = loadSettings();
+  const usage = normalizedCountMap(settings.kindUsage);
+  for (const id of unique) usage[id] = (usage[id] || 0) + 1;
+  saveSettings({ ...settings, kindUsage: usage });
+}
+
 export function saveCustomBooks(list) {
   const prev = loadSettings();
   const next = setCustomBooks(list);
