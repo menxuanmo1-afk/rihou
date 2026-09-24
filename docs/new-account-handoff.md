@@ -36,7 +36,7 @@ OpenAI 的项目说明指出，本地项目可以直接连接电脑上的代码�
 
 ## 新账号首条消息
 
-> 接着做“人生记录仪”。本地仓库是 `/Users/mathewm/Documents/ChatGPT/人生记录仪/rihou`，GitHub 是 `menxuanmo1-afk/rihou`。先完整阅读根目录 `AGENTS.md` 和 `HANDOFF.md` 最上方的最新记录，再检查 `git status` 与 `origin/main`。默认只修改 Apple Store 的 iPhone 版，不要改网页版资产/估值图。保留现有修改和用户数据，密钥不准进入仓库、聊天或 App。当前最新是构建 10 的事项选择器黑条根因修复：已通过自动测试和通用 iOS 签名编译，但因为手机当时断开，仍需连接 MO-iPhone 后覆盖安装并用真机截图验收。用户确认的改动完成后自动测试、更新交接、提交并推送 `origin/main`。
+> 接着做“人生记录仪”。本地仓库是 `/Users/mathewm/Documents/ChatGPT/人生记录仪/rihou`，GitHub 是 `menxuanmo1-afk/rihou`。先完整阅读根目录 `AGENTS.md` 和 `HANDOFF.md` 最上方的最新记录，再检查 `git status` 与 `origin/main`。默认只修改 Apple Store 的 iPhone 版，不要改网页版资产/估值图。保留现有修改和用户数据，密钥不准进入仓库、聊天或 App。当前最新是构建 10 的事项选择器黑条根因修复：已通过自动测试和通用 iOS 签名编译，并已覆盖安装、成功启动于 MO-iPhone，仍需用户用真机截图完成视觉验收。用户确认的改动完成后自动测试、更新交接、提交并推送 `origin/main`。
 
 ## 第一次接手时应该看到的状态
 
@@ -46,7 +46,7 @@ OpenAI 的项目说明指出，本地项目可以直接连接电脑上的代码�
 - Bundle ID：`com.xuanmo.liferecorder`
 - 当前原生构建号：10
 - 最新黑条修复已通过 `npm test`、手机尺寸交互测试和通用 iOS 签名编译。
-- 构建 10 尚未安装到真机；连接 MO-iPhone 后必须先覆盖安装验证，不能把桌面预览当成真机结论。
+- 构建 10 已覆盖安装并成功启动于 MO-iPhone；仍需用户确认黑条是否真正消失，不能把桌面预览当成真机结论。
 
 ## 不需要迁移的内容
 
