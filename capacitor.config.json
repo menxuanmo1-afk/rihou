@@ -9,6 +9,6 @@
   },
   "ios": {
     "scheme": "App",
-    "contentInset": "automatic"
+    "contentInset": "never"
   }
 }

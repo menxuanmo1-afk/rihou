@@ -224,15 +224,14 @@ function renderApp(timelineScrollTop = null) {
       achieve = `<p class="muted">助理暂时未能载入，请重新打开。</p>`;
     }
   }
-  const nativeReportDate = nativeMode && onAsset ? assistant.reportDate() : null;
+  const nativeReportDate = nativeMode && onAsset ? assistant.reportDate() : state.date;
   app.innerHTML = `
     <header class="top">
       <div class="date-nav">
         ${nativeMode && onAsset ? "" : `<button class="btn" data-act="prev">‹</button>`}
         <div>
           <h1>${dateTitle(nativeReportDate || state.date, lang())}</h1>
-          <div class="sub">${onAsset ? "昨日分析" : "时间记录"}</div>
-        </div>
+          </div>
         ${nativeMode && onAsset ? "" : `<button class="btn" data-act="next">›</button>`}
       </div>
       <div class="top-actions">

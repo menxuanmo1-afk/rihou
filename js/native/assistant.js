@@ -13,7 +13,7 @@ let ui=null, current=null, busy=false, failure="", timer=null;
 const attempts=new Map();
 const hhmm=min=>`${String(Math.floor(min/60)).padStart(2,"0")}:${String(min%60).padStart(2,"0")}`;
 const renderSafe=()=>ui?.render();
-export const reportDate=()=>current?.date||addDays(todayISO(),-1);
+export const reportDate=()=>todayISO();
 function refresh() { current=buildReview(loadAllDays(),read(ARCHIVE)); return current; }
 function cached() {const result=current ? read(CACHE)[current.fingerprint] : null;return result?.ageGroup===(preferences().ageGroup||"adult")?result:null;}
 function habitsToday() { const p=preferences(); return p.habitDate===todayISO() ? (p.activeHabits||[]) : []; }
@@ -38,7 +38,7 @@ export function html() {
   const localSummary=current?`睡眠 ${hours(current.totals.sleep)} · 投资 ${hours(current.totals.invest)} · 消费 ${hours(current.totals.consume)}`:"";
   const status=busy?"正在生成分析…":failure||(!p.endpoint||!p.aiEnabled?"AI 尚未连接 · 在设置中连接后生成分析":result?`已生成 · ${hm(result.generatedAt)}`:"记录睡眠后生成昨日分析");
   return `<div class="coach">
-    <h2 class="coach-title">昨日分析</h2><p class="coach-status" role="status">${esc(status)}</p>
+    <h2 class="coach-title">昨日回顾</h2><p class="coach-status" role="status">${esc(status)}</p>
     ${current?metricHtml():`<p class="coach-empty">起床后补记昨晚的睡眠，这里就会出现昨日的时间统计与分析。</p>`}
     ${current?`<section class="coach-section"><h3>昨天发生了什么</h3>${timelineHtml(result?.analysis)}${result?`<p class="coach-summary">${esc(result.analysis.summary)}</p>`:`<p class="coach-muted">${esc(localSummary)}。以上为本机统计；AI 分析尚未生成。</p>`}</section>`:""}
     ${current?reviewHtml():""}

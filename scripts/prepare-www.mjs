@@ -36,5 +36,9 @@ html = html.replace(
   "",
 );
 html=html.replace(/\.\/js\/app\.js\?v=\d+/,"./js/native.js").replace("</head>",'<link rel="stylesheet" href="./css/assistant.css" /></head>');
+html=html.replace(
+  "width=device-width, initial-scale=1, viewport-fit=cover",
+  "width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover",
+);
 await writeFile(join(dest, "index.html"), html);
 console.log("www ready");

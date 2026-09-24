@@ -8,6 +8,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
         // Override point for customization after application launch.
+        // Set WKWebView background to match app dark theme, preventing white safe-area edges
+        if #available(iOS 13.0, *) {
+            UIScrollView.appearance().backgroundColor = UIColor(red: 15.0/255.0, green: 20.0/255.0, blue: 25.0/255.0, alpha: 1.0)
+        }
         return true
     }
 

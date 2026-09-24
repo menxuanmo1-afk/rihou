@@ -47,6 +47,13 @@
 html.native-app,
 html.native-app body { background:var(--tabs); }
 html.native-app .app { background:var(--ink); }
+html.native-app .sub { display:none; }
+html.native-app .achieve-wrap {
+  overflow-x:hidden;
+  overflow-y:auto;
+  overscroll-behavior-x:none;
+  touch-action:pan-y;
+}
 html.native-app .tabs {
   min-height:calc(56px + env(safe-area-inset-bottom, 0px));
   padding:0 6px env(safe-area-inset-bottom, 0px);
