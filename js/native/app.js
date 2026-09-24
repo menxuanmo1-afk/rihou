@@ -42,6 +42,7 @@ import {
   skipPlanOccurrence,
   clearFuturePlanInstances,
   loadKindPickerPreferences,
+  saveKindPickerPreferences,
   saveCustomKindGroup,
   noteKindUsage,
 } from "./store.js?v=102";
@@ -1345,8 +1346,8 @@ function colorAlpha(hex, alpha) {
 }
 
 function kindRowHtml(draft) {
-  const { usage, customGroups } = loadKindPickerPreferences();
-  const groups = groupPickerKinds(pickerKinds(draft.kinds), usage, customGroups);
+  const prefs = loadKindPickerPreferences();
+  const groups = groupPickerKinds(pickerKinds(draft.kinds), prefs.usage, prefs.customGroups, prefs.order, prefs.autoSort);
   return `<div class="kind-groups">${groups.map((group) => {
     const chips = group.kinds.map((kind) => {
       const color = colorForKind(kind, group.id);
@@ -1361,6 +1362,7 @@ function kindRowHtml(draft) {
 function bindKindRow(root, draft, refresh, keepOne, reopen) {
   const row = root.querySelector("#kind-row");
   if (!row) return;
+  bindKindScrollHints(row);
   row.querySelectorAll("[data-kind]").forEach((el) => {
     el.addEventListener("click", () => {
       const id = el.dataset.kind;
@@ -1382,6 +1384,18 @@ function bindKindRow(root, draft, refresh, keepOne, reopen) {
         if (!draft.kinds.includes(id)) draft.kinds.push(id);
       },
     });
+  });
+}
+
+function bindKindScrollHints(root) {
+  root.querySelectorAll(".kind-group-scroll").forEach((scroller) => {
+    const group = scroller.closest(".kind-group");
+    const update = () => group?.classList.toggle(
+      "can-scroll-right",
+      scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2,
+    );
+    scroller.addEventListener("scroll", update, { passive: true });
+    requestAnimationFrame(update);
   });
 }
 
@@ -1517,6 +1531,89 @@ function manageRowHtml(id, label, color, kind) {
     </div>`;
 }
 
+function orderedKindGroups(prefs = loadKindPickerPreferences()) {
+  return groupPickerKinds(pickerKinds([]), prefs.usage, prefs.customGroups, prefs.order, prefs.autoSort);
+}
+
+function orderFromGroups(groups) {
+  return Object.fromEntries(groups.map((group) => [group.id, group.kinds.map((kind) => kind.id)]));
+}
+
+function kindOrganizerHtml() {
+  const prefs = loadKindPickerPreferences();
+  const groups = orderedKindGroups(prefs);
+  const options = (active) => KIND_GROUP_IDS.map((group) => (
+    `<option value="${group}" ${group === active ? "selected" : ""}>${t(KIND_GROUP_LABELS[group])}</option>`
+  )).join("");
+  return `
+    <div class="sheet kind-organizer">
+      <h2>事项分类与排序</h2>
+      <label class="kind-auto-sort"><input type="checkbox" data-kind-auto ${prefs.autoSort ? "checked" : ""}> 自动按使用频率排序</label>
+      <p class="muted">关闭自动排序后，可以用箭头调整同一分类内的顺序。分类和顺序只保存在本机。</p>
+      ${groups.map((group) => `<section class="kind-organizer-group">
+        <h3>${t(KIND_GROUP_LABELS[group.id])}</h3>
+        ${group.kinds.map((kind, index) => {
+          const color = colorForKind(kind, group.id);
+          return `<div class="kind-organizer-row" data-organizer-kind="${escapeAttr(kind.id)}">
+            <span class="kind-organizer-name"><i style="background:${escapeAttr(color)}"></i>${escapeHtml(kindLabel(kind.id))}</span>
+            <select data-kind-group="${escapeAttr(kind.id)}" aria-label="${escapeAttr(kindLabel(kind.id))}所属分类">${options(group.id)}</select>
+            <button type="button" class="btn kind-order-btn" data-kind-move="-1" data-kind-id="${escapeAttr(kind.id)}" aria-label="上移" ${prefs.autoSort || index === 0 ? "disabled" : ""}>↑</button>
+            <button type="button" class="btn kind-order-btn" data-kind-move="1" data-kind-id="${escapeAttr(kind.id)}" aria-label="下移" ${prefs.autoSort || index === group.kinds.length - 1 ? "disabled" : ""}>↓</button>
+          </div>`;
+        }).join("")}
+      </section>`).join("")}
+      <button type="button" class="btn kind-manage-custom" data-manage-custom>编辑或删除自定义事项</button>
+      <button class="ghost" data-back>${t("manageBack")}</button>
+    </div>`;
+}
+
+function openKindOrganizerSheet() {
+  const prefs = loadKindPickerPreferences();
+  const groups = orderedKindGroups(prefs);
+  const currentOrder = orderFromGroups(groups);
+  showSheet(kindOrganizerHtml(), (root) => {
+    root.querySelector("[data-back]")?.addEventListener("click", openSettingsSheet);
+    root.querySelector("[data-manage-custom]")?.addEventListener("click", openManageCustomSheet);
+    root.querySelector("[data-kind-auto]")?.addEventListener("change", (event) => {
+      saveKindPickerPreferences({ ...prefs, order: currentOrder, autoSort: event.currentTarget.checked });
+      openKindOrganizerSheet();
+    });
+    root.querySelectorAll("[data-kind-group]").forEach((select) => {
+      select.addEventListener("change", () => {
+        const id = select.dataset.kindGroup;
+        const nextGroup = normalizeKindGroup(select.value, "other");
+        const nextOrder = Object.fromEntries(KIND_GROUP_IDS.map((group) => [
+          group,
+          (currentOrder[group] || []).filter((kindId) => kindId !== id),
+        ]));
+        nextOrder[nextGroup].push(id);
+        saveKindPickerPreferences({
+          ...prefs,
+          customGroups: { ...prefs.customGroups, [id]: nextGroup },
+          order: nextOrder,
+        });
+        openKindOrganizerSheet();
+      });
+    });
+    root.querySelectorAll("[data-kind-move]").forEach((button) => {
+      button.addEventListener("click", () => {
+        if (prefs.autoSort) return;
+        const id = button.dataset.kindId;
+        const delta = Number(button.dataset.kindMove);
+        const group = groups.find((item) => item.kinds.some((kind) => kind.id === id));
+        if (!group) return;
+        const list = [...currentOrder[group.id]];
+        const from = list.indexOf(id);
+        const to = from + delta;
+        if (from < 0 || to < 0 || to >= list.length) return;
+        [list[from], list[to]] = [list[to], list[from]];
+        saveKindPickerPreferences({ ...prefs, order: { ...currentOrder, [group.id]: list }, autoSort: false });
+        openKindOrganizerSheet();
+      });
+    });
+  });
+}
+
 function openManageCustomSheet() {
   const kinds = listCustomKinds();
   const kindBlock = kinds.length
@@ -1531,7 +1628,7 @@ function openManageCustomSheet() {
       <button class="ghost" data-back>${t("manageBack")}</button>
     </div>
   `, (root) => {
-    root.querySelector("[data-back]")?.addEventListener("click", () => openSettingsSheet());
+    root.querySelector("[data-back]")?.addEventListener("click", openKindOrganizerSheet);
     root.querySelectorAll("[data-edit-kind]").forEach((el) => {
       el.addEventListener("click", () => {
         const item = listCustomKinds().find((c) => c.id === el.dataset.editKind);
@@ -2168,7 +2265,7 @@ function bindEditor(root, draft, isEdit) {
 
 function openSettingsSheet() {
   assistant.openSettings({
-    manage: openManageCustomSheet,
+    manage: openKindOrganizerSheet,
     add: () => openCustomKindSheet({ onDismiss: openSettingsSheet, onCreated: () => render() }),
     backup: () => download("rihou-backup.json", exportAll()),
     restore: () => pickFile(text => { importAll(text); render(); }),

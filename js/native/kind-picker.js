@@ -61,9 +61,11 @@ export function normalizeKindGroup(value, fallback = "invest") {
 }
 
 export function groupForKind(kind, customGroups = {}) {
+  if (kind?.id && KIND_GROUP_IDS.includes(customGroups[kind.id])) return customGroups[kind.id];
   if (kind?.custom) {
-    const legacy = kind.book === "body" ? "health" : "invest";
-    return normalizeKindGroup(customGroups[kind.id], legacy);
+    const isDisc = /^(飞盘|frisbee)$/i.test(String(kind.label || "").trim());
+    const legacy = isDisc || kind.book === "body" ? "health" : "invest";
+    return legacy;
   }
   return BUILTIN_GROUPS[kind?.id] || "other";
 }
@@ -75,21 +77,30 @@ function stringHash(value) {
 }
 
 export function colorForKind(kind, group = groupForKind(kind)) {
-  if (!kind?.custom) return BUILTIN_COLORS[kind?.id] || BUILTIN_COLORS.OTHER;
   const palette = KIND_GROUP_PALETTES[normalizeKindGroup(group)] || KIND_GROUP_PALETTES.other;
+  if (!kind?.custom && group === (BUILTIN_GROUPS[kind?.id] || "other")) return BUILTIN_COLORS[kind?.id] || BUILTIN_COLORS.OTHER;
   if (palette.includes(kind.color)) return kind.color;
   return palette[stringHash(kind.id) % palette.length];
 }
 
-export function groupPickerKinds(kinds, usage = {}, customGroups = {}) {
-  const indexed = (Array.isArray(kinds) ? kinds : []).map((kind, index) => ({ kind, index }));
+export function groupPickerKinds(kinds, usage = {}, customGroups = {}, manualOrder = {}, autoSort = true) {
+  const indexed = (Array.isArray(kinds) ? kinds : [])
+    .filter((kind) => kind?.id !== "DAZE")
+    .map((kind, index) => ({ kind, index }));
   return KIND_GROUP_IDS.map((id) => ({
     id,
     kinds: indexed
       .filter(({ kind }) => groupForKind(kind, customGroups) === id)
       .sort((a, b) => {
-        const count = (Number(usage[b.kind.id]) || 0) - (Number(usage[a.kind.id]) || 0);
-        if (count) return count;
+        if (autoSort) {
+          const count = (Number(usage[b.kind.id]) || 0) - (Number(usage[a.kind.id]) || 0);
+          if (count) return count;
+        } else {
+          const order = Array.isArray(manualOrder[id]) ? manualOrder[id] : [];
+          const rankA = order.includes(a.kind.id) ? order.indexOf(a.kind.id) : Number.MAX_SAFE_INTEGER;
+          const rankB = order.includes(b.kind.id) ? order.indexOf(b.kind.id) : Number.MAX_SAFE_INTEGER;
+          if (rankA !== rankB) return rankA - rankB;
+        }
         const order = DEFAULT_ORDER[id] || [];
         const rankA = order.includes(a.kind.id) ? order.indexOf(a.kind.id) : Number.MAX_SAFE_INTEGER;
         const rankB = order.includes(b.kind.id) ? order.indexOf(b.kind.id) : Number.MAX_SAFE_INTEGER;

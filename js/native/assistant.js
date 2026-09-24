@@ -207,7 +207,7 @@ async function habitAction(action,data) {
 export function openSettings(actions) {
   const p=preferences();
   ui.showSheet(`<div class="sheet coach coach-settings"><h2>设置</h2>
-    <h3>事项</h3><div class="row"><button class="btn" data-add>添加自定义事项</button><button class="btn" data-manage>管理事项</button></div>
+    <h3>事项</h3><div class="row"><button class="btn" data-add>添加自定义事项</button><button class="btn" data-manage>分类与排序</button></div>
     <h3>消息提醒</h3><label><input type="checkbox" data-plan ${p.planReminders!==false?"checked":""}>计划提前 10 分钟提醒</label><label><input type="checkbox" data-habits ${p.habitReminders!==false?"checked":""}>接收已启用的作息提醒</label><label><input type="checkbox" data-details ${p.notificationDetails?"checked":""}>锁屏显示计划名称</label><p class="coach-muted" data-permission>${esc(reminderStatus)}</p><button class="btn" data-permission-request>允许通知 / 刷新状态</button><p class="coach-muted">新建时不足 10 分钟的计划会尽快提醒一次。通知按最近 60 项滚动安排，每次打开或修改计划时更新；长期不打开 App，远期提醒可能尚未排入。</p>
     <h3>AI 分析</h3><p class="coach-muted">连接后，经你的 Cloudflare 服务将时间记录及备注发给 DeepSeek。知识资料只在服务端保存，不上传通讯录或位置。</p>
     <label>年龄范围<select data-age><option value="adult" ${p.ageGroup!=="teen"?"selected":""}>18 岁及以上</option><option value="teen" ${p.ageGroup==="teen"?"selected":""}>13–17 岁</option></select></label>

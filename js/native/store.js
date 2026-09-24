@@ -149,21 +149,39 @@ function normalizedGroupMap(value) {
     .filter(([id, group]) => id && PICKER_GROUPS.has(group)));
 }
 
+function normalizedOrderMap(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const out = {};
+  for (const group of PICKER_GROUPS) {
+    out[group] = [...new Set((Array.isArray(value[group]) ? value[group] : []).map(String).filter(Boolean))];
+  }
+  return out;
+}
+
 export function loadKindPickerPreferences() {
   const settings = loadSettings();
   return {
     usage: normalizedCountMap(settings.kindUsage),
     customGroups: normalizedGroupMap(settings.customKindGroups),
+    order: normalizedOrderMap(settings.kindOrder),
+    autoSort: settings.kindAutoSort !== false,
   };
+}
+
+export function saveKindPickerPreferences({ customGroups, order, autoSort }) {
+  const settings = loadSettings();
+  saveSettings({
+    ...settings,
+    customKindGroups: normalizedGroupMap(customGroups),
+    kindOrder: normalizedOrderMap(order),
+    kindAutoSort: autoSort !== false,
+  });
 }
 
 export function saveCustomKindGroup(id, group) {
   if (!id || !PICKER_GROUPS.has(group)) return;
-  const settings = loadSettings();
-  saveSettings({
-    ...settings,
-    customKindGroups: { ...normalizedGroupMap(settings.customKindGroups), [String(id)]: group },
-  });
+  const prefs = loadKindPickerPreferences();
+  saveKindPickerPreferences({ ...prefs, customGroups: { ...prefs.customGroups, [String(id)]: group } });
 }
 
 export function noteKindUsage(ids) {
