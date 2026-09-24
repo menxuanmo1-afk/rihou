@@ -132,20 +132,22 @@ html.native-app #kind-row {
   white-space:nowrap;
 }
 .kind-group-scroll {
+  min-width:0;
+  overflow:hidden;
+  padding:2px 8px;
+  background:var(--surface);
+  touch-action:pan-y;
+  user-select:none;
+  -webkit-user-select:none;
+}
+.kind-group-track {
   display:flex;
   flex-wrap:nowrap;
   gap:6px;
-  min-width:0;
-  overflow-x:auto;
-  overflow-y:hidden;
-  padding:2px 8px;
-  /* WKWebView can composite a transparent momentum scroller against --ink. */
-  background:var(--surface) !important;
-  overscroll-behavior-x:contain;
-  scrollbar-width:none;
+  width:max-content;
+  min-width:100%;
 }
-.kind-group-scroll::-webkit-scrollbar { display:none; }
-.kind-group-scroll .chip-h {
+.kind-group-track .chip-h {
   flex:0 0 auto;
   min-height:32px;
   padding:6px 11px;

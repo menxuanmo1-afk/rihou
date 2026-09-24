@@ -1355,7 +1355,7 @@ function kindRowHtml(draft) {
       return `<button type="button" class="chip-h kind-chip ${draft.kinds.includes(kind.id) ? "on" : ""}" data-kind="${escapeAttr(kind.id)}" style="${escapeAttr(style)}">${escapeAttr(kindLabel(kind.id))}</button>`;
     }).join("");
     const add = group.id === "other" ? `<button type="button" class="chip-h add" data-add-custom>＋${t("customKind")}</button>` : "";
-    return `<div class="kind-group"><span class="kind-group-label">${t(KIND_GROUP_LABELS[group.id])}：</span><div class="kind-group-scroll">${chips}${add}</div></div>`;
+    return `<div class="kind-group"><span class="kind-group-label">${t(KIND_GROUP_LABELS[group.id])}：</span><div class="kind-group-scroll"><div class="kind-group-track">${chips}${add}</div></div></div>`;
   }).join("")}</div>`;
 }
 
@@ -1388,14 +1388,50 @@ function bindKindRow(root, draft, refresh, keepOne, reopen) {
 }
 
 function bindKindScrollHints(root) {
-  root.querySelectorAll(".kind-group-scroll").forEach((scroller) => {
-    const group = scroller.closest(".kind-group");
-    const update = () => group?.classList.toggle(
-      "can-scroll-right",
-      scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 2,
-    );
-    scroller.addEventListener("scroll", update, { passive: true });
-    requestAnimationFrame(update);
+  root.querySelectorAll(".kind-group-scroll").forEach((viewport) => {
+    const group = viewport.closest(".kind-group");
+    const track = viewport.querySelector(".kind-group-track");
+    if (!track) return;
+    let offset = 0;
+    let pointerId = null;
+    let pointerStart = 0;
+    let offsetStart = 0;
+    let draggedUntil = 0;
+
+    const maxOffset = () => Math.max(0, track.scrollWidth - viewport.clientWidth + 16);
+    const apply = (next = offset) => {
+      offset = Math.max(-maxOffset(), Math.min(0, next));
+      track.style.transform = offset ? `translate3d(${offset}px,0,0)` : "";
+      group?.classList.toggle("can-scroll-right", -offset < maxOffset() - 2);
+    };
+
+    viewport.addEventListener("pointerdown", (event) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      pointerId = event.pointerId;
+      pointerStart = event.clientX;
+      offsetStart = offset;
+      viewport.setPointerCapture?.(pointerId);
+    });
+    viewport.addEventListener("pointermove", (event) => {
+      if (event.pointerId !== pointerId) return;
+      const delta = event.clientX - pointerStart;
+      if (Math.abs(delta) > 4) draggedUntil = Date.now() + 180;
+      apply(offsetStart + delta);
+    });
+    const finish = (event) => {
+      if (event.pointerId !== pointerId) return;
+      viewport.releasePointerCapture?.(pointerId);
+      pointerId = null;
+    };
+    viewport.addEventListener("pointerup", finish);
+    viewport.addEventListener("pointercancel", finish);
+    viewport.addEventListener("click", (event) => {
+      if (Date.now() <= draggedUntil) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }, true);
+    requestAnimationFrame(() => apply());
   });
 }
 
