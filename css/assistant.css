@@ -115,12 +115,14 @@ html.native-app #kind-row {
   top:0;
   right:0;
   bottom:0;
-  width:34px;
+  width:50px;
   opacity:0;
   pointer-events:none;
-  background:linear-gradient(90deg,rgba(26,33,40,0),rgba(26,33,40,.78) 70%,rgba(26,33,40,.96));
-  -webkit-backdrop-filter:blur(2.5px);
-  backdrop-filter:blur(2.5px);
+  background:linear-gradient(90deg,rgba(26,33,40,0) 0%,rgba(26,33,40,.12) 24%,rgba(26,33,40,.5) 66%,rgba(26,33,40,.96) 100%);
+  -webkit-backdrop-filter:blur(3px);
+  backdrop-filter:blur(3px);
+  -webkit-mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.12) 24%,rgba(0,0,0,.58) 66%,#000 100%);
+  mask-image:linear-gradient(90deg,transparent 0%,rgba(0,0,0,.12) 24%,rgba(0,0,0,.58) 66%,#000 100%);
   transition:opacity .16s ease;
 }
 .kind-group.can-scroll-right::after { opacity:1; }
@@ -140,7 +142,8 @@ html.native-app #kind-row {
   overflow-x:auto;
   overflow-y:hidden;
   padding:2px 8px;
-  background:transparent !important;
+  /* WKWebView can composite a transparent momentum scroller against --ink. */
+  background:var(--surface) !important;
   overscroll-behavior-x:contain;
   -webkit-overflow-scrolling:touch;
   scrollbar-width:none;
@@ -148,10 +151,10 @@ html.native-app #kind-row {
 .kind-group-scroll::-webkit-scrollbar { display:none; }
 .kind-group-scroll .chip-h {
   flex:0 0 auto;
-  min-height:28px;
-  padding:5px 9px;
-  font-size:12px;
-  line-height:16px;
+  min-height:32px;
+  padding:6px 11px;
+  font-size:13px;
+  line-height:18px;
   white-space:nowrap;
 }
 .kind-chip {
